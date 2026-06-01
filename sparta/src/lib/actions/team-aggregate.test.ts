@@ -175,7 +175,7 @@ describe("getTeamAggregateData", () => {
     const result = await getTeamAggregateData();
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("unauthorized");
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
   });
 
   it("retorna unauthorized quando coach não tem club_id", async () => {
@@ -192,7 +192,7 @@ describe("getTeamAggregateData", () => {
     const result = await getTeamAggregateData();
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("unauthorized");
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
   });
 
   it("retorna db_error quando query de jogadores falha", async () => {
