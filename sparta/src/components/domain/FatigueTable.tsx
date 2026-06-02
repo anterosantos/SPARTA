@@ -3,9 +3,31 @@
 import { useState, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
-import { ChevronDown, ChevronRight, TrendingDown } from "lucide-react";
+import { ChevronDown, ChevronRight, TrendingDown, BookOpen } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { FatigueResponse, SessionInfo } from "@/lib/actions/fatigue-staff";
+
+// Labels PT-PT para zonas de dor muscular (espelha BodyDiagram)
+const ZONE_LABELS: Record<string, string> = {
+  neck: "Pescoço",
+  shoulder_l: "Ombro esq.",
+  shoulder_r: "Ombro dir.",
+  elbow_l: "Cotovelo esq.",
+  elbow_r: "Cotovelo dir.",
+  wrist_l: "Pulso esq.",
+  wrist_r: "Pulso dir.",
+  back_upper: "Costas sup.",
+  back_lower: "Costas inf.",
+  hip_l: "Anca esq.",
+  hip_r: "Anca dir.",
+  knee_l: "Joelho esq.",
+  knee_r: "Joelho dir.",
+  ankle_l: "Tornozelo esq.",
+  ankle_r: "Tornozelo dir.",
+  achilles_l: "Aquiles esq.",
+  achilles_r: "Aquiles dir.",
+  other: "Outra zona",
+};
 
 // Dimension labels PT-PT (UX-DR2)
 const DIMENSIONS = [
@@ -181,6 +203,34 @@ function CollapsibleRow({ row, activeDimensions }: CollapsibleRowProps) {
               <span className="text-muted-foreground">sRPE pós-sessão: </span>
               <span className="font-medium text-foreground">{row.post.srpe_value}</span>
               <span className="text-muted-foreground"> /10</span>
+            </div>
+          )}
+
+          {/* Zonas de dor muscular (pós, Sprint 1.5) */}
+          {row.post?.muscle_pain_zones && row.post.muscle_pain_zones.length > 0 && (
+            <div className="mt-2 rounded-md bg-[var(--signal-alert-bg,#FEF2F2)] px-3 py-2">
+              <p className="mb-1.5 text-xs font-medium text-[var(--signal-alert-ink,#991B1B)]">
+                Dores/desconforto reportado (pós-sessão)
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {row.post.muscle_pain_zones.map((zone) => (
+                  <span
+                    key={zone}
+                    className="rounded-full bg-white px-2 py-0.5 text-xs text-[var(--signal-alert-ink,#991B1B)] ring-1 ring-[var(--signal-alert-ink,#991B1B)]"
+                  >
+                    {ZONE_LABELS[zone] ?? zone}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Flag de exames (pré, Sprint 1.5) */}
+          {row.pre?.has_exams_this_week === true && (
+            <div className="mt-2 flex items-center gap-1.5 rounded-md bg-[var(--signal-caution-bg,#FEFCE8)] px-3 py-2 text-xs text-[var(--signal-caution-ink,#854D0E)]">
+              <BookOpen size={12} aria-hidden="true" />
+              <span className="font-medium">Tem testes/exames esta semana</span>
+              <span className="text-muted-foreground">(contexto declarado no pré-sessão)</span>
             </div>
           )}
 

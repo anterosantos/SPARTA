@@ -19,6 +19,9 @@ export interface FatigueResponse {
   srpe_value: number | null;
   submitted_at: string;
   submitted_via: string;
+  // Sprint 1.5 — bem-estar (T1.5.1)
+  muscle_pain_zones: string[] | null;
+  has_exams_this_week: boolean | null;
 }
 
 export interface SessionInfo {
@@ -120,7 +123,7 @@ export async function getPlayerFatigueData(
         const { data, error } = await serviceRole
           .from("fatigue_responses")
           .select(
-            "id, player_id, session_id, phase, dim_energy, dim_focus, dim_sleep, dim_soreness, dim_mood, srpe_value, submitted_at, submitted_via"
+            "id, player_id, session_id, phase, dim_energy, dim_focus, dim_sleep, dim_soreness, dim_mood, srpe_value, submitted_at, submitted_via, muscle_pain_zones, has_exams_this_week"
           )
           .eq("player_id", playerId)
           .eq("club_id", profile.club_id)
@@ -128,7 +131,8 @@ export async function getPlayerFatigueData(
           .order("submitted_at", { ascending: false });
 
         if (error) throw error;
-        return (data ?? []) as FatigueResponse[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (data ?? []) as any as FatigueResponse[];
       }
     );
   } catch {
