@@ -13,7 +13,8 @@ const ZONE_LABELS: Record<string, string> = {
   wrist_l: "Pulso E", wrist_r: "Pulso D",
   hand_l: "Mão E", hand_r: "Mão D",
   chest: "Peito", abdomen: "Barriga",
-  back_upper: "Costas sup", back_lower: "Costas inf",
+  back_upper_l: "Costas sup E", back_upper_r: "Costas sup D",
+  back_lower_l: "Costas inf E", back_lower_r: "Costas inf D",
   hip_l: "Anca E", hip_r: "Anca D",
   thigh_l: "Coxa E", thigh_r: "Coxa D",
   knee_l: "Joelho E", knee_r: "Joelho D",
@@ -21,7 +22,6 @@ const ZONE_LABELS: Record<string, string> = {
   ankle_l: "Tornozelo E", ankle_r: "Tornozelo D",
   achilles_l: "Aquiles E", achilles_r: "Aquiles D",
   foot_l: "Pé E", foot_r: "Pé D",
-  other: "Outra zona",
 };
 
 // ─── Age group display ────────────────────────────────────────────────────────

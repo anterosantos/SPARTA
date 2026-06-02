@@ -16,7 +16,8 @@ const ZONE_LABELS: Record<string, string> = {
   wrist_l: "Pulso esq.", wrist_r: "Pulso dir.",
   hand_l: "Mão esq.", hand_r: "Mão dir.",
   chest: "Peito", abdomen: "Barriga",
-  back_upper: "Costas sup.", back_lower: "Costas inf.",
+  back_upper_l: "Costas sup. esq.", back_upper_r: "Costas sup. dir.",
+  back_lower_l: "Costas inf. esq.", back_lower_r: "Costas inf. dir.",
   hip_l: "Anca esq.", hip_r: "Anca dir.",
   thigh_l: "Coxa esq.", thigh_r: "Coxa dir.",
   knee_l: "Joelho esq.", knee_r: "Joelho dir.",
@@ -24,7 +25,6 @@ const ZONE_LABELS: Record<string, string> = {
   ankle_l: "Tornozelo esq.", ankle_r: "Tornozelo dir.",
   achilles_l: "Aquiles esq.", achilles_r: "Aquiles dir.",
   foot_l: "Pé esq.", foot_r: "Pé dir.",
-  other: "Outra zona",
 };
 
 // Dimension labels PT-PT (UX-DR2)

@@ -3,87 +3,89 @@
 import type { MusclePainZone } from "@/lib/schemas/fatigue";
 
 export const ZONE_LABELS_PT: Record<MusclePainZone, string> = {
-  head:        "Cabeça",
-  neck:        "Pescoço",
-  shoulder_l:  "Ombro esquerdo",
-  shoulder_r:  "Ombro direito",
-  elbow_l:     "Cotovelo esquerdo",
-  elbow_r:     "Cotovelo direito",
-  wrist_l:     "Pulso esquerdo",
-  wrist_r:     "Pulso direito",
-  hand_l:      "Mão esquerda",
-  hand_r:      "Mão direita",
-  chest:       "Peito",
-  abdomen:     "Barriga",
-  back_upper:  "Costas (superior)",
-  back_lower:  "Costas (inferior)",
-  hip_l:       "Anca esquerda",
-  hip_r:       "Anca direita",
-  thigh_l:     "Coxa esquerda",
-  thigh_r:     "Coxa direita",
-  knee_l:      "Joelho esquerdo",
-  knee_r:      "Joelho direito",
-  calf_l:      "Gémeos esquerdo",
-  calf_r:      "Gémeos direito",
-  ankle_l:     "Tornozelo esquerdo",
-  ankle_r:     "Tornozelo direito",
-  achilles_l:  "Tendão de Aquiles esquerdo",
-  achilles_r:  "Tendão de Aquiles direito",
-  foot_l:      "Pé esquerdo",
-  foot_r:      "Pé direito",
-  other:       "Outra zona",
+  head:          "Cabeça",
+  neck:          "Pescoço",
+  shoulder_l:    "Ombro esquerdo",
+  shoulder_r:    "Ombro direito",
+  elbow_l:       "Cotovelo esquerdo",
+  elbow_r:       "Cotovelo direito",
+  wrist_l:       "Pulso esquerdo",
+  wrist_r:       "Pulso direito",
+  hand_l:        "Mão esquerda",
+  hand_r:        "Mão direita",
+  chest:         "Peito",
+  abdomen:       "Barriga",
+  back_upper_l:  "Costas superiores esquerda",
+  back_upper_r:  "Costas superiores direita",
+  back_lower_l:  "Costas inferiores esquerda",
+  back_lower_r:  "Costas inferiores direita",
+  hip_l:         "Anca esquerda",
+  hip_r:         "Anca direita",
+  thigh_l:       "Coxa esquerda",
+  thigh_r:       "Coxa direita",
+  knee_l:        "Joelho esquerdo",
+  knee_r:        "Joelho direito",
+  calf_l:        "Gémeos esquerdo",
+  calf_r:        "Gémeos direito",
+  ankle_l:       "Tornozelo esquerdo",
+  ankle_r:       "Tornozelo direito",
+  achilles_l:    "Tendão de Aquiles esquerdo",
+  achilles_r:    "Tendão de Aquiles direito",
+  foot_l:        "Pé esquerdo",
+  foot_r:        "Pé direito",
 };
 
 // Coordenadas de cada zona no SVG (cx, cy, rx, ry)
-// viewBox: 0 0 220 400
-// Nota: "esquerdo/direito" refere-se ao lado DO JOGADOR (não do observador)
+// viewBox: 0 0 220 350
+// "esquerdo/direito" refere-se ao lado DO JOGADOR (não do observador)
+// Costas (back_*): ellipses laterais ao tronco — mesma linha de y mas fora da silhueta frontal
 const ZONE_COORDS: Record<MusclePainZone, { cx: number; cy: number; rx: number; ry: number; back?: true }> = {
   // ── Cabeça / Pescoço ──────────────────────────────────────────────────────
-  head:       { cx: 110, cy: 24,  rx: 17, ry: 21 },
-  neck:       { cx: 110, cy: 52,  rx: 10, ry: 8  },
+  head:          { cx: 110, cy: 24,  rx: 17, ry: 21 },
+  neck:          { cx: 110, cy: 52,  rx: 10, ry: 8  },
 
   // ── Ombros ────────────────────────────────────────────────────────────────
-  shoulder_l: { cx: 62,  cy: 72,  rx: 15, ry: 11 },
-  shoulder_r: { cx: 158, cy: 72,  rx: 15, ry: 11 },
+  shoulder_l:    { cx: 62,  cy: 72,  rx: 15, ry: 11 },
+  shoulder_r:    { cx: 158, cy: 72,  rx: 15, ry: 11 },
 
-  // ── Tronco (frente) ───────────────────────────────────────────────────────
-  chest:      { cx: 110, cy: 88,  rx: 22, ry: 16 },
-  abdomen:    { cx: 110, cy: 116, rx: 18, ry: 13 },
+  // ── Tronco (frente) — círculos centrais ───────────────────────────────────
+  chest:         { cx: 110, cy: 90,  rx: 20, ry: 15 },
+  abdomen:       { cx: 110, cy: 118, rx: 17, ry: 12 },
 
-  // ── Tronco (costas) — bordas tracejadas para distinguir ───────────────────
-  back_upper: { cx: 110, cy: 88,  rx: 22, ry: 16, back: true },
-  back_lower: { cx: 110, cy: 116, rx: 18, ry: 13, back: true },
+  // ── Tronco (costas) — 4 zonas laterais ao tronco, bordas tracejadas ───────
+  // Posição: flanqueiam peito/barriga; sem sobreposição com cotovelos (x>56)
+  back_upper_l:  { cx: 66,  cy: 90,  rx: 10, ry: 12, back: true },
+  back_upper_r:  { cx: 154, cy: 90,  rx: 10, ry: 12, back: true },
+  back_lower_l:  { cx: 66,  cy: 118, rx: 10, ry: 11, back: true },
+  back_lower_r:  { cx: 154, cy: 118, rx: 10, ry: 11, back: true },
 
   // ── Braços ────────────────────────────────────────────────────────────────
-  elbow_l:    { cx: 44,  cy: 106, rx: 12, ry: 10 },
-  elbow_r:    { cx: 176, cy: 106, rx: 12, ry: 10 },
-  wrist_l:    { cx: 34,  cy: 138, rx: 11, ry: 9  },
-  wrist_r:    { cx: 186, cy: 138, rx: 11, ry: 9  },
-  hand_l:     { cx: 30,  cy: 162, rx: 14, ry: 12 },
-  hand_r:     { cx: 190, cy: 162, rx: 14, ry: 12 },
+  elbow_l:       { cx: 44,  cy: 106, rx: 12, ry: 10 },
+  elbow_r:       { cx: 176, cy: 106, rx: 12, ry: 10 },
+  wrist_l:       { cx: 34,  cy: 138, rx: 11, ry: 9  },
+  wrist_r:       { cx: 186, cy: 138, rx: 11, ry: 9  },
+  hand_l:        { cx: 30,  cy: 162, rx: 14, ry: 12 },
+  hand_r:        { cx: 190, cy: 162, rx: 14, ry: 12 },
 
   // ── Ancas ─────────────────────────────────────────────────────────────────
-  hip_l:      { cx: 82,  cy: 142, rx: 15, ry: 10 },
-  hip_r:      { cx: 138, cy: 142, rx: 15, ry: 10 },
+  hip_l:         { cx: 82,  cy: 142, rx: 15, ry: 10 },
+  hip_r:         { cx: 138, cy: 142, rx: 15, ry: 10 },
 
   // ── Pernas ────────────────────────────────────────────────────────────────
-  thigh_l:    { cx: 80,  cy: 176, rx: 16, ry: 20 },
-  thigh_r:    { cx: 140, cy: 176, rx: 16, ry: 20 },
-  knee_l:     { cx: 78,  cy: 212, rx: 13, ry: 10 },
-  knee_r:     { cx: 142, cy: 212, rx: 13, ry: 10 },
-  calf_l:     { cx: 77,  cy: 242, rx: 12, ry: 16 },
-  calf_r:     { cx: 143, cy: 242, rx: 12, ry: 16 },
+  thigh_l:       { cx: 80,  cy: 176, rx: 16, ry: 20 },
+  thigh_r:       { cx: 140, cy: 176, rx: 16, ry: 20 },
+  knee_l:        { cx: 78,  cy: 212, rx: 13, ry: 10 },
+  knee_r:        { cx: 142, cy: 212, rx: 13, ry: 10 },
+  calf_l:        { cx: 77,  cy: 242, rx: 12, ry: 16 },
+  calf_r:        { cx: 143, cy: 242, rx: 12, ry: 16 },
 
   // ── Tornozelo / Aquiles / Pé ──────────────────────────────────────────────
-  ankle_l:    { cx: 76,  cy: 270, rx: 11, ry: 8  },
-  ankle_r:    { cx: 144, cy: 270, rx: 11, ry: 8  },
-  achilles_l: { cx: 76,  cy: 288, rx: 10, ry: 7  },
-  achilles_r: { cx: 144, cy: 288, rx: 10, ry: 7  },
-  foot_l:     { cx: 78,  cy: 308, rx: 16, ry: 10 },
-  foot_r:     { cx: 142, cy: 308, rx: 16, ry: 10 },
-
-  // ── Outra zona ────────────────────────────────────────────────────────────
-  other:      { cx: 110, cy: 330, rx: 20, ry: 11 },
+  ankle_l:       { cx: 76,  cy: 270, rx: 11, ry: 8  },
+  ankle_r:       { cx: 144, cy: 270, rx: 11, ry: 8  },
+  achilles_l:    { cx: 76,  cy: 288, rx: 10, ry: 7  },
+  achilles_r:    { cx: 144, cy: 288, rx: 10, ry: 7  },
+  foot_l:        { cx: 78,  cy: 308, rx: 16, ry: 10 },
+  foot_r:        { cx: 142, cy: 308, rx: 16, ry: 10 },
 };
 
 export interface BodyDiagramProps {
@@ -113,7 +115,7 @@ export function BodyDiagram({ selected, onChange, disabled = false }: BodyDiagra
       </p>
       <p className="text-xs text-[var(--color-ink-3,theme(colors.gray.500))]">
         Toca nas zonas onde sentes dor. Podes selecionar mais do que uma.
-        Zonas tracejadas = costas.
+        Zonas tracejadas = costas (lateral ao tronco).
       </p>
 
       {/* SVG do corpo — zero npm deps, funciona offline */}
@@ -189,19 +191,13 @@ export function BodyDiagram({ selected, onChange, disabled = false }: BodyDiagra
           }
         )}
 
-        {/* Legenda "Costas" para as zonas tracejadas */}
-        <text x="174" y="85" fontSize="7" fill="currentColor"
+        {/* Legenda: identifica os dois pares de back zones laterais */}
+        <text x="110" y="78" fontSize="6.5" fill="currentColor"
           className="text-[var(--color-ink-4,#A3A3A3)]"
-          textAnchor="start">costas</text>
-        <line x1="152" y1="88" x2="170" y2="88"
-          stroke="currentColor" strokeWidth="0.8" strokeDasharray="2 1"
-          className="text-[var(--color-ink-4,#A3A3A3)]" />
-        <text x="174" y="116" fontSize="7" fill="currentColor"
+          textAnchor="middle">peito · costas</text>
+        <text x="110" y="134" fontSize="6.5" fill="currentColor"
           className="text-[var(--color-ink-4,#A3A3A3)]"
-          textAnchor="start">costas</text>
-        <line x1="148" y1="116" x2="170" y2="116"
-          stroke="currentColor" strokeWidth="0.8" strokeDasharray="2 1"
-          className="text-[var(--color-ink-4,#A3A3A3)]" />
+          textAnchor="middle">barriga · costas</text>
       </svg>
 
       {/* Chips das zonas seleccionadas */}

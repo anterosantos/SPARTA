@@ -11,7 +11,8 @@ export const MUSCLE_PAIN_ZONES = [
   "wrist_l", "wrist_r",
   "hand_l", "hand_r",
   "chest", "abdomen",
-  "back_upper", "back_lower",
+  "back_upper_l", "back_upper_r",
+  "back_lower_l", "back_lower_r",
   "hip_l", "hip_r",
   "thigh_l", "thigh_r",
   "knee_l", "knee_r",
@@ -19,7 +20,6 @@ export const MUSCLE_PAIN_ZONES = [
   "ankle_l", "ankle_r",
   "achilles_l", "achilles_r",
   "foot_l", "foot_r",
-  "other",
 ] as const;
 
 export type MusclePainZone = (typeof MUSCLE_PAIN_ZONES)[number];
