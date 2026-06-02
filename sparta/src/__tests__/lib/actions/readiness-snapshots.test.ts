@@ -431,9 +431,20 @@ describe('getReadinessPanelData (Story 5.4)', () => {
       error: null,
     }));
 
+    // Mock service role for wellness query (fatigue_responses — uses service role to bypass RLS)
+    vi.mocked(getServiceRoleClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }),
+    } as any);
+
     // players + positions return empty (fallback names used)
     const client = makeStaffClient({});
-    // Override to return empty arrays for players/positions
+    // Override to return empty arrays for players/positions/session_metrics
     vi.mocked(createServerClient).mockResolvedValue({
       ...client,
       from: vi.fn((table: string) => {

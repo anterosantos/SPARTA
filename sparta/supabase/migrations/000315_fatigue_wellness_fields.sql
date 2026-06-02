@@ -12,7 +12,7 @@ COMMENT ON COLUMN fatigue_responses.muscle_pain_zones IS
   'Zonas de dor/desconforto seleccionadas pelo jogador no questionário pós-sessão (FR21b). '
   'Valores válidos: head, neck, shoulder_l, shoulder_r, elbow_l, elbow_r, wrist_l, wrist_r, '
   'hand_l, hand_r, chest, abdomen, back_upper_l, back_upper_r, back_lower_l, back_lower_r, '
-  'hip_l, hip_r, thigh_l, thigh_r, knee_l, knee_r, calf_l, calf_r, ankle_l, ankle_r, '
+  'hip_l, hip_r, thigh_l, thigh_r, knee_l, knee_r, shin_l, shin_r, calf_l, calf_r, ankle_l, ankle_r, '
   'achilles_l, achilles_r, foot_l, foot_r. '
   'NULL em fase pre. Array vazio = sem dores seleccionadas.';
 

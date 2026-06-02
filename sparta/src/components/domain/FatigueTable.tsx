@@ -21,6 +21,7 @@ const ZONE_LABELS: Record<string, string> = {
   hip_l: "Anca esq.", hip_r: "Anca dir.",
   thigh_l: "Coxa esq.", thigh_r: "Coxa dir.",
   knee_l: "Joelho esq.", knee_r: "Joelho dir.",
+  shin_l: "Canela esq.", shin_r: "Canela dir.",
   calf_l: "Gémeos esq.", calf_r: "Gémeos dir.",
   ankle_l: "Tornozelo esq.", ankle_r: "Tornozelo dir.",
   achilles_l: "Aquiles esq.", achilles_r: "Aquiles dir.",

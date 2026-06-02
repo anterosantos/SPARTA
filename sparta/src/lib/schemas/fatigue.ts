@@ -16,6 +16,7 @@ export const MUSCLE_PAIN_ZONES = [
   "hip_l", "hip_r",
   "thigh_l", "thigh_r",
   "knee_l", "knee_r",
+  "shin_l", "shin_r",
   "calf_l", "calf_r",
   "ankle_l", "ankle_r",
   "achilles_l", "achilles_r",

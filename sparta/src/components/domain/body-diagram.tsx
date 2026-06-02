@@ -25,6 +25,8 @@ export const ZONE_LABELS_PT: Record<MusclePainZone, string> = {
   thigh_r:       "Coxa direita",
   knee_l:        "Joelho esquerdo",
   knee_r:        "Joelho direito",
+  shin_l:        "Canela esquerda",
+  shin_r:        "Canela direita",
   calf_l:        "Gémeos esquerdo",
   calf_r:        "Gémeos direito",
   ankle_l:       "Tornozelo esquerdo",
@@ -76,8 +78,10 @@ const ZONE_COORDS: Record<MusclePainZone, { cx: number; cy: number; rx: number; 
   thigh_r:       { cx: 140, cy: 176, rx: 16, ry: 20 },
   knee_l:        { cx: 78,  cy: 212, rx: 13, ry: 10 },
   knee_r:        { cx: 142, cy: 212, rx: 13, ry: 10 },
-  calf_l:        { cx: 77,  cy: 242, rx: 12, ry: 16 },
-  calf_r:        { cx: 143, cy: 242, rx: 12, ry: 16 },
+  shin_l:        { cx: 77,  cy: 229, rx: 11, ry: 10 },
+  shin_r:        { cx: 143, cy: 229, rx: 11, ry: 10 },
+  calf_l:        { cx: 77,  cy: 252, rx: 11, ry: 13 },
+  calf_r:        { cx: 143, cy: 252, rx: 11, ry: 13 },
 
   // ── Tornozelo / Aquiles / Pé ──────────────────────────────────────────────
   ankle_l:       { cx: 76,  cy: 270, rx: 11, ry: 8  },
