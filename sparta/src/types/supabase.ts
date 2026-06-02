@@ -37,6 +37,10 @@ export interface PlayerReadinessData extends ReadinessSnapshot {
   jerseyNum: number;
   /** Primary position string from positions table (e.g. 'GR', 'DEF', 'MED', 'AVA') */
   primaryPosition: string | null;
+  /** Zonas de dor/desconforto reportadas hoje ou ontem (pós-sessão). Null = sem resposta recente. */
+  recentMusclePainZones: string[] | null;
+  /** Flag de exames reportada hoje ou ontem (pré-sessão). Null = sem resposta recente. */
+  hasExamsThisWeek: boolean | null;
 }
 
 /** One entry in the per-player session history bar (last N past sessions). */

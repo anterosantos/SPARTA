@@ -431,6 +431,32 @@ export async function getReadinessPanelData(
     (positionRows ?? []).map((pos) => [pos.player_id, pos.position])
   );
 
+  // Fetch recent wellness data — muscle pain zones + exams flag from last 48h (today + yesterday)
+  // eslint-disable-next-line custom/no-direct-health-data-read -- staff-only action, audit already logged above
+  const wellnessWindowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  interface WellnessRow { player_id: string; phase: string; muscle_pain_zones: string[] | null; has_exams_this_week: boolean | null; submitted_at: string; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawWellnessRows } = await (supabase as any)
+    .from('fatigue_responses')
+    .select('player_id, phase, muscle_pain_zones, has_exams_this_week, submitted_at')
+    .in('player_id', playerIds)
+    .eq('club_id', clubId)
+    .gte('submitted_at', wellnessWindowStart.toISOString())
+    .order('submitted_at', { ascending: false });
+  const wellnessRows = (rawWellnessRows ?? []) as WellnessRow[];
+
+  const wellnessMap = new Map<string, { zones: string[] | null; exams: boolean | null }>();
+  for (const row of wellnessRows) {
+    const existing = wellnessMap.get(row.player_id) ?? { zones: null, exams: null };
+    if (row.phase === 'post' && existing.zones === null && row.muscle_pain_zones && row.muscle_pain_zones.length > 0) {
+      existing.zones = row.muscle_pain_zones;
+    }
+    if (row.phase === 'pre' && existing.exams === null && row.has_exams_this_week !== null) {
+      existing.exams = row.has_exams_this_week;
+    }
+    wellnessMap.set(row.player_id, existing);
+  }
+
   // P-22: usar READINESS_STATE_PRIORITY partilhado (DRY)
   const players: PlayerReadinessData[] = snapshots
     .map((snapshot) => {
@@ -466,12 +492,15 @@ export async function getReadinessPanelData(
         });
       }
 
+      const wellness = wellnessMap.get(snapshot.player_id);
       return {
         ...snapshot,
         // P-11: trim + fallback para full_name vazio
         playerName: player?.full_name?.trim() || 'Jogador',
         jerseyNum: player?.jersey_num ?? 0,
         primaryPosition: positionMap.get(snapshot.player_id) ?? null,
+        recentMusclePainZones: wellness?.zones ?? null,
+        hasExamsThisWeek: wellness?.exams ?? null,
       };
     })
     .sort((a, b) => {
