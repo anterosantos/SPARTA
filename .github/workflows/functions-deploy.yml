@@ -31,6 +31,7 @@ jobs:
           supabase functions deploy consent-validate
           supabase functions deploy erase-cascade
           supabase functions deploy export-csv
+          supabase functions deploy generate-pdf-report
           supabase functions deploy send-parental-consent
           supabase functions deploy send-rectification-sla
           supabase functions deploy staff-alert-consent
