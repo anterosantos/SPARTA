@@ -432,10 +432,9 @@ export async function getReadinessPanelData(
   );
 
   // Fetch recent wellness data — muscle pain zones + exams flag from last 48h (today + yesterday)
-  // eslint-disable-next-line custom/no-direct-health-data-read -- staff-only action, audit already logged above
   const wellnessWindowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
   interface WellnessRow { player_id: string; phase: string; muscle_pain_zones: string[] | null; has_exams_this_week: boolean | null; submitted_at: string; }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- staff-only action, audit already logged above for this panel load
   const { data: rawWellnessRows } = await (supabase as any)
     .from('fatigue_responses')
     .select('player_id, phase, muscle_pain_zones, has_exams_this_week, submitted_at')
