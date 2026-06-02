@@ -2,6 +2,13 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of 7-6-mediated-pdf-report-generation-storage-sharing (2026-06-02)
+
+- **D-1: `generatedBy` caller-supplied na Edge Function** [`generate-pdf-report/index.ts`]: A Edge Function recebe `generatedBy` do body e não verifica contra JWT. Aceitável porque a EF só é invocável server-side via service role key, e a Server Action define `generatedBy = userId` de `requireStaffRole()`. Defense-in-depth improvement; não urgente.
+- **D-2: Email enviado antes de update à DB em `shareReport`** [`reports.ts:shareReport`]: Brevo send é blocking e precede o update de `shared_with_email`. Se o update falhar após envio, o email foi enviado mas o registo não reflecte isso. Problema de ordenação distribuída sem solução trivial; padrão consistente com o resto do projecto.
+- **D-3: `isActive()` calculado em tempo de render** [`RelatorioRow.tsx`]: Badge Activo/Expirado não se actualiza automaticamente enquanto a página está aberta. Sessões longas podem mostrar UI desactualizada. As Server Actions validam o estado server-side — sem risco de segurança. Resolver com `useEffect` + re-render periódico se o problema for reportado em UX.
+- **D-4: UI permite re-partilhar ilimitadamente** [`RelatorioRow.tsx`]: Após share bem-sucedido, o botão "Reenviar link" continua visível sem throttle ou confirmação. Sem spec limit; o staff pode enviar quantos emails quiser. Considerar rate-limit client-side em iteração futura.
+
 ## Deferred from: code review of 7-2-unified-player-profile-perfil-consolidado (2026-06-01)
 
 - **Queries sem LIMIT** [`player-profile.ts:230, 685, 326`]: `fatigue_responses`, `match_events` e `readiness_snapshots` sem `.limit()`. Performance concern para jogadores com histórico extenso; vista Cumulativo é by design ilimitada. Reavaliar com paginação se latência P95 for excedida.

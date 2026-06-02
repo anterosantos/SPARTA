@@ -1153,6 +1153,73 @@ export type Database = {
           },
         ]
       }
+      pdf_reports: {
+        Row: {
+          id: string
+          club_id: string
+          player_id: string
+          generated_by: string | null
+          scope: string
+          period_start: string
+          period_end: string
+          file_path: string
+          generated_at: string
+          shared_with_email: string | null
+          shared_at: string | null
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          club_id: string
+          player_id: string
+          generated_by: string
+          scope: string
+          period_start: string
+          period_end: string
+          file_path: string
+          generated_at?: string
+          shared_with_email?: string | null
+          shared_at?: string | null
+          expires_at: string
+        }
+        Update: {
+          id?: string
+          club_id?: string
+          player_id?: string
+          generated_by?: string | null
+          scope?: string
+          period_start?: string
+          period_end?: string
+          file_path?: string
+          generated_at?: string
+          shared_with_email?: string | null
+          shared_at?: string | null
+          expires_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_reports_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_reports_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_events: {
         Row: {
           id: string
