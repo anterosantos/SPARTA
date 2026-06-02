@@ -4,15 +4,21 @@ const DimensionScore = z.number().int().min(1).max(5);
 
 // Zonas de dor muscular válidas (FR21b, T1.5.6)
 export const MUSCLE_PAIN_ZONES = [
+  "head",
   "neck",
   "shoulder_l", "shoulder_r",
   "elbow_l", "elbow_r",
   "wrist_l", "wrist_r",
+  "hand_l", "hand_r",
+  "chest", "abdomen",
   "back_upper", "back_lower",
   "hip_l", "hip_r",
+  "thigh_l", "thigh_r",
   "knee_l", "knee_r",
+  "calf_l", "calf_r",
   "ankle_l", "ankle_r",
   "achilles_l", "achilles_r",
+  "foot_l", "foot_r",
   "other",
 ] as const;
 

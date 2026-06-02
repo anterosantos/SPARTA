@@ -7,14 +7,20 @@ import type { PlayerReadinessData, SessionHistoryEntry } from "@/types/supabase"
 
 // Labels PT-PT para zonas de dor (abreviadas para caber no cartão)
 const ZONE_LABELS: Record<string, string> = {
+  head: "Cabeça",
   neck: "Pescoço", shoulder_l: "Ombro E", shoulder_r: "Ombro D",
   elbow_l: "Cotovelo E", elbow_r: "Cotovelo D",
   wrist_l: "Pulso E", wrist_r: "Pulso D",
+  hand_l: "Mão E", hand_r: "Mão D",
+  chest: "Peito", abdomen: "Barriga",
   back_upper: "Costas sup", back_lower: "Costas inf",
   hip_l: "Anca E", hip_r: "Anca D",
+  thigh_l: "Coxa E", thigh_r: "Coxa D",
   knee_l: "Joelho E", knee_r: "Joelho D",
+  calf_l: "Gémeos E", calf_r: "Gémeos D",
   ankle_l: "Tornozelo E", ankle_r: "Tornozelo D",
   achilles_l: "Aquiles E", achilles_r: "Aquiles D",
+  foot_l: "Pé E", foot_r: "Pé D",
   other: "Outra zona",
 };
 

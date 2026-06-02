@@ -7,25 +7,23 @@ import { ChevronDown, ChevronRight, TrendingDown, BookOpen } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state";
 import type { FatigueResponse, SessionInfo } from "@/lib/actions/fatigue-staff";
 
-// Labels PT-PT para zonas de dor muscular (espelha BodyDiagram)
+// Labels PT-PT para zonas de dor (espelha BodyDiagram)
 const ZONE_LABELS: Record<string, string> = {
+  head: "Cabeça",
   neck: "Pescoço",
-  shoulder_l: "Ombro esq.",
-  shoulder_r: "Ombro dir.",
-  elbow_l: "Cotovelo esq.",
-  elbow_r: "Cotovelo dir.",
-  wrist_l: "Pulso esq.",
-  wrist_r: "Pulso dir.",
-  back_upper: "Costas sup.",
-  back_lower: "Costas inf.",
-  hip_l: "Anca esq.",
-  hip_r: "Anca dir.",
-  knee_l: "Joelho esq.",
-  knee_r: "Joelho dir.",
-  ankle_l: "Tornozelo esq.",
-  ankle_r: "Tornozelo dir.",
-  achilles_l: "Aquiles esq.",
-  achilles_r: "Aquiles dir.",
+  shoulder_l: "Ombro esq.", shoulder_r: "Ombro dir.",
+  elbow_l: "Cotovelo esq.", elbow_r: "Cotovelo dir.",
+  wrist_l: "Pulso esq.", wrist_r: "Pulso dir.",
+  hand_l: "Mão esq.", hand_r: "Mão dir.",
+  chest: "Peito", abdomen: "Barriga",
+  back_upper: "Costas sup.", back_lower: "Costas inf.",
+  hip_l: "Anca esq.", hip_r: "Anca dir.",
+  thigh_l: "Coxa esq.", thigh_r: "Coxa dir.",
+  knee_l: "Joelho esq.", knee_r: "Joelho dir.",
+  calf_l: "Gémeos esq.", calf_r: "Gémeos dir.",
+  ankle_l: "Tornozelo esq.", ankle_r: "Tornozelo dir.",
+  achilles_l: "Aquiles esq.", achilles_r: "Aquiles dir.",
+  foot_l: "Pé esq.", foot_r: "Pé dir.",
   other: "Outra zona",
 };
 

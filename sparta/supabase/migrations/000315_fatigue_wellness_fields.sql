@@ -9,9 +9,11 @@ ALTER TABLE fatigue_responses
   ADD COLUMN IF NOT EXISTS has_exams_this_week boolean NULL;
 
 COMMENT ON COLUMN fatigue_responses.muscle_pain_zones IS
-  'Zonas de dor muscular seleccionadas pelo jogador no questionário pós-sessão (FR21b). '
-  'Valores válidos: neck, shoulder_l, shoulder_r, elbow_l, elbow_r, wrist_l, wrist_r, '
-  'back_upper, back_lower, hip_l, hip_r, knee_l, knee_r, ankle_l, ankle_r, achilles_l, achilles_r, other. '
+  'Zonas de dor/desconforto seleccionadas pelo jogador no questionário pós-sessão (FR21b). '
+  'Valores válidos: head, neck, shoulder_l, shoulder_r, elbow_l, elbow_r, wrist_l, wrist_r, '
+  'hand_l, hand_r, chest, abdomen, back_upper, back_lower, hip_l, hip_r, '
+  'thigh_l, thigh_r, knee_l, knee_r, calf_l, calf_r, ankle_l, ankle_r, '
+  'achilles_l, achilles_r, foot_l, foot_r, other. '
   'NULL em fase pre. Array vazio = sem dores seleccionadas.';
 
 COMMENT ON COLUMN fatigue_responses.has_exams_this_week IS
