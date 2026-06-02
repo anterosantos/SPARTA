@@ -139,7 +139,7 @@ export async function revokeReport(
   // Verificar isolamento: report deve pertencer ao clube do staff
   const { data: report } = await serviceRole
     .from('pdf_reports')
-    .select('id, player_id, file_path, club_id')
+    .select('id, player_id, file_path, club_id, expires_at')
     .eq('id', reportId)
     .eq('club_id', clubId)
     .maybeSingle()
