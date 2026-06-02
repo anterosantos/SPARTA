@@ -432,10 +432,14 @@ export async function getReadinessPanelData(
   );
 
   // Fetch recent wellness data — muscle pain zones + exams flag from last 48h (today + yesterday)
+  // Uses service role to bypass RLS on fatigue_responses (players-only self-read policy).
+  // requireStaffRole() guard already enforced above; explicit club_id + player_id filters
+  // maintain multi-tenant isolation.
   const wellnessWindowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
   interface WellnessRow { player_id: string; phase: string; muscle_pain_zones: string[] | null; has_exams_this_week: boolean | null; submitted_at: string; }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- staff-only action, audit already logged above for this panel load
-  const { data: rawWellnessRows } = await (supabase as any)
+  const serviceRole = getServiceRoleClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- service role, staff-only action, requireStaffRole() guard above; audit logged by auditedRead above
+  const { data: rawWellnessRows } = await (serviceRole as any)
     .from('fatigue_responses')
     .select('player_id, phase, muscle_pain_zones, has_exams_this_week, submitted_at')
     .in('player_id', playerIds)
@@ -691,14 +695,15 @@ export async function getPlayerDrillDownData(
         const { data, error } = await serviceRole
           .from('fatigue_responses')
           .select(
-            'id, player_id, session_id, phase, dim_energy, dim_focus, dim_sleep, dim_soreness, dim_mood, srpe_value, submitted_at, submitted_via'
+            'id, player_id, session_id, phase, dim_energy, dim_focus, dim_sleep, dim_soreness, dim_mood, srpe_value, submitted_at, submitted_via, muscle_pain_zones, has_exams_this_week'
           )
           .eq('player_id', playerId)
           .eq('club_id', clubId)
           .gte('submitted_at', since28.toISOString())
           .order('submitted_at', { ascending: true });
         if (error) throw error;
-        return (data ?? []) as FatigueResponse[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (data ?? []) as any as FatigueResponse[];
       }
     );
   } catch (e) {
