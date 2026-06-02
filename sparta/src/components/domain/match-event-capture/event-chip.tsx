@@ -10,6 +10,12 @@ import {
   Shield,
   ShieldCheck,
   Zap,
+  Goal,
+  SquareX,
+  Flag,
+  DoorOpen,
+  DoorClosed,
+  Timer,
 } from "lucide-react";
 import type { RecentEventEntry, MatchAction } from "@/lib/stores/match-session";
 import type { MATCH_ZONES } from "@/lib/schemas/match-events";
@@ -24,6 +30,13 @@ const ACTION_ICON: Record<MatchAction, React.ElementType> = {
   def_pressure: Shield,
   def_action_success: ShieldCheck,
   off_action_success: Zap,
+  // Sprint 1.5
+  goal: Goal,
+  card: SquareX,
+  corner: Flag,
+  entry_opp_area: DoorOpen,
+  entry_own_area: DoorClosed,
+  match_time_record: Timer,
 };
 
 const ACTION_LABEL: Record<MatchAction, string> = {
@@ -35,6 +48,13 @@ const ACTION_LABEL: Record<MatchAction, string> = {
   def_pressure: "Pressão defensiva",
   def_action_success: "Ação defensiva",
   off_action_success: "Ação ofensiva",
+  // Sprint 1.5
+  goal: "Golo",
+  card: "Cartão",
+  corner: "Canto",
+  entry_opp_area: "Entrada área adv.",
+  entry_own_area: "Entrada nossa área",
+  match_time_record: "Tempos de jogo",
 };
 
 const ZONE_ABBR: Record<(typeof MATCH_ZONES)[number], string> = {

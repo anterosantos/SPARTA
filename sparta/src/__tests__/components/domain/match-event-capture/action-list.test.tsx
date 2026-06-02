@@ -8,10 +8,11 @@ describe("<ActionList>", () => {
     useMatchSession.setState({ selectedPlayer: null, selectedAction: null, lastActionPolarity: null });
   });
 
-  it("renderiza 8 botões de ação", () => {
+  // Sprint 1.5: ActionList agora tem 8 ações standard + 5 eventos especiais = 13
+  it("renderiza 13 botões de ação (8 standard + 5 eventos especiais)", () => {
     render(<ActionList />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(8);
+    expect(buttons).toHaveLength(13);
   });
 
   it("inclui label 'Perda de bola'", () => {
@@ -22,6 +23,13 @@ describe("<ActionList>", () => {
   it("inclui label 'Passe completado'", () => {
     render(<ActionList />);
     expect(screen.getByRole("button", { name: "Passe completado" })).toBeInTheDocument();
+  });
+
+  it("inclui novos tipos Sprint 1.5 — Golo, Cartão, Canto", () => {
+    render(<ActionList />);
+    expect(screen.getByRole("button", { name: "Golo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cartão" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Canto" })).toBeInTheDocument();
   });
 
   it("define selectedAction ao clicar numa ação", () => {
@@ -42,18 +50,16 @@ describe("<ActionList>", () => {
     expect(grid).toBeInTheDocument();
   });
 
-  it("renderiza todas as 8 ações na ordem correta", () => {
+  it("renderiza todas as ações standard na lista", () => {
     render(<ActionList />);
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(8);
-    const labels = buttons.map((b) => b.getAttribute("aria-label"));
+    const labels = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
     expect(labels).toContain("Perda de bola");
     expect(labels).toContain("Recuperação");
     expect(labels).toContain("Remate total");
     expect(labels).toContain("Remate enquadrado");
     expect(labels).toContain("Passe completado");
     expect(labels).toContain("Pressão defensiva");
-    expect(labels).toContain("Ação defensiva com sucesso");
-    expect(labels).toContain("Ação ofensiva com sucesso");
+    expect(labels).toContain("Ação def. com sucesso");
+    expect(labels).toContain("Ação of. com sucesso");
   });
 });

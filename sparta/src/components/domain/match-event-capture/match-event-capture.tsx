@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, ArrowLeftRight, Flag } from "lucide-react";
+import { RefreshCw, ArrowLeftRight, Flag, Timer } from "lucide-react";
 import {
   useMatchSession,
   useSelectedPlayer,
@@ -12,6 +12,7 @@ import { ActionList } from "./action-list";
 import { ZoneSelectorSheet } from "./zone-selector-sheet";
 import { RecentEventsRing } from "./recent-events-ring";
 import { SubstitutionSheet } from "./substitution-sheet";
+import { MatchTimeRecorders } from "./match-time-recorders";
 import { PendingBadge } from "@/components/domain/pending-badge";
 import { useMatchOutboxDrain } from "@/hooks/useMatchOutboxDrain";
 import { closeMatchRecord } from "@/lib/actions/substitutions";
@@ -30,6 +31,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
   const { clearSelection } = useMatchSession();
   const { pendingCount, isDraining, drain } = useMatchOutboxDrain();
   const [isSubSheetOpen, setIsSubSheetOpen] = useState(false);
+  const [showTimeRecorders, setShowTimeRecorders] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -108,6 +110,15 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         </button>
         <button
           type="button"
+          onClick={() => setShowTimeRecorders((v) => !v)}
+          aria-label="Registar tempos de jogo"
+          aria-expanded={showTimeRecorders}
+          className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+        >
+          <Timer className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
           onClick={handleCloseMatch}
           aria-label="Encerrar registo de jogo"
           className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -118,6 +129,13 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
       {closeError && (
         <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
           <p className="text-xs text-red-700 dark:text-red-300">{closeError}</p>
+        </div>
+      )}
+
+      {/* Tempos de jogo (T1.5.11) — colapsável */}
+      {showTimeRecorders && (
+        <div className="border-b border-border p-4">
+          <MatchTimeRecorders sessionId={sessionId} durationMin={durationMin} />
         </div>
       )}
 

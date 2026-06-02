@@ -2,7 +2,8 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { ZoneCell } from "./zone-cell";
-import { MATCH_ZONES } from "@/lib/schemas/match-events";
+import { MATCH_ZONES, requiresContext } from "@/lib/schemas/match-events";
+import type { ContextAction, GoalContext, CardContext } from "@/lib/schemas/match-events";
 import {
   useMatchSession,
   useSelectedPlayer,
@@ -13,6 +14,7 @@ import { submitMatchEvent } from "@/lib/actions/events";
 import { newId } from "@/lib/uuid";
 import { enqueueMutation } from "@/lib/outbox/enqueue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { ContextSheet } from "./context-sheet";
 
 const POSITIVE_ACTIONS = new Set([
   "ball_recovery",
@@ -67,6 +69,13 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
   const { isOnline } = useOnlineStatus();
   const firstCellRef = useRef<HTMLButtonElement>(null);
 
+  // 4.º ecrã — contexto condicional para goal/card (T1.5.10)
+  const [pendingZone, setPendingZone] = useState<(typeof MATCH_ZONES)[number] | null>(null);
+  const showContextSheet =
+    pendingZone !== null &&
+    selectedAction !== null &&
+    requiresContext(selectedAction);
+
   const isOpen = selectedAction !== null && selectedPlayer !== null;
 
   // Focus first zone cell when sheet opens
@@ -76,9 +85,12 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
     }
   }, [isOpen]);
 
-  const handleZoneSelect = async (zone: (typeof MATCH_ZONES)[number]) => {
+  // Submissão final com contexto opcional
+  const submitEvent = async (
+    zone: (typeof MATCH_ZONES)[number],
+    context?: GoalContext | CardContext
+  ) => {
     if (!selectedPlayer || !selectedAction) return;
-    if (isSubmitting) return;
 
     setError(null);
     setIsSubmitting(true);
@@ -91,25 +103,16 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
       session_id: sessionId,
       occurred_at: new Date().toISOString(),
       captured_via: isOnline ? ("online" as const) : ("offline-drain" as const),
+      context: context ?? null,
     };
 
     try {
       if (!isOnline) {
         await enqueueMutation("match-event.submit", payload);
-        if (!selectedPlayer || !selectedAction) {
-          console.error("Cannot add recent event: missing player or action");
-          return;
-        }
-        const recentEntry = createRecentEventEntry(
-          payload,
-          selectedAction,
-          zone,
-          selectedPlayer
-        );
+        if (!selectedPlayer || !selectedAction) return;
+        const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
         addRecentEvent(recentEntry);
-        const polarity = POSITIVE_ACTIONS.has(selectedAction)
-          ? "positive"
-          : "negative";
+        const polarity = POSITIVE_ACTIONS.has(selectedAction) ? "positive" : "negative";
         startTransition(() => clearAction(polarity));
         return;
       }
@@ -117,60 +120,65 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
       const result = await submitMatchEvent(payload);
 
       if (!result.ok) {
-        await enqueueMutation("match-event.submit", {
-          ...payload,
-          captured_via: "offline-drain",
-        });
-        if (!selectedPlayer || !selectedAction) {
-          console.error("Cannot add recent event: missing player or action");
-          return;
-        }
-        const recentEntry = createRecentEventEntry(
-          payload,
-          selectedAction,
-          zone,
-          selectedPlayer
-        );
+        await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
+        if (!selectedPlayer || !selectedAction) return;
+        const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
         addRecentEvent(recentEntry);
-        setError(
-          "Erro ao registar — evento guardado para sincronização posterior."
-        );
+        setError("Erro ao registar — evento guardado para sincronização posterior.");
         return;
       }
 
-      if (!selectedPlayer || !selectedAction) {
-        console.error("Cannot add recent event: missing player or action");
-        return;
-      }
-      const recentEntry = createRecentEventEntry(
-        payload,
-        selectedAction,
-        zone,
-        selectedPlayer
-      );
+      if (!selectedPlayer || !selectedAction) return;
+      const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
       addRecentEvent(recentEntry);
-      const polarity = POSITIVE_ACTIONS.has(selectedAction)
-        ? "positive"
-        : "negative";
+      const polarity = POSITIVE_ACTIONS.has(selectedAction) ? "positive" : "negative";
       startTransition(() => clearAction(polarity));
     } catch (err) {
       try {
-        await enqueueMutation("match-event.submit", {
-          ...payload,
-          captured_via: "offline-drain",
-        });
+        await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
         setError("Erro de rede — evento guardado para sincronização.");
       } catch {
-        const message =
-          err instanceof Error ? err.message : "Erro desconhecido";
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
         setError(message);
       }
     } finally {
       setIsSubmitting(false);
+      setPendingZone(null);
     }
   };
 
+  const handleZoneSelect = async (zone: (typeof MATCH_ZONES)[number]) => {
+    if (!selectedPlayer || !selectedAction) return;
+    if (isSubmitting) return;
+
+    // Para goal/card: guardar zona e mostrar 4.º ecrã de contexto
+    if (requiresContext(selectedAction)) {
+      setPendingZone(zone);
+      return;
+    }
+
+    // Para outros: submeter directamente
+    await submitEvent(zone);
+  };
+
+  // Handler para confirmação do 4.º ecrã
+  const handleContextConfirm = async (context: GoalContext | CardContext) => {
+    if (!pendingZone) return;
+    await submitEvent(pendingZone, context);
+  };
+
   if (!isOpen) return null;
+
+  // 4.º ecrã — ContextSheet para goal/card
+  if (showContextSheet && selectedAction && requiresContext(selectedAction)) {
+    return (
+      <ContextSheet
+        action={selectedAction as ContextAction}
+        onConfirm={(ctx) => void handleContextConfirm(ctx)}
+        onCancel={() => setPendingZone(null)}
+      />
+    );
+  }
 
   return (
     <div

@@ -19,6 +19,13 @@ const ACTION_LABEL: Record<(typeof MATCH_ACTIONS)[number], string> = {
   def_pressure: "Pressão defensiva",
   def_action_success: "Ação defensiva",
   off_action_success: "Ação ofensiva",
+  // Sprint 1.5
+  goal: "Golo",
+  card: "Cartão",
+  corner: "Canto",
+  entry_opp_area: "Entrada área adv.",
+  entry_own_area: "Entrada nossa área",
+  match_time_record: "Tempos de jogo",
 };
 
 const ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {

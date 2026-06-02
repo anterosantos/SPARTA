@@ -76,6 +76,7 @@ describe("<ZoneSelectorSheet>", () => {
         session_id: "session-1",
         occurred_at: expect.any(String),
         captured_via: "online",
+        context: null,
       });
     });
   });

@@ -112,8 +112,8 @@ export async function submitMatchEvent(
     });
   }
 
-  const { error: upsertError } = await serviceRole
-    .from("match_events")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: upsertError } = await (serviceRole.from as any)("match_events")
     .upsert(
       {
         id: validated.data.id,
@@ -125,6 +125,7 @@ export async function submitMatchEvent(
         occurred_at: validated.data.occurred_at,
         captured_by: userId,
         captured_via: validated.data.captured_via,
+        context: validated.data.context ?? null,
       },
       { onConflict: "id" }
     );

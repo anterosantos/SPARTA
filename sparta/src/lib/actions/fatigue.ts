@@ -99,8 +99,8 @@ export async function submitFatigueResponse(
   // O id é gerado pelo cliente (UUIDv7, NFR48), por isso não há necessidade de .select('id')
   // após o upsert — retornamos validated.data.id directamente.
   const serviceRole = getServiceRoleClient();
-  const { error } = await serviceRole
-    .from("fatigue_responses")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (serviceRole.from as any)("fatigue_responses")
     .upsert(
       {
         id: validated.data.id,
@@ -114,6 +114,8 @@ export async function submitFatigueResponse(
         dim_soreness: validated.data.dim_soreness,
         dim_mood: validated.data.dim_mood,
         srpe_value: validated.data.srpe_value ?? null,
+        muscle_pain_zones: validated.data.muscle_pain_zones ?? null,
+        has_exams_this_week: validated.data.has_exams_this_week ?? null,
         submitted_via: validated.data.submitted_via,
         submitted_at: new Date().toISOString(),
       },

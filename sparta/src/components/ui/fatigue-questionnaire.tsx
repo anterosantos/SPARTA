@@ -26,6 +26,9 @@ import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { FatigueEmojiPicker } from "@/components/ui/fatigue-emoji-picker";
 import { FatigueSlider } from "@/components/ui/fatigue-slider";
 import { getFatigueCopy } from "@/lib/i18n/pt-PT/fatigue";
+import { BodyDiagram } from "@/components/domain/body-diagram";
+import { ExamsToggle } from "@/components/domain/exams-toggle";
+import type { MusclePainZone } from "@/lib/schemas/fatigue";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +55,9 @@ interface DraftValues {
   dim_soreness: number | null;
   dim_mood: number | null;
   srpe_value: number | null;
+  // Sprint 1.5 (T1.5.9)
+  muscle_pain_zones: MusclePainZone[] | null;
+  has_exams_this_week: boolean | null;
 }
 
 // Schema para validar draft restaurado de IndexedDB
@@ -63,6 +69,8 @@ const DraftValuesSchema = z.object({
   dim_soreness: z.number().int().min(1).max(5).nullable(),
   dim_mood: z.number().int().min(1).max(5).nullable(),
   srpe_value: z.number().int().min(1).max(10).nullable(),
+  muscle_pain_zones: z.array(z.string()).nullable().optional().transform((v) => v ?? null),
+  has_exams_this_week: z.boolean().nullable().optional().transform((v) => v ?? null),
 });
 
 // ─── Configuração das dimensões (Story 4.3: substituída por getFatigueCopy) ───
@@ -118,6 +126,8 @@ export function FatigueQuestionnaire({
     dim_soreness: null,
     dim_mood: null,
     srpe_value: null,
+    muscle_pain_zones: null,
+    has_exams_this_week: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -134,7 +144,11 @@ export function FatigueQuestionnaire({
         // Validar payload antes de restaurar
         const validated = DraftValuesSchema.safeParse(entry.payload);
         if (validated.success) {
-          setValues(validated.data);
+          setValues({
+            ...validated.data,
+            muscle_pain_zones: (validated.data.muscle_pain_zones as MusclePainZone[] | null) ?? null,
+            has_exams_this_week: validated.data.has_exams_this_week ?? null,
+          });
         } else {
           // Payload corrompido — gerar novo id
           setValues((prev) => ({ ...prev, id: newId() }));
@@ -208,6 +222,8 @@ export function FatigueQuestionnaire({
           dim_soreness: values.dim_soreness as number,
           dim_mood: values.dim_mood as number,
           srpe_value: phase === "post" ? (values.srpe_value ?? null) : null,
+          muscle_pain_zones: phase === "post" ? (values.muscle_pain_zones ?? null) : null,
+          has_exams_this_week: phase === "pre" ? (values.has_exams_this_week ?? null) : null,
         });
 
         // Limpar draft após enqueue bem-sucedido
@@ -236,6 +252,8 @@ export function FatigueQuestionnaire({
           dim_soreness: values.dim_soreness as number,
           dim_mood: values.dim_mood as number,
           srpe_value: phase === "post" ? (values.srpe_value ?? null) : null,
+          muscle_pain_zones: phase === "post" ? (values.muscle_pain_zones ?? null) : null,
+          has_exams_this_week: phase === "pre" ? (values.has_exams_this_week ?? null) : null,
           submitted_via: "online",
         });
 
@@ -306,6 +324,29 @@ export function FatigueQuestionnaire({
             value={values.srpe_value}
             onChange={(v) => handleChange("srpe_value", v)}
             disabled={isSubmitting}
+          />
+        )}
+
+        {/* Dores musculares — só na fase post (FR21b, T1.5.6) */}
+        {phase === "post" && (
+          <BodyDiagram
+            selected={values.muscle_pain_zones ?? []}
+            onChange={(zones) =>
+              setValues((prev) => ({ ...prev, muscle_pain_zones: zones.length > 0 ? zones : null }))
+            }
+            disabled={isSubmitting}
+          />
+        )}
+
+        {/* Testes/exames — só na fase pre (FR21c, T1.5.8) */}
+        {phase === "pre" && (
+          <ExamsToggle
+            value={values.has_exams_this_week}
+            onChange={(v) =>
+              setValues((prev) => ({ ...prev, has_exams_this_week: v }))
+            }
+            disabled={isSubmitting}
+            ageGroup={ageGroup}
           />
         )}
       </div>

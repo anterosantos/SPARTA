@@ -164,8 +164,8 @@ function buildServiceRoleForDelete(opts: {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("MATCH_ACTIONS e MATCH_ZONES — enums exportados", () => {
-  it("MATCH_ACTIONS tem 8 acções", () => {
-    expect(MATCH_ACTIONS).toHaveLength(8);
+  it("MATCH_ACTIONS tem 14 acções (8 originais + 6 Sprint 1.5)", () => {
+    expect(MATCH_ACTIONS).toHaveLength(14);
   });
 
   it("MATCH_ZONES tem 9 zonas", () => {
