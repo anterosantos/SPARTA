@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { format, differenceInYears, addDays, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
-import { ChevronLeft, Pencil, CircleDashed, Activity, LayoutDashboard } from "lucide-react";
+import { ChevronLeft, Pencil, CircleDashed, Activity, LayoutDashboard, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { SemaforoBadge } from "@/components/ui/semaforo-badge";
@@ -178,6 +178,13 @@ export default async function PlayerDetailPage({
             <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
             Perfil
           </Link>
+          <Link
+            href={`/plantel/${player.id}/relatorios`}
+            className="px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            Relatórios
+          </Link>
         </div>
 
         {/* Header */}
@@ -319,6 +326,29 @@ export default async function PlayerDetailPage({
             <p className="text-sm text-muted-foreground">
               Consulta o gráfico e tabela de fadiga dos últimos 28 dias.
             </p>
+          </div>
+        </section>
+
+        {/* Relatórios PDF */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Relatórios PDF</h2>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/plantel/${player.id}/relatorios`}>
+                <FileText className="h-4 w-4 mr-1" aria-hidden="true" />
+                Ver histórico
+              </Link>
+            </Button>
+          </div>
+          <div className="rounded-lg border border-border px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Gera e partilha relatórios PDF mediados com performance e fadiga.
+            </p>
+            <Button asChild size="sm" className="ml-4 shrink-0">
+              <Link href={`/plantel/${player.id}/relatorio/novo`}>
+                Gerar relatório
+              </Link>
+            </Button>
           </div>
         </section>
 
