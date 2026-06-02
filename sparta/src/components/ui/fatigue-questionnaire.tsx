@@ -14,7 +14,7 @@
  * entrada no outbox (offline-first). Não alterar esta lógica até essa story.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/outbox/db";
@@ -182,12 +182,9 @@ export function FatigueQuestionnaire({
 
   // ─── Handler de slider ───────────────────────────────────────────────────
 
-  const handleChange = useCallback(
-    (key: keyof Omit<DraftValues, "id">, value: number) => {
-      setValues((prev) => ({ ...prev, [key]: value }));
-    },
-    []
-  );
+  const handleChange = (key: keyof Omit<DraftValues, "id">, value: number) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+  };
 
   // ─── Guard de submissão ──────────────────────────────────────────────────
 
