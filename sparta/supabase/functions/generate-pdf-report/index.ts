@@ -313,7 +313,7 @@ export async function handler(req: Request): Promise<Response> {
     // Verificar restrição de processamento
     const { data: playerRow } = await supabase
       .from('players')
-      .select('full_name, position, age_group, processing_restricted')
+      .select('full_name, age_group, processing_restricted, player_positions(position, is_primary)')
       .eq('id', playerId)
       .maybeSingle()
 
@@ -325,8 +325,9 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const playerName = playerRow?.full_name ?? playerId
-    const position = (playerRow?.position as string | null | undefined) ?? null
     const ageGroup = (playerRow?.age_group as string | null | undefined) ?? null
+    const positions = (playerRow?.player_positions as { position: string; is_primary: boolean }[] | null | undefined) ?? []
+    const position = positions.find(p => p.is_primary)?.position ?? positions[0]?.position ?? null
 
     // Janela crónica para ACWR: 28 dias antes de periodEnd
     const acwrWindowDate = new Date(periodEnd + 'T00:00:00Z')
