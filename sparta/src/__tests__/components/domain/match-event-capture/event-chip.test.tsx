@@ -15,12 +15,12 @@ describe("<EventChip>", () => {
   it("renderiza jersey e abreviatura de zona no estado normal", () => {
     render(<EventChip entry={mockEntry} onDelete={vi.fn()} isDeleting={false} />);
     expect(screen.getByText(/#10/)).toBeInTheDocument();
-    expect(screen.getByText(/MC/)).toBeInTheDocument();
+    expect(screen.getByText(/MDC/)).toBeInTheDocument();
   });
 
   it("tem aria-label descritiva no estado normal", () => {
     render(<EventChip entry={mockEntry} onDelete={vi.fn()} isDeleting={false} />);
-    const btn = screen.getByRole("button", { name: /Remover evento: Perda de bola #10 Meio centro/i });
+    const btn = screen.getByRole("button", { name: /Remover evento: Perda de bola #10 MC defensivo centro/i });
     expect(btn).toBeInTheDocument();
   });
 
