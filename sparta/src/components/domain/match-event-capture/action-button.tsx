@@ -31,7 +31,7 @@ const ACTIONS_MAP: Record<
   // Ações originais
   ball_loss: { label: "Perda de bola", icon: RotateCcw, positive: false },
   ball_recovery: { label: "Recuperação", icon: Zap, positive: true },
-  shot_total: { label: "Remate total", icon: Target, positive: true },
+  shot_total: { label: "Remate desenquadrado", icon: Target, positive: false },
   shot_on_target: { label: "Remate enquadrado", icon: Crosshair, positive: true },
   pass_completed: { label: "Passe completado", icon: TrendingUp, positive: true },
   def_pressure: { label: "Pressão defensiva", icon: Shield, positive: false },

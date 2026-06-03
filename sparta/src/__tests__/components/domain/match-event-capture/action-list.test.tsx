@@ -55,7 +55,7 @@ describe("<ActionList>", () => {
     const labels = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
     expect(labels).toContain("Perda de bola");
     expect(labels).toContain("Recuperação");
-    expect(labels).toContain("Remate total");
+    expect(labels).toContain("Remate desenquadrado");
     expect(labels).toContain("Remate enquadrado");
     expect(labels).toContain("Passe completado");
     expect(labels).toContain("Pressão defensiva");
