@@ -22,7 +22,7 @@ const mockEvents: SessionEventEntry[] = [
   {
     id: 'event-2',
     action: 'ball_recovery',
-    zone: 'mid_center',
+    zone: 'mid_def_center',
     player_id: 'player-2',
     player_name: 'Pedro Oliveira',
     jersey_number: 5,

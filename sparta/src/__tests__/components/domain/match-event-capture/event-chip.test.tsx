@@ -6,7 +6,7 @@ import type { RecentEventEntry } from "@/lib/stores/match-session";
 const mockEntry: RecentEventEntry = {
   id: "01920a4b-c8d3-7000-9c4e-000000000001",
   action: "ball_loss",
-  zone: "mid_center",
+  zone: "mid_def_center",
   jersey_number: 10,
   occurred_at: "2026-05-30T15:00:00.000Z",
 };

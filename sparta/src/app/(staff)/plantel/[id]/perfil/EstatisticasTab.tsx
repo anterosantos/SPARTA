@@ -15,10 +15,11 @@ interface EstatisticasTabProps {
   isCumulative: boolean;
 }
 
-// Named zone values as stored in match_events.zone (migration 000270)
+// Named zone values as stored in match_events.zone (migration 000330)
 const ZONE_ORDER = [
   "def_left", "def_center", "def_right",
-  "mid_left", "mid_center", "mid_right",
+  "mid_def_left", "mid_def_center", "mid_def_right",
+  "mid_att_left", "mid_att_center", "mid_att_right",
   "att_left", "att_center", "att_right",
 ] as const;
 
@@ -26,7 +27,8 @@ type ZoneKey = typeof ZONE_ORDER[number];
 
 const ZONE_LABELS: Record<ZoneKey, string> = {
   def_left: "Def. E", def_center: "Def. C", def_right: "Def. D",
-  mid_left: "Meio E", mid_center: "Meio C", mid_right: "Meio D",
+  mid_def_left: "MCD E", mid_def_center: "MCD C", mid_def_right: "MCD D",
+  mid_att_left: "MCO E", mid_att_center: "MCO C", mid_att_right: "MCO D",
   att_left: "Atq. E", att_center: "Atq. C", att_right: "Atq. D",
 };
 

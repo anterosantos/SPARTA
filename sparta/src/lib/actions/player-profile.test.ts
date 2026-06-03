@@ -413,7 +413,7 @@ describe("getPlayerStatisticsTabData", () => {
     setupAuth();
     const playerMock = createChainableMock({ data: { id: PLAYER_ID, club_id: CLUB_ID }, error: null });
     const events = [
-      { session_id: "sess-1", action: "ball_loss", zone: "mid_center", occurred_at: "2026-05-10T16:00:00Z" },
+      { session_id: "sess-1", action: "ball_loss", zone: "mid_def_center", occurred_at: "2026-05-10T16:00:00Z" },
       { session_id: "sess-1", action: "ball_recovery", zone: "def_center", occurred_at: "2026-05-10T16:05:00Z" },
       { session_id: "sess-1", action: "shot_total", zone: "att_center", occurred_at: "2026-05-10T16:10:00Z" },
     ];
@@ -441,7 +441,7 @@ describe("getPlayerStatisticsTabData", () => {
       expect(result.data.rows[0]?.recoveries).toBe(1);
       expect(result.data.rows[0]?.shots).toBe(1);
       expect(result.data.totals.losses).toBe(1);
-      expect(result.data.zoneHeatmap["mid_center"]).toBe(1);
+      expect(result.data.zoneHeatmap["mid_def_center"]).toBe(1);
     }
   });
 

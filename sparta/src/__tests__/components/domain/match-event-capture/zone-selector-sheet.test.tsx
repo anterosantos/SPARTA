@@ -54,11 +54,11 @@ describe("<ZoneSelectorSheet>", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("renderiza 9 células de zona", () => {
+  it("renderiza 12 células de zona", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
     render(<ZoneSelectorSheet sessionId="session-1" />);
     const cells = screen.getAllByRole("gridcell");
-    expect(cells).toHaveLength(9);
+    expect(cells).toHaveLength(12);
   });
 
   it("chama submitMatchEvent com payload correto ao clicar numa zona", async () => {
@@ -85,7 +85,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_recovery" });
     render(<ZoneSelectorSheet sessionId="session-1" />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Meio centro" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "MC defensivo centro" }));
 
     await waitFor(() => {
       const state = useMatchSession.getState();

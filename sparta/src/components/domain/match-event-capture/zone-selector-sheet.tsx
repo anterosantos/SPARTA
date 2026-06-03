@@ -228,71 +228,28 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
               strokeWidth="2"
             />
             {/* Vertical dividers (left/center/right) */}
-            <line
-              x1="100"
-              y1="2"
-              x2="100"
-              y2="118"
-              stroke="white"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-            />
-            <line
-              x1="200"
-              y1="2"
-              x2="200"
-              y2="118"
-              stroke="white"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-            />
-            {/* Horizontal dividers (def/mid/att) */}
-            <line
-              x1="2"
-              y1="40"
-              x2="298"
-              y2="40"
-              stroke="white"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-            />
-            <line
-              x1="2"
-              y1="80"
-              x2="298"
-              y2="80"
-              stroke="white"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-            />
-            {/* Zone labels */}
-            <text x="50" y="24" fill="white" fontSize="8" textAnchor="middle">
-              Def
-            </text>
-            <text x="150" y="24" fill="white" fontSize="8" textAnchor="middle">
-              Def
-            </text>
-            <text x="250" y="24" fill="white" fontSize="8" textAnchor="middle">
-              Def
-            </text>
-            <text x="50" y="64" fill="white" fontSize="8" textAnchor="middle">
-              Meio
-            </text>
-            <text x="150" y="64" fill="white" fontSize="8" textAnchor="middle">
-              Meio
-            </text>
-            <text x="250" y="64" fill="white" fontSize="8" textAnchor="middle">
-              Meio
-            </text>
-            <text x="50" y="104" fill="white" fontSize="8" textAnchor="middle">
-              Atq
-            </text>
-            <text x="150" y="104" fill="white" fontSize="8" textAnchor="middle">
-              Atq
-            </text>
-            <text x="250" y="104" fill="white" fontSize="8" textAnchor="middle">
-              Atq
-            </text>
+            <line x1="100" y1="2" x2="100" y2="118" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
+            <line x1="200" y1="2" x2="200" y2="118" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
+            {/* Horizontal dividers (def / mc-def / mc-off / att) */}
+            <line x1="2" y1="31" x2="298" y2="31" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
+            <line x1="2" y1="60" x2="298" y2="60" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
+            <line x1="2" y1="89" x2="298" y2="89" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
+            {/* Zone labels — row 1: Defesa */}
+            <text x="50" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
+            <text x="150" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
+            <text x="250" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
+            {/* Zone labels — row 2: MC Defensivo */}
+            <text x="50" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
+            <text x="150" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
+            <text x="250" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
+            {/* Zone labels — row 3: MC Ofensivo */}
+            <text x="50" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
+            <text x="150" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
+            <text x="250" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
+            {/* Zone labels — row 4: Ataque */}
+            <text x="50" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
+            <text x="150" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
+            <text x="250" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
           </svg>
         </div>
 

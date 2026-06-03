@@ -15,7 +15,7 @@ const { getRecentMatchEvents, deleteMatchEvent } = await import("@/lib/actions/e
 const mockEvent: RecentEventEntry = {
   id: "evt-001",
   action: "ball_loss",
-  zone: "mid_center",
+  zone: "mid_def_center",
   jersey_number: 7,
   occurred_at: "2026-05-30T15:00:00.000Z",
 };

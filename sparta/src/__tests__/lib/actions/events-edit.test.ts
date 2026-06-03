@@ -81,7 +81,7 @@ describe("getMatchEventsForSession", () => {
 
   it("happy path — 3 eventos mapeados correctamente", async () => {
     const events = [
-      { id: "e1", action: "ball_loss", zone: "mid_center", occurred_at: "2026-05-31T10:00:00Z", player_id: "p1", captured_via: "online" },
+      { id: "e1", action: "ball_loss", zone: "mid_def_center", occurred_at: "2026-05-31T10:00:00Z", player_id: "p1", captured_via: "online" },
       { id: "e2", action: "shot_total", zone: "att_center", occurred_at: "2026-05-31T10:01:00Z", player_id: "p1", captured_via: "online" },
       { id: "e3", action: "ball_recovery", zone: "def_left", occurred_at: "2026-05-31T10:02:00Z", player_id: null, captured_via: "offline-drain" },
     ];
@@ -150,7 +150,7 @@ describe("updateMatchEvent", () => {
 
   it("happy path — action alterada, logAccess chamado", async () => {
     const existingEvent = {
-      id: EVENT_UUID, action: "ball_loss", zone: "mid_center",
+      id: EVENT_UUID, action: "ball_loss", zone: "mid_def_center",
       is_deleted: false, session_id: SESSION_UUID,
     };
     const sessionData = { scheduled_at: "2026-05-31T10:00:00Z", duration_min: 90 };
@@ -186,7 +186,7 @@ describe("updateMatchEvent", () => {
     mockIsEditWindowOpen.mockReturnValue(false);
 
     const existingEvent = {
-      id: EVENT_UUID, action: "ball_loss", zone: "mid_center",
+      id: EVENT_UUID, action: "ball_loss", zone: "mid_def_center",
       is_deleted: false, session_id: SESSION_UUID,
     };
     const sessionData = { scheduled_at: "2026-05-30T10:00:00Z", duration_min: 90 };
@@ -226,7 +226,7 @@ describe("updateMatchEvent", () => {
 
   it("evento já apagado → retorna not_found", async () => {
     const existingEvent = {
-      id: EVENT_UUID, action: "ball_loss", zone: "mid_center",
+      id: EVENT_UUID, action: "ball_loss", zone: "mid_def_center",
       is_deleted: true, session_id: SESSION_UUID,
     };
 
