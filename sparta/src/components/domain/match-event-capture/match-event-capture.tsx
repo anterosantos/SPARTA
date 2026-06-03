@@ -168,9 +168,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         {!selectedPlayer ? (
           <PlayerGrid sessionId={sessionId} refreshTrigger={refreshTrigger} />
         ) : (
-          <div className="flex-1 overflow-auto p-4">
-            <ActionList />
-          </div>
+          <ActionList />
         )}
       </div>
 

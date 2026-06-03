@@ -64,7 +64,7 @@ export const ActionButton = forwardRef<
       onClick={() => onClick?.(action)}
       aria-label={label}
       className={cn(
-        "w-full h-16 min-h-16 rounded-lg border-l-4 border-r border-t border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer",
+        "w-full h-full rounded-lg border-l-4 border-r border-t border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer",
         color
       )}
     >
