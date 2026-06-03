@@ -196,117 +196,53 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end"
+      className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-slate-900"
       role="dialog"
       aria-modal="true"
       aria-labelledby="zone-sheet-title"
     >
-      {/* Overlay — blocked during submission */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={() => !isSubmitting && clearSelection()}
-      />
-
-      {/* Modal Content */}
-      <div className="relative w-full bg-white dark:bg-slate-900 rounded-t-xl shadow-2xl p-4 max-h-[80vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 id="zone-sheet-title" className="text-lg font-semibold">
-            Selecione a zona
-          </h2>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border">
+        <h2 id="zone-sheet-title" className="text-sm font-semibold">
+          Selecione a zona
+        </h2>
+        <div className="flex items-center gap-2">
+          {isSubmitting && (
+            <span className="text-xs text-slate-500" aria-live="polite">
+              Registando…
+            </span>
+          )}
+          {error && (
+            <span className="text-xs text-red-600 dark:text-red-400 truncate max-w-[60vw]">
+              {error}
+            </span>
+          )}
           <button
-            onClick={() => !isSubmitting && clearSelection()}
-            className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            onClick={() => { setError(null); if (!isSubmitting) clearSelection(); }}
+            className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Fechar seletor de zona"
             disabled={isSubmitting}
           >
             ✕
           </button>
         </div>
+      </div>
 
-        {/* Pitch SVG */}
-        <div className="mb-4 rounded-lg overflow-hidden" aria-hidden="true">
-          <svg
-            viewBox="0 0 300 120"
-            className="w-full h-20 bg-emerald-600"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            {/* Pitch outline */}
-            <rect
-              x="2"
-              y="2"
-              width="296"
-              height="116"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-            />
-            {/* Vertical dividers (left/center/right) */}
-            <line x1="100" y1="2" x2="100" y2="118" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
-            <line x1="200" y1="2" x2="200" y2="118" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
-            {/* Horizontal dividers (def / mc-def / mc-off / att) */}
-            <line x1="2" y1="31" x2="298" y2="31" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
-            <line x1="2" y1="60" x2="298" y2="60" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
-            <line x1="2" y1="89" x2="298" y2="89" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" />
-            {/* Zone labels — row 1: Defesa */}
-            <text x="50" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
-            <text x="150" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
-            <text x="250" y="19" fill="white" fontSize="7" textAnchor="middle">Def</text>
-            {/* Zone labels — row 2: MC Defensivo */}
-            <text x="50" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
-            <text x="150" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
-            <text x="250" y="49" fill="white" fontSize="7" textAnchor="middle">MC Def</text>
-            {/* Zone labels — row 3: MC Ofensivo */}
-            <text x="50" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
-            <text x="150" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
-            <text x="250" y="78" fill="white" fontSize="7" textAnchor="middle">MC Of</text>
-            {/* Zone labels — row 4: Ataque */}
-            <text x="50" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
-            <text x="150" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
-            <text x="250" y="107" fill="white" fontSize="7" textAnchor="middle">Atq</text>
-          </svg>
-        </div>
-
-        {/* Zone Grid */}
-        <div
-          className="grid grid-cols-3 gap-3 mb-4"
-          role="grid"
-          aria-label="Selector de zonas do campo"
-        >
-          {MATCH_ZONES.map((zone, i) => (
-            <ZoneCell
-              key={zone}
-              zone={zone}
-              onClick={handleZoneSelect}
-              disabled={isSubmitting}
-              ref={i === 0 ? firstCellRef : undefined}
-            />
-          ))}
-        </div>
-
-        {/* Error State */}
-        {error && (
-          <div className="p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="text-xs text-red-600 dark:text-red-400 hover:underline mt-1"
-              aria-label="Fechar mensagem de erro"
-            >
-              Fechar
-            </button>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {isSubmitting && (
-          <div
-            className="text-center text-sm text-slate-500"
-            aria-live="polite"
-          >
-            Registando evento...
-          </div>
-        )}
+      {/* Zone Grid — fills remaining space */}
+      <div
+        className="flex-1 min-h-0 grid grid-cols-3 gap-2 p-2 sm:p-3 [grid-auto-rows:1fr]"
+        role="grid"
+        aria-label="Selector de zonas do campo"
+      >
+        {MATCH_ZONES.map((zone, i) => (
+          <ZoneCell
+            key={zone}
+            zone={zone}
+            onClick={handleZoneSelect}
+            disabled={isSubmitting}
+            ref={i === 0 ? firstCellRef : undefined}
+          />
+        ))}
       </div>
     </div>
   );

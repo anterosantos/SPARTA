@@ -39,7 +39,7 @@ export const ZoneCell = forwardRef<HTMLButtonElement, ZoneCellProps>(
         role="gridcell"
         aria-label={label}
         className={cn(
-          "w-full h-20 min-h-20 rounded-lg border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center bg-slate-50 dark:bg-slate-800",
+          "w-full h-full rounded-lg border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center bg-slate-50 dark:bg-slate-800",
           disabled
             ? "opacity-50 cursor-not-allowed"
             : "cursor-pointer hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
