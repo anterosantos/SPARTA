@@ -120,11 +120,18 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
       const result = await submitMatchEvent(payload);
 
       if (!result.ok) {
-        await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
-        if (!selectedPlayer || !selectedAction) return;
-        const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
-        addRecentEvent(recentEntry);
-        setError("Erro ao registar — evento guardado para sincronização posterior.");
+        // Erros transitórios (unknown) → queue para sync posterior
+        // Erros de negócio (validation, not_found, forbidden) → mostrar mensagem real, não queue
+        const isRetryable = result.error.code === "unknown";
+        if (isRetryable) {
+          await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
+          if (!selectedPlayer || !selectedAction) return;
+          const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
+          addRecentEvent(recentEntry);
+          setError("Erro ao registar — evento guardado para sincronização posterior.");
+        } else {
+          setError(result.error.message);
+        }
         return;
       }
 
