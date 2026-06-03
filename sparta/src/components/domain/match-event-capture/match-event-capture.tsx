@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { RefreshCw, ArrowLeftRight, Flag, Timer } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { RefreshCw, ArrowLeftRight, Flag, Timer, Maximize2, Minimize2 } from "lucide-react";
 import {
   useMatchSession,
   useSelectedPlayer,
@@ -34,6 +34,22 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
   const [showTimeRecorders, setShowTimeRecorders] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => undefined);
+    } else {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  };
 
   const handleCloseMatch = async () => {
     const confirmed = window.confirm(
@@ -63,7 +79,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800";
 
   return (
-    <div className="flex flex-col w-full h-screen bg-slate-50 dark:bg-slate-950">
+    <div ref={containerRef} className="flex flex-col w-full h-screen bg-slate-50 dark:bg-slate-950">
       {/* Sticky Header */}
       <div
         className={cn(
@@ -124,6 +140,14 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
           className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <Flag className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? "Sair do ecrã completo" : "Ecrã completo"}
+          className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+        >
+          {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
         </button>
       </div>
       {closeError && (
