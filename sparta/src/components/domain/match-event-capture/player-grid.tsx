@@ -75,12 +75,11 @@ export function PlayerGrid({ sessionId, refreshTrigger = 0 }: PlayerGridProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Selecione um jogador</h2>
+    <div className="flex-1 min-h-0 flex flex-col p-2 sm:p-3">
       <div id="restricted-tooltip-match-capture" className="sr-only">
         Tratamento limitado — este jogador não pode ser analisado
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 [grid-auto-rows:1fr]">
         {players.map((player) => (
           <PlayerButton
             key={player.id}

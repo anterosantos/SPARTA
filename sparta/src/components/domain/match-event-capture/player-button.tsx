@@ -33,7 +33,7 @@ export const PlayerButton = forwardRef<HTMLButtonElement, PlayerButtonProps>(
             : undefined
         }
         className={cn(
-          "w-full min-h-[60px] rounded-lg border-2 flex flex-col items-center justify-center gap-0.5 px-1 py-2 bg-slate-100 dark:bg-slate-900",
+          "w-full h-full rounded-lg border-2 flex flex-col items-center justify-center gap-1 px-1 py-2 bg-slate-100 dark:bg-slate-900",
           ageGroupColor,
           isDisabled
             ? "opacity-50 cursor-not-allowed"

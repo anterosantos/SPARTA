@@ -139,12 +139,14 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         </div>
       )}
 
-      {/* Body — full-bleed, no extra padding */}
-      <div className="flex-1 overflow-auto p-4">
+      {/* Body */}
+      <div className="flex-1 min-h-0 flex flex-col">
         {!selectedPlayer ? (
           <PlayerGrid sessionId={sessionId} refreshTrigger={refreshTrigger} />
         ) : (
-          <ActionList />
+          <div className="flex-1 overflow-auto p-4">
+            <ActionList />
+          </div>
         )}
       </div>
 
