@@ -9,7 +9,9 @@ import type { PlayerReadinessData, SessionHistoryEntry } from "@/types/supabase"
 const ZONE_LABELS: Record<string, string> = {
   head: "Cabeça",
   neck: "Pescoço", shoulder_l: "Ombro E", shoulder_r: "Ombro D",
+  upper_arm_l: "Braço E", upper_arm_r: "Braço D",
   elbow_l: "Cotovelo E", elbow_r: "Cotovelo D",
+  forearm_l: "Antebraço E", forearm_r: "Antebraço D",
   wrist_l: "Pulso E", wrist_r: "Pulso D",
   hand_l: "Mão E", hand_r: "Mão D",
   chest: "Peito", abdomen: "Barriga",
