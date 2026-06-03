@@ -44,26 +44,26 @@ describe("<ZoneSelectorSheet>", () => {
   });
 
   it("não renderiza quando nenhuma ação selecionada", () => {
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("renderiza quando player e action estão selecionados", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("renderiza 12 células de zona", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
     const cells = screen.getAllByRole("gridcell");
     expect(cells).toHaveLength(12);
   });
 
   it("chama submitMatchEvent com payload correto ao clicar numa zona", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
 
@@ -83,7 +83,7 @@ describe("<ZoneSelectorSheet>", () => {
 
   it("limpa selectedAction mas mantém selectedPlayer após submit com sucesso (sticky player)", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_recovery" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     fireEvent.click(screen.getByRole("gridcell", { name: "MC defensivo centro" }));
 
@@ -96,7 +96,7 @@ describe("<ZoneSelectorSheet>", () => {
 
   it("define lastActionPolarity como 'negative' para ball_loss", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
 
@@ -107,7 +107,7 @@ describe("<ZoneSelectorSheet>", () => {
 
   it("define lastActionPolarity como 'positive' para pass_completed", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "pass_completed" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     fireEvent.click(screen.getByRole("gridcell", { name: "Ataque centro" }));
 
@@ -124,7 +124,7 @@ describe("<ZoneSelectorSheet>", () => {
     const { enqueueMutation } = await import("@/lib/outbox/enqueue");
 
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
 
@@ -139,7 +139,7 @@ describe("<ZoneSelectorSheet>", () => {
 
   it("tem role='dialog' e aria-modal='true'", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
-    render(<ZoneSelectorSheet sessionId="session-1" />);
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");

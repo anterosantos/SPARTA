@@ -27,6 +27,8 @@ const POSITIVE_ACTIONS = new Set([
 
 interface ZoneSelectorSheetProps {
   sessionId: string;
+  scheduledAt: string;
+  durationMin: number;
 }
 
 // TODO Story 6.6+: extract helper to DRY the RecentEventEntry construction (called 3x)
@@ -58,7 +60,7 @@ function createRecentEventEntry(
   };
 }
 
-export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
+export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneSelectorSheetProps) {
   const selectedPlayer = useSelectedPlayer();
   const selectedAction = useSelectedAction();
   const { clearAction, clearSelection } = useMatchSession();
@@ -95,13 +97,18 @@ export function ZoneSelectorSheet({ sessionId }: ZoneSelectorSheetProps) {
     setError(null);
     setIsSubmitting(true);
 
+    // Para sessões passadas usar o fim da sessão como timestamp; para live usar o tempo actual.
+    // Evita que o server rejeite occurred_at > now por clock skew ou data posterior à sessão.
+    const sessionEnd = new Date(new Date(scheduledAt).getTime() + durationMin * 60_000);
+    const captureTime = new Date() > sessionEnd ? sessionEnd : new Date();
+
     const payload = {
       id: newId(),
       action: selectedAction,
       zone,
       player_id: selectedPlayer.player_id,
       session_id: sessionId,
-      occurred_at: new Date().toISOString(),
+      occurred_at: captureTime.toISOString(),
       captured_via: isOnline ? ("online" as const) : ("offline-drain" as const),
       context: context ?? null,
     };

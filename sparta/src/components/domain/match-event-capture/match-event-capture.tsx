@@ -152,7 +152,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
       <RecentEventsRing sessionId={sessionId} isWithinEditWindow={isWithinEditWindow} />
 
       {/* Zone Selector Modal */}
-      <ZoneSelectorSheet sessionId={sessionId} />
+      <ZoneSelectorSheet sessionId={sessionId} scheduledAt={scheduledAt} durationMin={durationMin} />
 
       {/* Substitution Sheet */}
       <SubstitutionSheet
