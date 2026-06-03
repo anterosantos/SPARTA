@@ -13,7 +13,6 @@ import { CalendarWeekView } from "@/components/ui/calendar-week-view";
 import { CalendarMonthView } from "@/components/ui/calendar-month-view";
 import {
   format,
-  startOfWeek,
   startOfDay,
   endOfDay,
   addDays,
@@ -90,20 +89,7 @@ export default async function CalendarioPage({
 
   const isCoach = profile.role === "coach";
 
-  // Week data for DayChipStrip
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(weekStart, i);
-    const dayStart = startOfDay(date);
-    const dayEnd = endOfDay(date);
-    const daySessions = sessions.filter((s) => {
-      const d = new Date(s.scheduled_at);
-      return d >= dayStart && d <= dayEnd;
-    });
-    return { date: date.toISOString(), sessions: daySessions };
-  });
-
-  // Next 7 days sessions
+  // Next 7 days sessions — used by CalendarMonthView when no day is selected
   const next7End = addDays(today, 7);
   const next7Sessions = sessions
     .filter((s) => {
@@ -159,8 +145,7 @@ export default async function CalendarioPage({
           />
         ) : vista === "semana" ? (
           <CalendarWeekView
-            weekDays={weekDays}
-            next7Sessions={next7Sessions}
+            allSessions={sessions}
             isCoach={isCoach}
           />
         ) : (

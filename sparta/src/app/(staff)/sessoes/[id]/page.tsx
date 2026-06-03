@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Dumbbell, Trophy, Handshake } from "lucide-react";
+import { SessionDateDisplay } from "./session-date-display";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
@@ -61,11 +60,6 @@ export default async function SessionDetailPage({
   const isScheduled = session.status === "scheduled";
   const isCoach = profile.role === "coach";
 
-  const scheduledDate = new Date(session.scheduled_at);
-  const formattedDate = format(scheduledDate, "EEEE, d 'de' MMMM 'de' yyyy 'às' HH:mm", {
-    locale: pt,
-  });
-
   return (
     <main id="main-content">
       <StickyHeader title="Detalhes da sessão" backHref="/calendario" />
@@ -80,7 +74,10 @@ export default async function SessionDetailPage({
             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Data e hora
             </dt>
-            <dd className="mt-0.5 text-sm capitalize">{formattedDate}</dd>
+            {/* suppressHydrationWarning: server renders UTC, client renders local timezone */}
+            <dd className="mt-0.5 text-sm capitalize" suppressHydrationWarning>
+              <SessionDateDisplay isoString={session.scheduled_at} />
+            </dd>
           </div>
 
           <div>
