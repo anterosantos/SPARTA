@@ -40,11 +40,7 @@ function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
         />
       </div>
       <div className="flex-1 min-w-0 space-y-0.5">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-foreground">
-            {item.role === "starter" ? "Convocado — titular" : "Convocado — suplente"}
-          </p>
-        </div>
+        <p className="text-sm font-semibold text-foreground">Convocado</p>
         <p className="text-sm text-foreground">
           {item.sessionTypeLabel}
           {item.sessionLocation ? ` · ${item.sessionLocation}` : ""}
@@ -67,7 +63,7 @@ function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
       <Link
         href={`/agenda/${item.sessionId}`}
         className="block hover:opacity-80 transition-opacity"
-        aria-label={`${item.role === "starter" ? "Convocado titular" : "Convocado suplente"} — ${item.sessionTypeLabel} ${dateLabel ?? ""}`}
+        aria-label={`Convocado — ${item.sessionTypeLabel} ${dateLabel ?? ""}`}
       >
         {content}
       </Link>

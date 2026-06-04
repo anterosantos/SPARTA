@@ -16,11 +16,11 @@ export interface PlayerNotificationItem {
   sessionScheduledAt: string | null;
   /** Local da sessão */
   sessionLocation: string | null;
-  /** Papel do jogador na convocatória: "starter" | "bench" */
-  role: "starter" | "bench" | null;
   /** Para mensagens futuras do staff */
   message: string | null;
   createdAt: string;
+  // NOTA: role (titular/suplente) intencionalmente excluído — informação dada
+  // pelo treinador pessoalmente fora da aplicação (decisão de design).
 }
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -64,12 +64,13 @@ export async function getPlayerNotifications(): Promise<
   const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
   // 1. Convocatórias: sessões futuras onde o jogador está em match_lineups
-  interface LineupRow { id: string; session_id: string; role: "starter" | "bench"; created_at: string; }
+  // Nota: não selecionar 'role' — titular/suplente não é exposto ao jogador
+  interface LineupRow { id: string; session_id: string; created_at: string; }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawLineups } = await (supabase as any)
     .from("match_lineups")
-    .select("id, session_id, role, created_at")
+    .select("id, session_id, created_at")
     .eq("player_id", player.id)
     .eq("club_id", player.club_id);
 
@@ -92,7 +93,7 @@ export async function getPlayerNotifications(): Promise<
     const lineupMap = new Map(
       lineups.map((l) => [
         l.session_id,
-        { id: l.id, role: l.role, createdAt: l.created_at },
+        { id: l.id, createdAt: l.created_at },
       ])
     );
 
@@ -105,7 +106,6 @@ export async function getPlayerNotifications(): Promise<
         sessionTypeLabel: SESSION_TYPE_LABELS[s.type] ?? s.type,
         sessionScheduledAt: s.scheduled_at,
         sessionLocation: s.location ?? null,
-        role: lineup?.role ?? null,
         message: null,
         createdAt: lineup?.createdAt ?? s.scheduled_at,
       };
