@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
-import { CalendarCheck, Users, Bell } from "lucide-react";
+import { CalendarCheck, Users, Bell, X } from "lucide-react";
 import type { PlayerNotificationItem } from "@/lib/actions/player-notifications";
+import { dismissPlayerNotification } from "@/lib/actions/player-notifications";
 
 interface PlayerNotificationsInboxProps {
   items: PlayerNotificationItem[];
@@ -29,20 +30,23 @@ function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
     ? "border-l-red-500 dark:border-l-red-400"
     : "border-l-blue-500 dark:border-l-blue-400";
 
-  const content = (
+  // Bind server action para este item específico
+  const dismissAction = item.sessionId
+    ? dismissPlayerNotification.bind(null, item.sessionId, "convocado")
+    : null;
+
+  const cardBody = (
     <div
       className={`flex items-start gap-3 rounded-xl border border-border bg-card p-4 border-l-4 ${accentColor}`}
     >
       <div className="mt-0.5 shrink-0">
-        <Users
-          className="h-5 w-5 text-muted-foreground"
-          aria-hidden="true"
-        />
+        <Users className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0 space-y-0.5">
         <p className="text-sm font-semibold text-foreground">Convocado</p>
         <p className="text-sm text-foreground">
           {item.sessionTypeLabel}
+          {item.opponentName ? ` vs ${item.opponentName}` : ""}
           {item.sessionLocation ? ` · ${item.sessionLocation}` : ""}
         </p>
         {dateLabel && (
@@ -58,19 +62,35 @@ function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
     </div>
   );
 
-  if (item.sessionId) {
-    return (
-      <Link
-        href={`/agenda/${item.sessionId}`}
-        className="block hover:opacity-80 transition-opacity"
-        aria-label={`Convocado — ${item.sessionTypeLabel} ${dateLabel ?? ""}`}
-      >
-        {content}
-      </Link>
-    );
-  }
+  return (
+    <div className="relative">
+      {/* Card clicável → detalhe da sessão */}
+      {item.sessionId ? (
+        <Link
+          href={`/agenda/${item.sessionId}`}
+          className="block hover:opacity-80 transition-opacity"
+          aria-label={`Convocado — ${item.sessionTypeLabel}${item.opponentName ? ` vs ${item.opponentName}` : ""} ${dateLabel ?? ""}`}
+        >
+          {cardBody}
+        </Link>
+      ) : (
+        cardBody
+      )}
 
-  return content;
+      {/* Botão de dispensa — posicionado no canto superior direito */}
+      {dismissAction && (
+        <form action={dismissAction} className="absolute top-2 right-2">
+          <button
+            type="submit"
+            className="flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Remover notificação"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </form>
+      )}
+    </div>
+  );
 }
 
 export function PlayerNotificationsInbox({
@@ -97,14 +117,12 @@ export function PlayerNotificationsInbox({
         </p>
       ) : (
         <ul className="space-y-2 list-none p-0 m-0">
-          {/* Convocatórias */}
           {convocatorias.map((item) => (
             <li key={item.id}>
               <ConvocadoCard item={item} />
             </li>
           ))}
 
-          {/* Broadcasts (futuro) */}
           {broadcasts.map((item) => (
             <li key={item.id}>
               <div className="rounded-xl border border-border bg-card p-4 border-l-4 border-l-yellow-500 dark:border-l-yellow-400">

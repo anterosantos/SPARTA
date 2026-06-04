@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
@@ -16,6 +17,8 @@ export interface PlayerNotificationItem {
   sessionScheduledAt: string | null;
   /** Local da sessão */
   sessionLocation: string | null;
+  /** Adversário (jogos/amigáveis) */
+  opponentName: string | null;
   /** Para mensagens futuras do staff */
   message: string | null;
   createdAt: string;
@@ -32,14 +35,9 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
 /**
  * getPlayerNotifications — Notificações relevantes para o jogador no ecrã "Hoje".
  *
- * Fontes actuais:
- *   - Convocatórias: sessões nas próximas 2 semanas onde o jogador está em match_lineups
- *
- * Fontes futuras (estrutura pronta):
- *   - Mensagens de broadcast do staff
- *
- * Excluídas intencionalmente: fatigue_pre, fatigue_post, player_absence
- * (são notificações de sistema, não mensagens do staff para o jogador)
+ * Convocatórias: sessões futuras onde o jogador está em match_lineups, excluindo
+ * as que o jogador dispensou manualmente via player_inbox_dismissals.
+ * As notificações desaparecem automaticamente após a data da sessão.
  */
 export async function getPlayerNotifications(): Promise<
   Result<PlayerNotificationItem[], AppError>
@@ -64,7 +62,6 @@ export async function getPlayerNotifications(): Promise<
   const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
   // 1. Convocatórias: sessões futuras onde o jogador está em match_lineups
-  // Nota: não selecionar 'role' — titular/suplente não é exposto ao jogador
   interface LineupRow { id: string; session_id: string; created_at: string; }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,27 +74,50 @@ export async function getPlayerNotifications(): Promise<
   const lineups: LineupRow[] = rawLineups ?? [];
   const lineupSessionIds: string[] = lineups.map((l) => l.session_id);
 
-  let convocatoriaItems: PlayerNotificationItem[] = [];
+  if (lineupSessionIds.length === 0) return ok([]);
 
-  if (lineupSessionIds.length > 0) {
-    const { data: sessions } = await supabase
-      .from("sessions")
-      .select("id, type, scheduled_at, location")
-      .in("id", lineupSessionIds)
-      .eq("club_id", player.club_id)
-      .neq("status", "cancelled")
-      .gte("scheduled_at", now.toISOString())
-      .lte("scheduled_at", twoWeeksLater.toISOString())
-      .order("scheduled_at", { ascending: true });
+  // 2. Dismissals — notificações que o jogador removeu manualmente
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawDismissals } = await (supabase as any)
+    .from("player_inbox_dismissals")
+    .select("session_id")
+    .eq("profile_id", user.id)
+    .eq("kind", "convocado")
+    .in("session_id", lineupSessionIds);
 
-    const lineupMap = new Map(
-      lineups.map((l) => [
-        l.session_id,
-        { id: l.id, createdAt: l.created_at },
-      ])
-    );
+  const dismissedIds = new Set<string>(
+    ((rawDismissals ?? []) as Array<{ session_id: string }>).map((d) => d.session_id)
+  );
 
-    convocatoriaItems = (sessions ?? []).map((s) => {
+  interface SessionRow {
+    id: string;
+    type: string;
+    scheduled_at: string;
+    location: string | null;
+    opponent_name: string | null;
+  }
+
+  // 3. Sessões futuras (dentro de 2 semanas, não canceladas, não dispensadas)
+  // opponent_name ainda não está nos tipos gerados do Supabase — usar cast
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawSessions } = await (supabase as any)
+    .from("sessions")
+    .select("id, type, scheduled_at, location, opponent_name")
+    .in("id", lineupSessionIds)
+    .eq("club_id", player.club_id)
+    .neq("status", "cancelled")
+    .gte("scheduled_at", now.toISOString())
+    .lte("scheduled_at", twoWeeksLater.toISOString())
+    .order("scheduled_at", { ascending: true });
+  const sessions: SessionRow[] = rawSessions ?? [];
+
+  const lineupMap = new Map(
+    lineups.map((l) => [l.session_id, { id: l.id, createdAt: l.created_at }])
+  );
+
+  const convocatoriaItems: PlayerNotificationItem[] = sessions
+    .filter((s) => !dismissedIds.has(s.id))
+    .map((s) => {
       const lineup = lineupMap.get(s.id);
       return {
         id: lineup?.id ?? s.id,
@@ -106,14 +126,42 @@ export async function getPlayerNotifications(): Promise<
         sessionTypeLabel: SESSION_TYPE_LABELS[s.type] ?? s.type,
         sessionScheduledAt: s.scheduled_at,
         sessionLocation: s.location ?? null,
+        opponentName: s.opponent_name ?? null,
         message: null,
         createdAt: lineup?.createdAt ?? s.scheduled_at,
       };
     });
-  }
 
-  // 2. Broadcasts futuros: quando implementado, adicionar aqui
+  // 4. Broadcasts futuros: quando implementado, adicionar aqui
   // const broadcastItems = await fetchBroadcasts(player.club_id);
 
   return ok(convocatoriaItems);
+}
+
+/**
+ * dismissPlayerNotification — Jogador dispensa uma notificação do inbox.
+ * A notificação deixa de aparecer até à próxima convocatória ou até ser
+ * re-enviada pelo treinador (upsert reset status a 'scheduled').
+ */
+export async function dismissPlayerNotification(
+  sessionId: string,
+  kind: string
+): Promise<void> {
+  if (!sessionId || !kind) return;
+
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  // Upsert idempotente — dismiss repetido não cria duplicado
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("player_inbox_dismissals").upsert(
+    { profile_id: user.id, session_id: sessionId, kind },
+    { onConflict: "profile_id,session_id,kind", ignoreDuplicates: true }
+  );
+
+  revalidatePath("/hoje");
 }
