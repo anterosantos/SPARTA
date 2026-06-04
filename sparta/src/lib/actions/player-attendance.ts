@@ -74,7 +74,10 @@ export async function declarePlayerAbsence(
 
 /**
  * cancelPlayerAbsence — Jogador cancela a declaração de ausência.
- * O estado volta a 'sem_questionario' (aguarda preenchimento do questionário pré).
+ *
+ * O estado de retorno depende de se o jogador já preencheu o questionário pré:
+ * - Questionário pré preenchido → 'present'
+ * - Questionário pré ainda não preenchido → 'sem_questionario'
  */
 export async function cancelPlayerAbsence(
   input: unknown
@@ -98,9 +101,22 @@ export async function cancelPlayerAbsence(
 
   const serviceRole = getServiceRoleClient();
 
+  // Verificar se o questionário pré já foi submetido para esta sessão
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- service role, player-scoped query (own data only)
+  const { data: preResponse } = await (serviceRole as any)
+    .from("fatigue_responses")
+    .select("id")
+    .eq("session_id", validated.data.session_id)
+    .eq("player_id", player.id)
+    .eq("club_id", player.club_id)
+    .eq("phase", "pre")
+    .maybeSingle();
+
+  const newStatus: AttendanceStatus = preResponse ? "present" : "sem_questionario";
+
   const { error } = await serviceRole
     .from("attendances")
-    .update({ status: "sem_questionario", note: null })
+    .update({ status: newStatus, note: null })
     .eq("session_id", validated.data.session_id)
     .eq("player_id", player.id)
     .eq("club_id", player.club_id)
@@ -108,7 +124,7 @@ export async function cancelPlayerAbsence(
 
   if (error) return err({ code: "unknown", message: error.message });
 
-  return ok({ status: "sem_questionario" as AttendanceStatus });
+  return ok({ status: newStatus });
 }
 
 /**
