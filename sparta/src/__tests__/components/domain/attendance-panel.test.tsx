@@ -82,17 +82,23 @@ describe("<AttendancePanel>", () => {
     expect(btn).toBeDefined();
   });
 
-  it("defaults to 'Presente' when no existing record", () => {
+  it("defaults to 'Sem Questionário' when no existing record", () => {
     render(<AttendancePanel {...defaultProps} existingAttendances={[]} />);
-    const btn = screen.getByRole("button", { name: /João Silva.*Presente/i });
+    const btn = screen.getByRole("button", { name: /João Silva.*Sem Questionário/i });
     expect(btn).toBeDefined();
   });
 
-  it("toggle cicla: present → absent → late → injured → excused → present", async () => {
+  it("toggle cicla: sem_questionario → present → absent → late → injured → excused → sem_questionario", async () => {
     render(<AttendancePanel {...defaultProps} existingAttendances={[]} />);
 
     const getPlayerBtn = () =>
       screen.getByRole("button", { name: /João Silva/i });
+
+    // initial: Sem Questionário → Presente
+    fireEvent.click(getPlayerBtn());
+    await waitFor(() =>
+      expect(getPlayerBtn().getAttribute("aria-label")).toContain("Presente")
+    );
 
     fireEvent.click(getPlayerBtn());
     await waitFor(() =>
@@ -116,7 +122,7 @@ describe("<AttendancePanel>", () => {
 
     fireEvent.click(getPlayerBtn());
     await waitFor(() =>
-      expect(getPlayerBtn().getAttribute("aria-label")).toContain("Presente")
+      expect(getPlayerBtn().getAttribute("aria-label")).toContain("Sem Questionário")
     );
   });
 

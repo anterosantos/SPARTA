@@ -26,16 +26,17 @@ const STATUS_CYCLE: AttendanceStatus[] = [...ATTENDANCE_STATUSES];
 
 function nextStatus(current: AttendanceStatus): AttendanceStatus {
   if (!ATTENDANCE_STATUSES.includes(current)) {
-    return "present";
+    return "sem_questionario";
   }
   const idx = STATUS_CYCLE.indexOf(current);
   if (idx === -1) {
-    return "present";
+    return "sem_questionario";
   }
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]!;
 }
 
 const STATUS_LABEL: Record<AttendanceStatus, string> = {
+  sem_questionario: "Sem Questionário",
   present: "Presente",
   absent: "Ausente",
   late: "Atrasado",
@@ -44,6 +45,7 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 };
 
 const STATUS_COLOR: Record<AttendanceStatus, string> = {
+  sem_questionario: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
   present: "bg-green-100 text-green-800",
   absent: "bg-red-100 text-red-800",
   late: "bg-yellow-100 text-yellow-800",
@@ -70,7 +72,7 @@ export function AttendancePanel({
     const playerIds = new Set(players.map((p) => p.id));
 
     for (const player of players) {
-      map.set(player.id, "present");
+      map.set(player.id, "sem_questionario");
     }
 
     for (const record of existingAttendances) {
@@ -97,7 +99,7 @@ export function AttendancePanel({
 
   const handleToggle = useCallback((playerId: string) => {
     setStatuses((prev) => {
-      const current = prev.get(playerId) ?? "present";
+      const current = prev.get(playerId) ?? "sem_questionario";
       const next = new Map(prev);
       next.set(playerId, nextStatus(current));
       return next;
@@ -122,7 +124,7 @@ export function AttendancePanel({
               id: newId(),
               session_id: sessionId,
               player_id: player.id,
-              status: statuses.get(player.id) ?? "present",
+              status: statuses.get(player.id) ?? "sem_questionario",
             })
           )
         );
@@ -137,7 +139,7 @@ export function AttendancePanel({
           id: newId(),
           session_id: sessionId,
           player_id: player.id,
-          status: statuses.get(player.id) ?? "present",
+          status: statuses.get(player.id) ?? "sem_questionario",
         }));
 
         await Promise.all(
@@ -215,7 +217,7 @@ export function AttendancePanel({
             </h2>
             <ul className="flex flex-col gap-1 list-none p-0 m-0">
               {groupPlayers.map((player) => {
-                const status = statuses.get(player.id) ?? "present";
+                const status = statuses.get(player.id) ?? "sem_questionario";
                 return (
                   <li key={player.id}>
                     <button

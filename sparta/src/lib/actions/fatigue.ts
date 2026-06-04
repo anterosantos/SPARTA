@@ -143,6 +143,38 @@ export async function submitFatigueResponse(
     phase: validated.data.phase,
   });
 
+  // 3.3.9b — Transição automática de presença: sem_questionario → present (fire-and-forget)
+  // Quando o jogador submete o questionário PRÉ, o registo de presença passa automaticamente
+  // de 'sem_questionario' para 'present'. Só actua se o estado actual for 'sem_questionario';
+  // outros estados (absent, late, etc.) não são alterados. Falhas são apenas logadas.
+  if (validated.data.phase === "pre") {
+    void (async () => {
+      try {
+        const { error: attendanceErr } = await serviceRole
+          .from("attendances")
+          .update({ status: "present" })
+          .eq("session_id", validated.data.session_id)
+          .eq("player_id", validated.data.player_id)
+          .eq("club_id", player.club_id)
+          .eq("status", "sem_questionario");
+
+        if (attendanceErr) {
+          logger.warn("attendance.sem_questionario_transition_failed", {
+            player_id: validated.data.player_id,
+            session_id: validated.data.session_id,
+            error: attendanceErr.message,
+          });
+        }
+      } catch (e) {
+        logger.warn("attendance.sem_questionario_transition_failed", {
+          player_id: validated.data.player_id,
+          session_id: validated.data.session_id,
+          error: e instanceof Error ? e.message : "unknown",
+        });
+      }
+    })();
+  }
+
   // 3.3.10 — Upsert session_metrics (Story 5.1, FR33)
   // Apenas para fase 'post' (Zod schema agora forbids post sem srpe_value).
   // Operação secundária: erros são logados mas NÃO propagados — fatigue_responses já gravada.

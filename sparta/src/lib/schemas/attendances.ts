@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const ATTENDANCE_STATUSES = [
+  "sem_questionario",
   "present",
   "absent",
   "late",
