@@ -67,7 +67,13 @@ const handler = async (req: Request): Promise<Response> => {
   // Configure web-push with VAPID keys
   webpush.setVapidDetails(siteUrl, vapidPublicKey, vapidPrivateKey);
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  // Timeout de 15s em todos os fetch do supabase client para evitar hang indefinido
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    global: {
+      fetch: (url, options) =>
+        fetch(url, { ...options, signal: AbortSignal.timeout(15_000) }),
+    },
+  });
 
   try {
     // D1 fix: limpar rows 'processing' bloqueadas há > 10 min antes de começar
