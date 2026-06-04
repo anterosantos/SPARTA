@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { logAccess } from "@/lib/actions/audit";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
@@ -438,8 +439,10 @@ export async function sendConvocatoria(
       }));
 
     if (notifRows.length > 0) {
+      // notification_log só tem SELECT policy para authenticated — usa service role para INSERT
+      const serviceRole = getServiceRoleClient();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const notifTable = (supabase.from as any)("notification_log");
+      const notifTable = (serviceRole.from as any)("notification_log");
       const upsertResult = await notifTable.upsert(notifRows, {
         onConflict: "profile_id,session_id,kind",
         ignoreDuplicates: false,
