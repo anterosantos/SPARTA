@@ -146,19 +146,40 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build notification payload (opaque — no health data per NFR21 / GDPR Art. 9)
-      const bodyText =
-        notif.kind === "fatigue_pre"
+      // Build notification payload (opaque — no health/medical data per NFR21 / GDPR Art. 9)
+      let bodyText: string;
+      let deepLink: string;
+      let tag: string;
+
+      if (notif.kind === "player_absence") {
+        // Fetch player first name for the notification body (not health data)
+        let playerFirstName = "Um jogador";
+        if (notif.context_player_id) {
+          const { data: playerRow } = await supabase
+            .from("players")
+            .select("full_name")
+            .eq("id", notif.context_player_id)
+            .maybeSingle();
+          if (playerRow?.full_name) {
+            playerFirstName = playerRow.full_name.split(" ")[0] ?? playerRow.full_name;
+          }
+        }
+        bodyText = `${playerFirstName} declarou ausência para a sessão`;
+        deepLink = `/sessoes/${notif.session_id}/presencas`;
+        tag = "player-absence";
+      } else {
+        bodyText = notif.kind === "fatigue_pre"
           ? "Sessão daqui a pouco — abre o app"
           : "Sessão concluída — responde ao questionário";
+        deepLink = `/questionario/${notif.session_id}/${notif.kind === "fatigue_pre" ? "pre" : "post"}`;
+        tag = "fatigue-notification";
+      }
 
       const payload = {
         title: "SPARTA",
         body: bodyText,
-        tag: "fatigue-notification",
-        data: {
-          deepLink: `/questionario/${notif.session_id}/${notif.kind === "fatigue_pre" ? "pre" : "post"}`,
-        },
+        tag,
+        data: { deepLink },
       };
 
       try {

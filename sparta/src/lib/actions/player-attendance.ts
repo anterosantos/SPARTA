@@ -69,6 +69,9 @@ export async function declarePlayerAbsence(
 
   if (upsertError) return err({ code: "unknown", message: upsertError.message });
 
+  // Notificar coaches do clube (fire-and-forget — falhas não afectam o resultado)
+  void notifyCoachesOfAbsence(serviceRole, player.club_id, player.id, validated.data.session_id);
+
   return ok({ status: "absent" as AttendanceStatus });
 }
 
@@ -158,4 +161,58 @@ export async function getPlayerAttendanceForSession(
   if (!data) return ok(null);
 
   return ok({ status: data.status as AttendanceStatus, note: data.note as string | null });
+}
+
+// ─── Helper: notificar coaches ─────────────────────────────────────────────────
+
+type ServiceRoleClient = ReturnType<typeof getServiceRoleClient>;
+
+async function notifyCoachesOfAbsence(
+  serviceRole: ServiceRoleClient,
+  clubId: string,
+  playerId: string,
+  sessionId: string
+): Promise<void> {
+  try {
+    // Encontrar profiles de coaches deste clube com push subscriptions activas
+    const { data: coachProfiles } = await serviceRole
+      .from("profiles")
+      .select("id")
+      .eq("club_id", clubId)
+      .eq("role", "coach");
+
+    if (!coachProfiles?.length) return;
+
+    const coachIds = coachProfiles.map((p: { id: string }) => p.id);
+
+    const { data: activeSubs } = await serviceRole
+      .from("push_subscriptions")
+      .select("profile_id")
+      .in("profile_id", coachIds)
+      .eq("is_active", true);
+
+    if (!activeSubs?.length) return;
+
+    // Inserir uma entrada em notification_log por coach subscrito
+    // ON CONFLICT: se já existe (re-declaração após cancelamento), re-agenda
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- context_player_id not in generated types yet
+    await (serviceRole.from as any)("notification_log").upsert(
+      activeSubs.map((sub: { profile_id: string }) => ({
+        id: newId(),
+        club_id: clubId,
+        profile_id: sub.profile_id,
+        session_id: sessionId,
+        kind: "player_absence",
+        scheduled_for: new Date().toISOString(),
+        status: "scheduled",
+        context_player_id: playerId,
+      })),
+      {
+        onConflict: "profile_id,session_id,kind",
+        ignoreDuplicates: false,
+      }
+    );
+  } catch {
+    // fire-and-forget — falhas não propagadas
+  }
 }
