@@ -1,6 +1,8 @@
 // @ts-nocheck — Deno Edge Function: Deno global não existe no tsconfig do Next.js
-import { createClient } from "@supabase/supabase-js";
+// Usa ligação directa ao PostgreSQL (postgresjs) em vez de supabase-js/PostgREST
+// para evitar o deadlock HTTP que causa WORKER_RESOURCE_LIMIT de 150s.
 import webpush from "web-push";
+import postgres from "postgres";
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -18,16 +20,10 @@ function isValidPushKeys(keys: unknown): keys is PushKeys {
     k["p256dh"].length > 0 && k["auth"].length > 0;
 }
 
-// ---------------------------------------------------------------------------
-// HTTP status extraction from web-push errors
-// ---------------------------------------------------------------------------
-
 function extractHttpStatus(err: unknown): number {
   if (!err || typeof err !== "object") return 0;
-  // web-push sets statusCode on the error object
   const e = err as Record<string, unknown>;
   if (typeof e["statusCode"] === "number") return e["statusCode"];
-  // Fallback: parse from message (e.g. "Received unexpected response code 410")
   if (typeof e["message"] === "string") {
     const match = (e["message"] as string).match(/\b(4\d{2}|5\d{2})\b/);
     if (match?.[1] !== undefined) return parseInt(match[1], 10);
@@ -44,130 +40,121 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const dbUrl = Deno.env.get("SUPABASE_DB_URL");
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const siteUrl = Deno.env.get("SITE_URL") ?? "https://sparta-webapp.vercel.app";
 
-  console.log("[send-push] env check:", {
-    hasSupabaseUrl: !!supabaseUrl,
-    hasServiceRoleKey: !!serviceRoleKey,
+  console.log("[send-push] start:", {
+    hasDbUrl: !!dbUrl,
     hasVapidPublicKey: !!vapidPublicKey,
     hasVapidPrivateKey: !!vapidPrivateKey,
   });
 
-  if (!supabaseUrl || !serviceRoleKey || !vapidPublicKey || !vapidPrivateKey) {
+  if (!dbUrl || !vapidPublicKey || !vapidPrivateKey) {
     return new Response(
-      JSON.stringify({ error: "Missing environment variables" }),
+      JSON.stringify({ error: "Missing environment variables", missing: { dbUrl: !dbUrl, vapid: !vapidPublicKey } }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  // Configure web-push with VAPID keys
   webpush.setVapidDetails(siteUrl, vapidPublicKey, vapidPrivateKey);
 
-  // Timeout de 15s em todos os fetch do supabase client para evitar hang indefinido
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    global: {
-      fetch: (url, options) =>
-        fetch(url, { ...options, signal: AbortSignal.timeout(15_000) }),
-    },
+  // Ligação directa ao PostgreSQL — bypassa PostgREST/Kong que fica em deadlock
+  // quando chamado de dentro de um edge function do mesmo projecto.
+  const sql = postgres(dbUrl, {
+    max: 1,
+    ssl: "require",
+    connect_timeout: 10,
+    idle_timeout: 30,
   });
 
   try {
-    // D1 fix: limpar rows 'processing' bloqueadas há > 10 min antes de começar
-    const { data: staleCount } = await supabase.rpc(
-      "reset_stale_processing_notifications",
-      { stale_minutes: 10 }
-    );
-    if (staleCount && staleCount > 0) {
+    // Reset rows 'processing' bloqueadas há > 10 min
+    const [staleRow] = await sql`
+      WITH reset AS (
+        UPDATE notification_log
+        SET
+          status        = 'failed',
+          error_message = 'Processing timeout — reset by cleanup'
+        WHERE status = 'processing'
+          AND created_at < now() - interval '10 minutes'
+        RETURNING id
+      )
+      SELECT COUNT(*)::int AS count FROM reset
+    `;
+    const staleCount = staleRow?.count ?? 0;
+    if (staleCount > 0) {
       console.warn(`[send-push] reset ${staleCount} stale 'processing' rows to 'failed'`);
     }
 
-    // D1 fix: usar claim_push_notifications RPC com FOR UPDATE SKIP LOCKED
-    // para prevenir duplo envio em execuções sobrepostas do cron de 5 min.
-    const { data: notifications, error: queryError } = await supabase.rpc(
-      "claim_push_notifications",
-      { batch_size: 50 }
-    );
+    // Claim notificações atomicamente (FOR UPDATE SKIP LOCKED previne duplo envio)
+    const notifications = await sql`
+      UPDATE notification_log
+      SET status = 'processing'
+      WHERE id IN (
+        SELECT id FROM notification_log
+        WHERE status = 'scheduled'
+          AND scheduled_for <= now()
+        ORDER BY scheduled_for ASC
+        LIMIT 50
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, profile_id, session_id, kind, context_player_id
+    `;
 
-    if (queryError) {
-      console.error("[send-push] claim_push_notifications failed:", queryError);
-      return new Response(
-        JSON.stringify({ error: "Failed to claim notifications", details: queryError }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("[send-push] claimed notifications for processing:", notifications?.length ?? 0);
+    console.log("[send-push] claimed:", notifications.length);
 
     let sent = 0;
     let failed = 0;
     let skipped = 0;
 
-    for (const notif of notifications ?? []) {
-      // P2 fix: usar maybeSingle() — .single() lançaria erro se perfil tiver
-      // múltiplas subscrições ativas; agora retorna null em caso de múltiplos rows.
-      const { data: subscription, error: subError } = await supabase
-        .from("push_subscriptions")
-        .select("id, endpoint, keys_json, is_active")
-        .eq("profile_id", notif.profile_id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    for (const notif of notifications) {
+      // Fetch subscrição activa mais recente do perfil
+      const [subscription] = await sql`
+        SELECT id, endpoint, keys_json, is_active
+        FROM push_subscriptions
+        WHERE profile_id = ${notif.profile_id}
+          AND is_active = true
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
 
-      if (subError || !subscription) {
-        // Sem subscrição ativa → marcar como skipped
-        const { error: updateError } = await supabase
-          .from("notification_log")
-          .update({ status: "skipped" })
-          .eq("id", notif.id);
-
-        if (updateError) {
-          console.warn(`[send-push] failed to mark as skipped (${notif.id}):`, updateError);
-        }
+      if (!subscription) {
+        await sql`UPDATE notification_log SET status = 'skipped' WHERE id = ${notif.id}`;
         skipped++;
         continue;
       }
 
-      // P7 fix: validar shape de keys_json antes de passar ao webpush
-      // keys_json tem tipo estruturado em DB mas pode chegar como string serializada
       const rawKeys = typeof subscription.keys_json === "string"
         ? (() => { try { return JSON.parse(subscription.keys_json); } catch { return null; } })()
         : subscription.keys_json;
 
       if (!isValidPushKeys(rawKeys)) {
         console.warn(`[send-push] invalid keys_json for subscription ${subscription.id} — deactivating`);
-        await supabase
-          .from("push_subscriptions")
-          .update({ is_active: false })
-          .eq("endpoint", subscription.endpoint);
-        await supabase
-          .from("notification_log")
-          .update({ status: "failed", error_message: "Invalid push keys" })
-          .eq("id", notif.id);
+        await sql`UPDATE push_subscriptions SET is_active = false WHERE endpoint = ${subscription.endpoint}`;
+        await sql`
+          UPDATE notification_log
+          SET status = 'failed', error_message = 'Invalid push keys'
+          WHERE id = ${notif.id}
+        `;
         failed++;
         continue;
       }
 
-      // Build notification payload (opaque — no health/medical data per NFR21 / GDPR Art. 9)
+      // Build payload
       let bodyText: string;
       let deepLink: string;
       let tag: string;
 
       if (notif.kind === "player_absence") {
-        // Fetch player first name for the notification body (not health data)
         let playerFirstName = "Um jogador";
         if (notif.context_player_id) {
-          const { data: playerRow } = await supabase
-            .from("players")
-            .select("full_name")
-            .eq("id", notif.context_player_id)
-            .maybeSingle();
-          if (playerRow?.full_name) {
-            playerFirstName = playerRow.full_name.split(" ")[0] ?? playerRow.full_name;
+          const [player] = await sql`
+            SELECT full_name FROM players WHERE id = ${notif.context_player_id}
+          `;
+          if (player?.full_name) {
+            playerFirstName = (player.full_name as string).split(" ")[0] ?? player.full_name;
           }
         }
         bodyText = `${playerFirstName} declarou ausência para a sessão`;
@@ -189,8 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       try {
-        // Use generateRequestDetails + native fetch to avoid node:https compatibility
-        // issues in the Supabase Deno edge function runtime (node:https hangs).
+        // generateRequestDetails faz apenas crypto (sem I/O) — evita node:https
         const details = await webpush.generateRequestDetails(
           { endpoint: subscription.endpoint, keys: rawKeys },
           JSON.stringify(payload)
@@ -207,65 +193,32 @@ const handler = async (req: Request): Promise<Response> => {
           throw err;
         }
 
-        // Success: update status and sent_at
-        const { error: updateError } = await supabase
-          .from("notification_log")
-          .update({
-            status: "sent",
-            sent_at: new Date().toISOString(),
-          })
-          .eq("id", notif.id);
-
-        if (updateError) {
-          console.warn(`[send-push] failed to update status to sent (${notif.id}):`, updateError);
-          failed++;
-        } else {
-          sent++;
-          console.log(`[send-push] sent notification ${notif.id}`);
-        }
+        await sql`
+          UPDATE notification_log
+          SET status = 'sent', sent_at = now()
+          WHERE id = ${notif.id}
+        `;
+        sent++;
+        console.log(`[send-push] sent ${notif.id}`);
       } catch (pushError: unknown) {
-        // P5 fix: extrair statusCode de forma estruturada (web-push expõe statusCode)
-        // P5 fix: tratar 404 igual a 410 — endpoint permanentemente desaparecido
         const statusCode = extractHttpStatus(pushError);
 
         if (statusCode === 410 || statusCode === 404) {
-          // P6 fix: desativar por endpoint (não por ID) — cobre todos os rows com o mesmo endpoint
-          const { error: deactivateError } = await supabase
-            .from("push_subscriptions")
-            .update({ is_active: false })
-            .eq("endpoint", subscription.endpoint);
-
-          if (deactivateError) {
-            console.warn(`[send-push] failed to deactivate subscription by endpoint:`, deactivateError);
-          }
-
-          const { error: updateError } = await supabase
-            .from("notification_log")
-            .update({
-              status: "failed",
-              error_message: `${statusCode} Gone`,
-            })
-            .eq("id", notif.id);
-
-          if (updateError) {
-            console.warn(`[send-push] failed to update status for ${statusCode} (${notif.id}):`, updateError);
-          }
-          console.log(`[send-push] subscription ${statusCode} — deactivated endpoint: ${subscription.endpoint}`);
+          await sql`UPDATE push_subscriptions SET is_active = false WHERE endpoint = ${subscription.endpoint}`;
+          await sql`
+            UPDATE notification_log
+            SET status = 'failed', error_message = ${`${statusCode} Gone`}
+            WHERE id = ${notif.id}
+          `;
+          console.log(`[send-push] ${statusCode} — deactivated ${subscription.endpoint}`);
         } else {
-          // Transient error: mark as failed but don't deactivate
           const errorMsg = pushError instanceof Error ? pushError.message : "Unknown error";
-          const { error: updateError } = await supabase
-            .from("notification_log")
-            .update({
-              status: "failed",
-              error_message: errorMsg.substring(0, 255),
-            })
-            .eq("id", notif.id);
-
-          if (updateError) {
-            console.warn(`[send-push] failed to update status for transient error (${notif.id}):`, updateError);
-          }
-          console.warn(`[send-push] push error for ${notif.id} (status ${statusCode}):`, errorMsg);
+          await sql`
+            UPDATE notification_log
+            SET status = 'failed', error_message = ${errorMsg.substring(0, 255)}
+            WHERE id = ${notif.id}
+          `;
+          console.warn(`[send-push] push error ${notif.id} (status ${statusCode}):`, errorMsg);
         }
         failed++;
       }
@@ -273,27 +226,25 @@ const handler = async (req: Request): Promise<Response> => {
 
     const response = {
       event: "send_push",
-      processed: notifications?.length ?? 0,
+      processed: notifications.length,
       sent,
       failed,
       skipped,
     };
-
-    console.log("[send-push] completed:", response);
+    console.log("[send-push] done:", response);
 
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    // P3 fix: o catch externo não pode atualizar notification_log (não sabemos qual notif falhou).
-    // O claim_push_notifications já transitou as rows para 'processing';
-    // o reset_stale_processing_notifications do próximo run irá repô-las a 'failed' após 10 min.
-    console.error("[send-push] unexpected error:", error);
+    console.error("[send-push] unexpected error:", String(error));
     return new Response(
       JSON.stringify({ error: "Internal server error", details: String(error) }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
+  } finally {
+    await sql.end({ timeout: 5 });
   }
 };
 
