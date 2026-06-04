@@ -160,6 +160,7 @@ export default async function ConvocatoriaPage({
     type: session.type as "match" | "friendly",
     scheduled_at: session.scheduled_at,
     duration_min: session.duration_min,
+    concentration_time: session.concentration_time ?? null,
   };
 
   return (

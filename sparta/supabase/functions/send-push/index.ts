@@ -160,6 +160,25 @@ const handler = async (req: Request): Promise<Response> => {
         bodyText = `${playerFirstName} declarou ausência para a sessão`;
         deepLink = `/sessoes/${notif.session_id}/presencas`;
         tag = "player-absence";
+      } else if (notif.kind === "convocado") {
+        const { data: sessionData } = await withTimeout(
+          supabase
+            .from("sessions")
+            .select("type, concentration_time")
+            .eq("id", notif.session_id)
+            .maybeSingle(),
+          15_000,
+          `fetch_session:${notif.id}`
+        );
+        const sessionTypeLabel =
+          sessionData?.type === "match" ? "jogo" :
+          sessionData?.type === "friendly" ? "jogo amigável" : "sessão";
+        const concTime = (sessionData as Record<string, unknown> | null)?.["concentration_time"] as string | null ?? null;
+        bodyText = concTime
+          ? `Estás convocado para o ${sessionTypeLabel}. Concentração às ${concTime}.`
+          : `Estás convocado para o ${sessionTypeLabel}.`;
+        deepLink = `/sessoes/${notif.session_id}`;
+        tag = "convocado";
       } else {
         bodyText = notif.kind === "fatigue_pre"
           ? "Sessão daqui a pouco — abre o app"

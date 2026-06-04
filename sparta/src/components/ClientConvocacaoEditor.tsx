@@ -4,13 +4,14 @@ import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { LineupToggle } from "@/components/patterns/LineupToggle";
-import { submitLineup } from "@/lib/actions/lineups";
+import { submitLineup, sendConvocatoria } from "@/lib/actions/lineups";
 
 export interface Session {
   id: string;
   type: "training" | "match" | "friendly";
   scheduled_at: string;
   duration_min: number;
+  concentration_time?: string | null;
 }
 
 export interface PlayerWithConsent {
@@ -45,7 +46,13 @@ export function ClientConvocacaoEditor({
   playersByPosition,
 }: ClientConvocacaoEditorProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isSaving, startSaveTransition] = useTransition();
+  const [isSending, startSendTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const [concentrationTime, setConcentrationTime] = useState(
+    session.concentration_time ?? ""
+  );
 
   const [selections, setSelections] = useState<LineupSelection>(() => {
     const map: LineupSelection = {};
@@ -67,57 +74,92 @@ export function ClientConvocacaoEditor({
     return map;
   });
 
-  const starterCount = Object.values(selections).filter(
-    (v) => v === "starter"
-  ).length;
-  const benchCount = Object.values(selections).filter(
-    (v) => v === "bench"
-  ).length;
-
+  const starterCount = Object.values(selections).filter((v) => v === "starter").length;
+  const benchCount = Object.values(selections).filter((v) => v === "bench").length;
+  const isPending = isSaving || isSending;
   const canSubmit = starterCount === 11 && !readOnly && !isPending;
 
-  async function handleSubmit() {
-    const players = Object.entries(selections)
+  function buildPlayers() {
+    return Object.entries(selections)
       .filter(([, role]) => role)
       .map(([playerId, role]) => ({
         playerId,
         role: role as "starter" | "bench",
-        shirtNum: role === "starter" ? shirtNumbers[playerId] ?? null : null,
+        shirtNum: role === "starter" ? (shirtNumbers[playerId] ?? null) : null,
       }));
+  }
 
-    startTransition(async () => {
+  function handleSave() {
+    setError(null);
+    startSaveTransition(async () => {
       try {
         const result = await submitLineup({
           sessionId: session.id,
-          players,
+          players: buildPlayers(),
+          concentrationTime: concentrationTime || null,
         });
-
         if (!result.ok) {
-          // Toast error
-          console.error("Erro ao guardar convocatória:", result.error);
+          setError(result.error ?? "Erro ao guardar");
           return;
         }
-
-        // Success
         router.push(`/sessoes/${session.id}?toast=lineup-saved`);
-      } catch (error) {
-        console.error("Erro ao comunicar com servidor:", error);
+      } catch {
+        setError("Erro de comunicação com o servidor");
+      }
+    });
+  }
+
+  function handleSend() {
+    setError(null);
+    startSendTransition(async () => {
+      try {
+        const result = await sendConvocatoria({
+          sessionId: session.id,
+          players: buildPlayers(),
+          concentrationTime: concentrationTime || null,
+        });
+        if (!result.ok) {
+          setError(result.error ?? "Erro ao enviar");
+          return;
+        }
+        router.push(`/sessoes/${session.id}?toast=convocatoria-sent`);
+      } catch {
+        setError("Erro de comunicação com o servidor");
       }
     });
   }
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Contador sticky */}
       <div className="sticky top-12 bg-card border-b border-border px-4 py-3 sm:px-6 z-40">
-        <p
-          aria-live="polite"
-          aria-atomic="true"
-          className="text-sm font-medium text-foreground"
-        >
+        <p aria-live="polite" aria-atomic="true" className="text-sm font-medium text-foreground">
           {starterCount} / 11 titulares · {benchCount} suplentes
         </p>
       </div>
 
+      {/* Hora de concentração */}
+      <div className="border-b border-border bg-background px-4 py-4 sm:px-6">
+        <label
+          htmlFor="concentration-time"
+          className="block text-sm font-medium text-foreground mb-1"
+        >
+          Hora de concentração
+        </label>
+        <input
+          id="concentration-time"
+          type="time"
+          value={concentrationTime}
+          onChange={(e) => setConcentrationTime(e.target.value)}
+          disabled={readOnly}
+          className="w-36 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Incluída na notificação enviada aos convocados
+        </p>
+      </div>
+
+      {/* Lista de jogadores por posição */}
       <div className="flex-1">
         {Object.entries(playersByPosition).map(([position, positionPlayers]) => (
           <section key={position} className="border-b border-border">
@@ -142,9 +184,7 @@ export function ClientConvocacaoEditor({
                       });
                     }
                   }}
-                  parentalConsentConfirmed={
-                    player.parental_consent_status === "confirmed"
-                  }
+                  parentalConsentConfirmed={player.parental_consent_status === "confirmed"}
                   disabled={readOnly}
                   shirtNum={shirtNumbers[player.id] ?? null}
                 />
@@ -154,24 +194,44 @@ export function ClientConvocacaoEditor({
         ))}
       </div>
 
+      {/* Erro inline */}
+      {error && (
+        <div className="border-t border-destructive/30 bg-destructive/10 px-4 py-3 sm:px-6">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
+      {/* Footer — botões de acção */}
       {!readOnly && (
-        <div className="border-t border-border bg-background px-4 py-4 sm:px-6 flex gap-3">
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex-1"
-          >
-            {isPending ? "Guardando..." : "Guardar convocatória"}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            disabled={isPending}
-            className="flex-1"
-          >
-            Cancelar
-          </Button>
+        <div className="border-t border-border bg-background px-4 py-4 sm:px-6 flex flex-col gap-2">
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              onClick={handleSend}
+              disabled={!canSubmit}
+              className="flex-1"
+            >
+              {isSending ? "A enviar..." : "Enviar convocatória"}
+            </Button>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSave}
+              disabled={!canSubmit}
+              className="flex-1"
+            >
+              {isSaving ? "A guardar..." : "Guardar (só staff)"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => router.back()}
+              disabled={isPending}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+          </div>
         </div>
       )}
 

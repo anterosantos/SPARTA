@@ -84,4 +84,5 @@ export type Session = {
   notes: string | null;
   created_by: string;
   created_at: string;
+  concentration_time: string | null;
 };

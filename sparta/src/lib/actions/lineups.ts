@@ -6,26 +6,38 @@ import { logAccess } from "@/lib/actions/audit";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
 
+const PlayersArraySchema = z
+  .array(
+    z.object({
+      playerId: z.string().uuid("ID de jogador inválido"),
+      role: z.enum(["starter", "bench"]),
+      shirtNum: z.number().int().positive().max(99).nullable().optional(),
+    })
+  )
+  .min(1, "Pelo menos um jogador é necessário")
+  .refine(
+    (players) => players.filter((p) => p.role === "starter").length === 11,
+    { message: "Deve seleccionar exactamente 11 titulares" }
+  );
+
 const SubmitLineupSchema = z.object({
   sessionId: z.string().uuid("ID de sessão inválido"),
-  players: z
-    .array(
-      z.object({
-        playerId: z.string().uuid("ID de jogador inválido"),
-        role: z.enum(["starter", "bench"]),
-        shirtNum: z.number().int().positive().max(99).nullable().optional(),
-      })
-    )
-    .min(1, "Pelo menos um jogador é necessário")
-    .refine(
-      (players) => {
-        const starterCount = players.filter((p) => p.role === "starter").length;
-        return starterCount === 11;
-      },
-      {
-        message: "Deve seleccionar exactamente 11 titulares",
-      }
-    ),
+  players: PlayersArraySchema,
+  concentrationTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Formato inválido (HH:MM)")
+    .nullable()
+    .optional(),
+});
+
+const SendConvocatoriaSchema = z.object({
+  sessionId: z.string().uuid("ID de sessão inválido"),
+  players: PlayersArraySchema,
+  concentrationTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Formato inválido (HH:MM)")
+    .nullable()
+    .optional(),
 });
 
 export interface SubmitLineupResult {
@@ -62,7 +74,7 @@ export async function submitLineup(
     return { ok: false, error: message };
   }
 
-  const { sessionId, players } = validated.data;
+  const { sessionId, players, concentrationTime } = validated.data;
 
   const { supabase, user, profile } = await getAuthContext();
   if (!user) {
@@ -204,6 +216,15 @@ export async function submitLineup(
     };
   }
 
+  // Save concentration_time to session if provided
+  if (concentrationTime !== undefined) {
+    await supabase
+      .from("sessions")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ concentration_time: concentrationTime ?? null } as any)
+      .eq("id", sessionId);
+  }
+
   // Create audit log entry
   try {
     await logAccess("lineup.submitted", "session", sessionId);
@@ -316,4 +337,123 @@ export async function getLineupForSession(
     });
 
   return ok(lineups);
+}
+
+// =============================================================================
+// sendConvocatoria — guarda lineup + hora de concentração + envia push a todos
+// =============================================================================
+
+export async function sendConvocatoria(
+  input: unknown
+): Promise<SubmitLineupResult> {
+  const validated = SendConvocatoriaSchema.safeParse(input);
+  if (!validated.success) {
+    const message = validated.error.issues[0]?.message || "Dados inválidos";
+    return { ok: false, error: message };
+  }
+
+  const { sessionId, players, concentrationTime } = validated.data;
+  const { supabase, user, profile } = await getAuthContext();
+
+  if (!user) return { ok: false, error: "Não autenticado" };
+  if (!profile?.club_id) return { ok: false, error: "Perfil não encontrado" };
+  if (profile.role !== "coach") {
+    return { ok: false, error: "Apenas treinadores podem enviar convocatórias" };
+  }
+
+  // Verify session belongs to coach's club
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("id, club_id, type")
+    .eq("id", sessionId)
+    .eq("club_id", profile.club_id)
+    .single();
+
+  if (sessionError || !session) {
+    return { ok: false, error: "Sessão não encontrada" };
+  }
+  if (!["match", "friendly"].includes(session.type)) {
+    return { ok: false, error: "Convocatória apenas para jogos e amigáveis" };
+  }
+
+  // Verify all players belong to the club and get their profile_ids
+  const playerIds = players.map((p) => p.playerId);
+  const { data: clubPlayers, error: playersError } = await supabase
+    .from("players")
+    .select("id, profile_id")
+    .in("id", playerIds)
+    .eq("club_id", profile.club_id) as {
+      data: Array<{ id: string; profile_id: string | null }> | null;
+      error: { message: string } | null;
+    };
+
+  if (playersError || !clubPlayers || clubPlayers.length !== playerIds.length) {
+    return { ok: false, error: "Jogadores inválidos ou fora do clube" };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matchLineupTable = (supabase.from as any)("match_lineups");
+
+  try {
+    // 1. Save concentration_time to session
+    await supabase
+      .from("sessions")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ concentration_time: concentrationTime ?? null } as any)
+      .eq("id", sessionId);
+
+    // 2. Save lineup (delete + insert, same as submitLineup)
+    const deleteResult = await matchLineupTable.delete().eq("session_id", sessionId);
+    if (deleteResult.error) {
+      return { ok: false, error: `Erro ao limpar lineup: ${deleteResult.error.message}` };
+    }
+
+    const insertResult = await matchLineupTable.insert(
+      players.map((p) => ({
+        session_id: sessionId,
+        player_id: p.playerId,
+        role: p.role,
+        shirt_num: p.shirtNum ?? null,
+        started_minute: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+    );
+    if (insertResult.error) {
+      return { ok: false, error: `Erro ao guardar lineup: ${insertResult.error.message}` };
+    }
+
+    // 3. Create notification_log entries for all convocados com profile_id
+    const now = new Date().toISOString();
+    const notifRows = clubPlayers
+      .filter((p) => p.profile_id)
+      .map((p) => ({
+        club_id: session.club_id,
+        profile_id: p.profile_id!,
+        session_id: sessionId,
+        kind: "convocado",
+        scheduled_for: now,
+        status: "scheduled",
+      }));
+
+    if (notifRows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const notifTable = (supabase.from as any)("notification_log");
+      const upsertResult = await notifTable.upsert(notifRows, {
+        onConflict: "profile_id,session_id,kind",
+        ignoreDuplicates: false,
+      });
+      if (upsertResult.error) {
+        console.error("[sendConvocatoria] notification_log upsert error:", upsertResult.error);
+        return { ok: false, error: `Erro ao criar notificações: ${upsertResult.error.message}` };
+      }
+    }
+
+    await logAccess("convocatoria.sent", "session", sessionId);
+  } catch (e) {
+    console.error("[sendConvocatoria] unexpected error:", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Erro desconhecido" };
+  }
+
+  return { ok: true };
 }
