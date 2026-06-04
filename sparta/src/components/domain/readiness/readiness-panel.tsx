@@ -203,6 +203,7 @@ export function ReadinessPanel({
           players={players}
           history={history}
           sessionId={sessionId}
+          scheduledAt={scheduledAt}
           flashedIds={flashedIds}
         />
       ) : (

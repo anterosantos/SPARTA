@@ -40,6 +40,7 @@ export interface PositionGroupProps {
   history: PlayerSessionHistory;
   onSelectPlayer?: (snapshot: PlayerReadinessData) => void;
   flashedIds?: Set<string>;
+  scheduledAt?: string;
 }
 
 export function PositionGroup({
@@ -48,6 +49,7 @@ export function PositionGroup({
   history,
   onSelectPlayer,
   flashedIds,
+  scheduledAt,
 }: PositionGroupProps) {
   if (players.length === 0) return null;
 
@@ -77,6 +79,7 @@ export function PositionGroup({
               position={config.label}
               onSelect={onSelectPlayer}
               flashed={flashedIds?.has(snapshot.player_id) ?? false}
+              scheduledAt={scheduledAt}
             />
           </li>
         ))}

@@ -67,6 +67,7 @@ export interface ReadinessPanelListProps {
   players: PlayerReadinessData[];
   history: PlayerSessionHistory;
   sessionId: string;
+  scheduledAt?: string;
   flashedIds?: Set<string>;
 }
 
@@ -74,6 +75,7 @@ export function ReadinessPanelList({
   players,
   history,
   sessionId: _,
+  scheduledAt,
   flashedIds,
 }: ReadinessPanelListProps) {
   void _;
@@ -109,6 +111,7 @@ export function ReadinessPanelList({
               history={history}
               onSelectPlayer={setSelectedPlayer}
               flashedIds={flashedIds}
+              scheduledAt={scheduledAt}
             />
           );
         })}

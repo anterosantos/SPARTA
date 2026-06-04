@@ -438,6 +438,21 @@ export async function getReadinessPanelData(
   const wellnessWindowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
   interface WellnessRow { player_id: string; phase: string; muscle_pain_zones: string[] | null; has_exams_this_week: boolean | null; submitted_at: string; }
   const serviceRole = getServiceRoleClient();
+
+  // Fetch attendance records for this session — to surface player absence declarations
+  const { data: attendanceRows } = await serviceRole
+    .from('attendances')
+    .select('player_id, status, note')
+    .eq('session_id', sessionId)
+    .eq('club_id', clubId)
+    .in('player_id', playerIds);
+
+  const absenceMap = new Map<string, { absent: boolean; note: string | null }>(
+    (attendanceRows ?? []).map((r) => [
+      r.player_id as string,
+      { absent: r.status === 'absent', note: (r.note as string | null) ?? null },
+    ])
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- service role, staff-only action, requireStaffRole() guard above; audit logged by auditedRead above
   const { data: rawWellnessRows } = await (serviceRole as any)
     .from('fatigue_responses')
@@ -496,6 +511,7 @@ export async function getReadinessPanelData(
       }
 
       const wellness = wellnessMap.get(snapshot.player_id);
+      const absence = absenceMap.get(snapshot.player_id);
       return {
         ...snapshot,
         // P-11: trim + fallback para full_name vazio
@@ -504,6 +520,8 @@ export async function getReadinessPanelData(
         primaryPosition: positionMap.get(snapshot.player_id) ?? null,
         recentMusclePainZones: wellness?.zones ?? null,
         hasExamsThisWeek: wellness?.exams ?? null,
+        declaredAbsent: absence?.absent ?? false,
+        absenceNote: absence?.note ?? null,
       };
     })
     .sort((a, b) => {

@@ -41,6 +41,10 @@ export interface PlayerReadinessData extends ReadinessSnapshot {
   recentMusclePainZones: string[] | null;
   /** Flag de exames reportada hoje ou ontem (pré-sessão). Null = sem resposta recente. */
   hasExamsThisWeek: boolean | null;
+  /** Jogador declarou ausência para esta sessão via registo de presença 'absent'. */
+  declaredAbsent: boolean;
+  /** Justificação de ausência fornecida pelo jogador (pode ser null). */
+  absenceNote: string | null;
 }
 
 /** One entry in the per-player session history bar (last N past sessions). */

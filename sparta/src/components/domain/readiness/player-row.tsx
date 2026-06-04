@@ -1,6 +1,8 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
+import { BookOpen, UserX } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { pt } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { SessionHistoryBar } from "@/components/domain/readiness/session-history-bar";
 import type { PlayerReadinessData, SessionHistoryEntry } from "@/types/supabase";
@@ -75,6 +77,7 @@ export interface PlayerRowProps {
   position: string;
   onSelect?: (snapshot: PlayerReadinessData) => void;
   flashed?: boolean;
+  scheduledAt?: string;
 }
 
 export function PlayerRow({
@@ -83,9 +86,14 @@ export function PlayerRow({
   position,
   onSelect,
   flashed = false,
+  scheduledAt,
 }: PlayerRowProps) {
-  const { playerName, jerseyNum, state, acwr, derived_age_group, player_id, recentMusclePainZones, hasExamsThisWeek } = snapshot;
+  const { playerName, jerseyNum, state, acwr, derived_age_group, player_id, recentMusclePainZones, hasExamsThisWeek, declaredAbsent, absenceNote } = snapshot;
   const hasPain = recentMusclePainZones != null && recentMusclePainZones.length > 0;
+
+  const sessionLabel = scheduledAt
+    ? format(parseISO(scheduledAt), "EEE d MMM · HH:mm", { locale: pt })
+    : null;
 
   const acwrLabel = acwr != null ? `ACWR ${acwr.toFixed(2)}` : null;
   const categoryLabel = ageGroupLabel(derived_age_group);
@@ -98,6 +106,7 @@ export function PlayerRow({
     `Estado ${BADGE_CONFIG[state as keyof typeof BADGE_CONFIG]?.ariaLabel ?? state}`,
     hasPain ? `Dores reportadas: ${recentMusclePainZones!.map((z) => ZONE_LABELS[z] ?? z).join(", ")}` : null,
     hasExamsThisWeek === true ? "Tem exames esta semana" : null,
+    declaredAbsent ? `Declarou ausência${sessionLabel ? ` — ${sessionLabel}` : ""}` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -141,6 +150,24 @@ export function PlayerRow({
 
         {/* History bar */}
         <SessionHistoryBar history={history} className="mt-3" />
+
+        {/* Ausência declarada pelo jogador */}
+        {declaredAbsent && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-hidden="true">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300 ring-1 ring-inset ring-orange-300 dark:ring-orange-700">
+              <UserX size={10} />
+              Vai faltar
+            </span>
+            {sessionLabel && (
+              <span className="text-[10px] text-muted-foreground">{sessionLabel}</span>
+            )}
+            {absenceNote && (
+              <span className="text-[10px] text-muted-foreground italic truncate max-w-[200px]">
+                &ldquo;{absenceNote}&rdquo;
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Wellness indicators — dia atual ou ontem (Sprint 1.5) */}
         {(hasPain || hasExamsThisWeek === true) && (
