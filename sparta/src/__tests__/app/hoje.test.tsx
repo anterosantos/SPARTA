@@ -58,6 +58,7 @@ function makeSupabaseMock(role = "player") {
         data: { role, club_id: CLUB_UUID },
         error: null,
       }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
     }),
   };
 }
