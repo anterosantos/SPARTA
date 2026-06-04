@@ -217,14 +217,12 @@ export async function submitLineup(
 
   // Save concentration_time and opponent_name to session if provided
   if (concentrationTime !== undefined || opponentName !== undefined) {
-    await supabase
-      .from("sessions")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({
-        ...(concentrationTime !== undefined && { concentration_time: concentrationTime ?? null }),
-        ...(opponentName !== undefined && { opponent_name: opponentName ?? null }),
-      } as any)
-      .eq("id", sessionId);
+    const sessionPatch = {
+      ...(concentrationTime !== undefined && { concentration_time: concentrationTime ?? null }),
+      ...(opponentName !== undefined && { opponent_name: opponentName ?? null }),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from("sessions").update(sessionPatch as any).eq("id", sessionId);
   }
 
   // Create audit log entry
@@ -398,14 +396,12 @@ export async function sendConvocatoria(
 
   try {
     // 1. Save concentration_time and opponent_name to session
-    await supabase
-      .from("sessions")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({
-        concentration_time: concentrationTime ?? null,
-        opponent_name: opponentName ?? null,
-      } as any)
-      .eq("id", sessionId);
+    const sessionPatch = {
+      concentration_time: concentrationTime ?? null,
+      opponent_name: opponentName ?? null,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from("sessions").update(sessionPatch as any).eq("id", sessionId);
 
     // 2. Save lineup (delete + insert, same as submitLineup)
     const deleteResult = await matchLineupTable.delete().eq("session_id", sessionId);
