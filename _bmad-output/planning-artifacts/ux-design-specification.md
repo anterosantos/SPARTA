@@ -1241,7 +1241,7 @@ Prioridade por **criticidade ao MVP** — não por dependência técnica. Ordem 
 | --- | --- | --- |
 | **Treinador** | Prontidão · Calendário · Plantel · Eu | Sticky header em `<ReadinessPanel>` |
 | **Analista** | Sessões · Plantel · Tendências · Eu | Sidebar esquerda em desktop ≥1024px |
-| **Jogador** | Hoje · Calendário · Histórico · Eu | (4 tabs — calendário só de leitura) |
+| **Jogador** | Hoje · Calendário · Histórico · Eu | (4 tabs — calendário e detalhe de sessão só de leitura/ação própria) |
 
 **Regras:**
 
@@ -1265,6 +1265,66 @@ Vista **só de leitura** do calendário de sessões do clube. O Jogador pode con
 - Estado vazio: `<EmptyState>` com copy "Sem sessões agendadas neste período"
 
 **Diferenciação deliberada face ao calendário do staff:** o Jogador vê *o quê e quando*, não *quem* nem *quantos*. A informação de convocatória e presenças é mediada pelo staff (filosofia "dados mediados").
+
+#### Ecrã: Detalhe de Sessão do Jogador (`/agenda/[sessionId]`)
+
+Novo ecrã acedido ao tocar num bloco de sessão no calendário do Jogador. Rota exclusiva do grupo `(player)`.
+
+**Informação exibida:**
+
+- Tipo de sessão (Treino / Jogo / Amigável) com ícone lucide correspondente
+- Data e hora no formato PT-PT ("qua, 5 jun · 19:30")
+- Local (se definido no registo da sessão pelo staff)
+- Duração estimada (e.g., "90 min")
+
+**Ações disponíveis (apenas sobre a presença do próprio Jogador):**
+
+- **"Declarar ausência"** (botão primary) — abre um `<DrillDownSheet>` ascendente com textarea opcional "Motivo (opcional)" (max 500 chars, placeholder "ex: consulta médica, viagem"). Botão "Confirmar ausência" (primary) + "Cancelar" (ghost). A textarea mostra contador de caracteres restantes.
+- **"Cancelar ausência"** (botão ghost/secondary) — visível quando o Jogador já declarou ausência. Tap direto sem modal de confirmação adicional (ação reversível — UX-DR33).
+- Quando a ausência está declarada, o ecrã mostra a nota previamente introduzida em itálico com badge laranja "Ausência declarada" + ícone `UserX`.
+
+**Princípios de design:**
+
+- 1 primary button por ecrã (UX-DR30) — ou "Declarar ausência" (estado default) ou "Confirmar ausência" (dentro do sheet)
+- Confirmação calma após ação: `<CalmConfirmation>` "Ausência registada" ou "Ausência cancelada" (UX-DR11)
+- Sem acesso a dados de outros jogadores — o Jogador não vê quantos colegas faltam nem o estado do plantel
+- Back gesture nativo fecha o ecrã sem botão custom de voltar (UX-DR27)
+
+#### Badge "Sem Questionário" (`sem_questionario`) no painel de presenças do staff
+
+Estado de presença `sem_questionario` representa o estado inicial antes de qualquer registo ou submissão de questionário.
+
+**Estilo visual no painel de presenças (`/sessoes/[id]/presencas`):**
+
+- Badge neutro (cinzento, `signal/neutral`) com texto "Sem quest." e ícone `circle-dashed`
+- Comportamento no toggle rápido: sem_questionario → present → absent → late → injured → excused → sem_questionario
+- Distinguível visualmente do estado `present` (verde) para que o staff perceba a diferença entre "veio mas ainda não preencheu" e "preencheu"
+
+**Botão "Actualizar presenças" no footer do painel de presenças:**
+
+- Ghost button posicionado no footer do painel, alinhado à direita
+- Ícone `RefreshCw` (lucide) + label "Actualizar presenças"
+- Estado loading: spinner inline, texto preservado, button disabled (UX-DR30)
+- Desativado com `disabled` + tooltip explicativo quando offline: "Sem ligação — não é possível actualizar agora"
+- Após sucesso: `<CalmConfirmation>` "Presenças actualizadas"
+
+#### Badge "Vai Faltar" no Painel de Prontidão (`/prontidao`)
+
+Quando um jogador declarou a sua ausência para a sessão seguinte, o cartão do jogador no painel de prontidão mostra informação adicional.
+
+**Anatomia do cartão com ausência declarada:**
+
+- Badge laranja (`signal/caution-bg` + `signal/caution-ink`) com ícone `UserX` (lucide, 14px) + texto "Vai faltar"
+- Linha de data/hora abaixo do badge: formato "qua 5 jun · 19:30" em `text/muted`, `text-xs`
+- Nota justificativa (se fornecida): linha em itálico, `text/muted`, `text-xs`, truncada a 80 chars com "…"
+- O badge posiciona-se abaixo do nome do jogador, antes do semáforo de prontidão
+
+**Princípios:**
+
+- A cor laranja (`signal/caution`) é usada porque "vai faltar" é informação de atenção, não de alerta crítico — o staff pode ter recebido a declaração e planear em conformidade
+- Redundância sensorial: cor laranja + ícone `UserX` + texto "Vai faltar" (nunca cor sozinha — UX-DR1)
+- A presença do badge não substitui o semáforo de prontidão — ambos coexistem no cartão
+- `aria-label="Jogador declarou ausência"` no badge para leitores de ecrã (NFR39)
 
 **Drill-down vs nova rota:**
 

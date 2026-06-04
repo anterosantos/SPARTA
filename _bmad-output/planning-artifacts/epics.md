@@ -44,6 +44,7 @@ This document provides the complete epic and story breakdown for SPARTA, decompo
 - FR18: Treinador pode definir convocados e equipa inicial para cada jogo. [MVP]
 - FR19: Analista pode registar substituições durante o jogo; sistema deriva automaticamente minutos jogados. [MVP]
 - FR20: Treinador e Analista podem criar e gerir épocas e visualizar dados filtrados por época ou cumulativos. [MVP]
+- FR20b: Jogador pode tocar numa sessão do calendário para abrir ecrã de detalhe (tipo, data/hora, local, duração) e declarar ausência com nota opcional (máx 500 chars) ou cancelar ausência declarada. [MVP]
 
 **Fatigue & Wellness Tracking**
 
@@ -67,11 +68,15 @@ This document provides the complete epic and story breakdown for SPARTA, decompo
 - FR28: Analista pode registar eventos em offline; sistema sincroniza sem perda de dados. [MVP]
 - FR29: Analista pode editar ou apagar eventos registados por engano dentro de janela configurável após sessão. [MVP]
 - FR30: Analista pode registar presença e ausência de jogadores em sessões de treino. [MVP]
+- FR30a: A tabela de presenças suporta o estado `sem_questionario` como estado inicial. O staff cicla manualmente: sem_questionario → present → absent → late → injured → excused → sem_questionario. [MVP]
+- FR30b: Quando um jogador submete o questionário pré-sessão, o sistema automaticamente altera o estado de presença de `sem_questionario` para `present` (fire-and-forget em `submitFatigueResponse`). [MVP]
+- FR30c: Staff pode acionar "Actualizar presenças" no painel de presenças para sincronizar com submissões de questionário: `sem_questionario` + questionário submetido → `present`; sem registo + questionário → cria `present`; outros estados → inalterados. Desativado em modo offline. [MVP]
 - FR31: Analista pode registar Session-RPE (1–10 × duração) para cada jogador no fim de cada sessão. [MVP]
 - FR31a: Sistema calcula automaticamente **% de convocatórias por atleta** (época/carreira) e **% minutos por atleta** (época/carreira). [MVP]
 
 **Readiness Intelligence & Analytics Dashboards**
 
+- FR31a: Quando um jogador tem ausência declarada (status `absent`) para a sessão seguinte, o cartão no painel de prontidão mostra badge laranja "Vai faltar" com ícone UserX, data/hora da sessão e nota justificativa em itálico. `PlayerReadinessData` inclui `declaredAbsent: boolean` e `absenceNote: string | null`. [MVP]
 - FR32: Sistema calcula automaticamente o ACWR (rácio carga aguda 7d / crónica 28d) por jogador com limiares por escalão etário. [MVP]
 - FR33: Sistema calcula sRPE (Session-RPE × duração) por sessão e mantém histórico cumulativo. [MVP]
 - FR34: Treinador pode consultar Painel de Prontidão com semáforo verde/amarelo/vermelho por jogador. [MVP]
@@ -477,9 +482,11 @@ Analytics Dashboards & Reporting:
 | FR14 | Epic 7 | Perfil unificado (Growth) |
 | FR17, FR18, FR20 | Epic 2 | Calendário + convocatória + épocas |
 | FR20a | Epic 2 | Calendário só de leitura para Jogador |
+| FR20b | Epic 2 | Detalhe de sessão + declaração de ausência pelo Jogador |
 | FR19 | Epic 6 | Substituições com derivação de minutos |
 | FR21, FR22, FR23, FR24, FR25, FR26 | Epic 4 | Questionário fadiga + offline + dados mediados |
-| FR27, FR28, FR29, FR30, FR31 | Epic 6 | Touchscreen 7 métricas + presenças + sRPE |
+| FR27, FR28, FR29, FR30, FR30a, FR30b, FR30c, FR31 | Epic 6 | Touchscreen 7 métricas + presenças + sem_questionario + sRPE |
+| FR31a | Epic 5 | Indicador "Vai faltar" no painel de prontidão |
 | FR32, FR33, FR34, FR35, FR36 | Epic 5 | ACWR + sRPE + Painel + drill-down + realtime 4h |
 | FR37, FR38 | Epic 5 | Dashboards tendências + carga acumulada |
 | FR39, FR40, FR41 | Epic 7 | Correlações + curva recuperação + agregado equipa (Growth) |
@@ -490,7 +497,7 @@ Analytics Dashboards & Reporting:
 | FR55, FR56, FR57, FR58 | Epic 1 | Heartbeat + backup + browser blocks |
 | FR59 | Epic 7 | PDF export mediado (Growth) |
 
-**Cobertura: 59/59 FRs.**
+**Cobertura: 65/65 FRs** (inclui FR20b, FR30a, FR30b, FR30c, FR31a adicionados em atualização pós-implementação).
 
 ## Epic List
 
@@ -502,9 +509,9 @@ Treinador, Analista e Jogador autenticam-se no clube com permissões corretas (m
 
 ### Epic 2: Plantel, Calendário & Sessões (gestão operacional do staff)
 
-Analista gere plantel completo (jogadores, métricas peso/altura série temporal, posições principal + 4 alternativas, marcar inativos, política de retenção 5 épocas) e Treinador gere calendário (sessões treino/jogo/amigável, convocados, equipa inicial, épocas com dados filtrados ou cumulativos). Permite operar a app antes de haver fadiga, prontidão ou estatísticas — desbloqueia todos os épicos seguintes que dependem de jogador + sessão.
+Analista gere plantel completo (jogadores, métricas peso/altura série temporal, posições principal + 4 alternativas, marcar inativos, política de retenção 5 épocas) e Treinador gere calendário (sessões treino/jogo/amigável, convocados, equipa inicial, épocas com dados filtrados ou cumulativos). Permite operar a app antes de haver fadiga, prontidão ou estatísticas — desbloqueia todos os épicos seguintes que dependem de jogador + sessão. Inclui ecrã de detalhe de sessão para o Jogador com capacidade de declarar ausência.
 
-**FRs covered:** FR12, FR13, FR15, FR16, FR17, FR18, FR20, FR20a
+**FRs covered:** FR12, FR13, FR15, FR16, FR17, FR18, FR20, FR20a, FR20b
 
 ### Epic 3: Consentimento Parental & Direitos GDPR
 
@@ -522,13 +529,13 @@ Jogador responde questionário de fadiga (5 dimensões, slider 1–5 com snap di
 
 Treinador abre app em <3s, vê glance value agregado (3 números 48px), drill-down em <30s para detalhe individual (séries fadiga 4 semanas, ACWR + banda, presenças, nota livre), troca entre vista Lista (default) e Formação 4-3-3 via toggle no header, marca decisões data-driven (FR52). Sistema calcula ACWR (rácio carga aguda 7d / crónica 28d com limiares por escalão) e sRPE automaticamente, atualiza Painel em tempo real na janela 4h pré-sessão. Analista consulta tendências individuais 4 semanas e carga acumulada por jogador na época.
 
-**FRs covered:** FR32, FR33, FR34, FR35, FR36, FR37, FR38, FR52
+**FRs covered:** FR31a, FR32, FR33, FR34, FR35, FR36, FR37, FR38, FR52
 
 ### Epic 6: Recolha de Performance — Touchscreen 3-ecrãs (jornada da Ana)
 
-Analista regista presenças, Session-RPE (1–10 × duração) e substituições durante jogo (sistema deriva minutos automaticamente); regista eventos estatísticos via touchscreen B (sticky player + stack, alvos ≥60×60px, zero animações em fluxo reflexo, histórico recente visível). 7 métricas cobertas (perdas de bola, recuperações, remates totais, remates enquadrados, passes completados, pressões defensivas, ações defensivas/ofensivas com sucesso). Funciona em offline com sincronização sem perda; janela configurável após sessão para editar/apagar eventos.
+Analista regista presenças, Session-RPE (1–10 × duração) e substituições durante jogo (sistema deriva minutos automaticamente); regista eventos estatísticos via touchscreen B (sticky player + stack, alvos ≥60×60px, zero animações em fluxo reflexo, histórico recente visível). 7 métricas cobertas (perdas de bola, recuperações, remates totais, remates enquadrados, passes completados, pressões defensivas, ações defensivas/ofensivas com sucesso). Funciona em offline com sincronização sem perda; janela configurável após sessão para editar/apagar eventos. Inclui estado `sem_questionario`, transição automática e botão de refresh de presenças.
 
-**FRs covered:** FR19, FR27, FR28, FR29, FR30, FR31
+**FRs covered:** FR19, FR27, FR28, FR29, FR30, FR30a, FR30b, FR30c, FR31
 
 ### Epic 7: Análise Avançada & Operacionalização "Dados Mediados" (Phase 2 / Growth)
 
@@ -1673,6 +1680,55 @@ So that I can see upcoming training sessions and matches without needing to cont
 **Then** existing RLS policies for the `sessions` table allow Jogador read access scoped to `club_id`
 **And** no new migrations are required
 
+### Story 2.13: Player Session Detail Page & Absence Declaration (`/agenda/[sessionId]`)
+
+As a Jogador,
+I want to tap a session in my calendar to see its details and declare my absence with an optional justification,
+So that the staff is informed of my absence in advance without requiring a phone call or message.
+
+**Acceptance Criteria:**
+
+**Given** a Jogador taps a session block in the calendar (`/calendario`)
+**When** the tap is registered
+**Then** the route `/agenda/[sessionId]` opens showing: session type, date/time formatted in PT-PT, location (if set), and duration (FR20b)
+**And** the page is within the `(player)` route group with the player layout
+
+**Given** the player has no attendance record or has `status='sem_questionario'` for the session
+**When** the session detail page renders
+**Then** a primary button "Declarar ausência" is visible
+**And** an optional textarea (max 500 chars) is available for a justification note
+
+**Given** the player taps "Declarar ausência"
+**When** the server action `declarePlayerAbsence` in `player-attendance.ts` is invoked
+**Then** the attendance record for the player is upserted with `status='absent'` and the provided note
+**And** `<CalmConfirmation>` "Ausência registada" is shown
+**And** the button state updates to show "Cancelar ausência"
+
+**Given** the player previously declared absence (`status='absent'`)
+**When** they tap "Cancelar ausência"
+**Then** the server action `cancelPlayerAbsence` in `player-attendance.ts` is invoked
+**And** the attendance record is updated to `status='sem_questionario'` (reset to default)
+**And** `<CalmConfirmation>` "Ausência cancelada" is shown
+
+**Given** role enforcement
+**When** a staff member navigates to `/agenda/[sessionId]`
+**Then** the middleware redirects to the staff session detail route (this route is player-only)
+**And** a player can only affect their own attendance record — staff overrides via the attendance panel remain unaffected
+
+**Given** the server actions in `lib/actions/player-attendance.ts`
+**When** implemented
+**Then** `declarePlayerAbsence(sessionId, note)`, `cancelPlayerAbsence(sessionId)`, and `getPlayerAttendanceForSession(sessionId)` exist as named exports
+**And** each action validates that the calling user is the player and scopes the upsert to `player_id = auth.uid()`
+
+**Given** form validation (UX-DR31)
+**When** the note exceeds 500 characters
+**Then** an inline error "Máximo 500 caracteres" is shown and the submit button is disabled
+
+**Given** accessibility (NFR36)
+**When** the page renders
+**Then** `axe-core` reports zero violations
+**And** the justification textarea has a visible label and `aria-describedby` pointing to the character count
+
 ## Epic 3: Consentimento Parental & Direitos GDPR
 
 Encarregados confirmam consentimento parental via link tokenizado (sem criar conta) com timestamp/IP/versão registados; titulares exercem direitos RGPD (exportação CSV ≤30 dias, apagamento em cascata ≤30 dias, retificação ≤7 dias com log auditável, retirada de consentimento imediata, tratamento limitado, consulta de logs de acesso aos seus dados de saúde nos últimos 12 meses). Sistema preparado conformemente para receber dados de menores 13–15. Política de privacidade versionada e adaptada linguisticamente.
@@ -2753,6 +2809,44 @@ So that the "wow moment" KPI is auditable and we can validate the product's impa
 **When** tests run
 **Then** create flow, edit window, telemetry logging, and audit log emission are covered ≥80%
 
+### Story 5.11: Absence Indicator in Readiness Panel ("Vai Faltar" Badge)
+
+As a Treinador,
+I want to see when a player has declared their absence directly on their card in the readiness panel,
+So that I can account for self-declared absences when preparing the squad without opening each player's drill-down.
+
+**Acceptance Criteria:**
+
+**Given** a player has `status='absent'` in the `attendances` table for the upcoming session
+**When** the Painel de Prontidão renders (`/prontidao`)
+**Then** the player's `<PlayerRow>` shows an orange "Vai faltar" badge with a `UserX` lucide icon (FR31a)
+**And** the badge is positioned below the player's name
+**And** the session date/time is shown in PT-PT short format (e.g., "qua 5 jun · 19:30") next to the badge
+
+**Given** the player provided a justification note when declaring absence
+**When** the player row renders
+**Then** the note is shown in italic below the badge and date label
+**And** the note is truncated to 80 characters with "…" if it exceeds that length
+
+**Given** a player with `status='absent'` in the readiness panel
+**When** the `getReadinessPanelData` server action is invoked
+**Then** it queries the `attendances` table for `status='absent'` rows linked to the upcoming session
+**And** the returned `PlayerReadinessData` type includes `declaredAbsent: boolean` and `absenceNote: string | null` for each player
+
+**Given** a player with no absence declaration or `status != 'absent'`
+**When** their row renders
+**Then** no "Vai faltar" badge is shown
+
+**Given** accessibility (NFR36, UX-DR1)
+**When** the badge renders
+**Then** it uses orange (`signal/caution`) color paired with the `UserX` icon for sensory redundancy
+**And** the badge has `aria-label="Jogador declarou ausência"` for screen readers
+**And** `axe-core` reports zero violations
+
+**Given** test coverage (NFR54)
+**When** tests run
+**Then** the presence and absence of the badge, note truncation, and data-fetching logic are covered ≥80%
+
 ## Epic 6: Recolha de Performance — Touchscreen 3-ecrãs (jornada da Ana)
 
 Analista regista presenças, Session-RPE (1–10 × duração) e substituições durante jogo (sistema deriva minutos automaticamente); regista eventos estatísticos via touchscreen B (sticky player + stack, alvos ≥60×60px, zero animações em fluxo reflexo, histórico recente visível). 8 ações cobertas (perdas de bola, recuperação de bola, remates totais, remates enquadrados, passes completados, pressões defensivas, ações defensivas com sucesso, ações ofensivas com sucesso). Funciona em offline com sincronização sem perda; janela configurável após sessão para editar/apagar eventos.
@@ -3066,6 +3160,56 @@ So that the load model is complete even when players don't submit their post-ses
 **Given** test coverage (NFR54)
 **When** tests run
 **Then** override semantics, idempotent upsert, ACWR refresh trigger, and offline drain are covered ≥80%
+
+### Story 6.9: "Sem Questionário" Attendance State + Auto-Transition + Refresh Button
+
+As the system and as an Analista,
+I want a dedicated default attendance state that distinguishes "not yet recorded" from "present" or "absent", and a refresh button to bulk-update that state from questionnaire submissions,
+So that the attendance panel always reflects the most accurate known state without requiring manual entry for every player who submitted their questionnaire.
+
+**Acceptance Criteria:**
+
+**Given** migration `000335_attendances_sem_questionario.sql`
+**When** applied
+**Then** the `attendances.status` CHECK constraint is updated to include `'sem_questionario'` alongside `'present'`, `'absent'`, `'late'`, `'injured'`, `'excused'` (FR30a)
+**And** existing rows are unaffected
+
+**Given** the attendance panel for a session loads for the first time (no prior records)
+**When** the Analista opens `/sessoes/[id]/presencas`
+**Then** all active players have either an existing attendance row or are shown with a `sem_questionario` placeholder
+**And** the quick-toggle cycle for the Analista is: sem_questionario → present → absent → late → injured → excused → sem_questionario (FR30a)
+
+**Given** `submitFatigueResponse` is called with `phase='pre'` for a player whose attendance record has `status='sem_questionario'`
+**When** the server action commits successfully
+**Then** the attendance row for that player and session is upserted to `status='present'` as a fire-and-forget side-effect (FR30b)
+**And** if no attendance row yet exists, a new `present` row is created
+**And** this transition does not block the questionnaire submission response — it is a background upsert
+
+**Given** the attendance panel footer
+**When** rendered
+**Then** a ghost button "Actualizar presenças" is visible in the footer (FR30c)
+**And** the button is disabled when the app is offline (no connectivity)
+
+**Given** the Analista taps "Actualizar presenças" while online
+**When** the server action `refreshAttendanceForSession` in `lib/actions/attendance.ts` is invoked
+**Then** it queries `fatigue_responses` for all players who submitted a `phase='pre'` questionnaire for the session
+**And** for players with an existing `sem_questionario` record: updates to `present`
+**And** for players with no attendance record: creates a `present` record
+**And** for players with any other status (absent, late, etc.): leaves the record unchanged
+**And** returns a count of updated records
+
+**Given** the refresh is in progress
+**When** the button is tapped
+**Then** a spinner replaces the button icon and the button is disabled during the request
+
+**Given** the refresh completes successfully
+**When** the server action returns
+**Then** `<CalmConfirmation>` "Presenças actualizadas" is shown
+**And** the attendance list re-renders with updated states
+
+**Given** test coverage (NFR54)
+**When** tests run
+**Then** the sem_questionario → present auto-transition, the refresh bulk-update logic (all three branches: update/create/skip), and the offline-disabled state are covered ≥80%
 
 ## Epic 7: Análise Avançada & Operacionalização "Dados Mediados" (Phase 2 / Growth)
 

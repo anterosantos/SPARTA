@@ -1,4 +1,4 @@
----
+﻿---
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 lastStep: 8
 status: 'complete'
@@ -281,7 +281,8 @@ positions              (id, player_id, position, is_primary, sort_order)
 seasons                (id, club_id, name, start_date, end_date)
 sessions               (id, club_id, season_id, type, scheduled_at, ...)
 match_lineups          (id, session_id, player_id, role, started_minute, ended_minute)
-attendances            (id, session_id, player_id, status, ...)
+attendances            (id, session_id, player_id, status CHECK in ('sem_questionario','present','absent','late','injured','excused'), note, ...)
+                       -- 'sem_questionario' is the default initial state (migration 000335)
 
 -- Fatigue & Performance
 fatigue_responses      (id, player_id, session_id, phase, dim1..5, srpe?, ...)
@@ -290,6 +291,8 @@ session_metrics        (id, session_id, player_id, sRPE_value, duration_min, ...
 
 -- Readiness (derived)
 readiness_snapshots    (player_id, session_id, state, acwr, ...)
+                       -- absence indicator: getReadinessPanelData also queries attendances for status='absent'
+                       -- PlayerReadinessData type extended with { declaredAbsent: boolean, absenceNote: string | null }
 
 -- Compliance
 audit_logs             (id, club_id, actor_id, action, target_kind, target_id, ...)
@@ -654,7 +657,9 @@ src/lib/actions/
 ├── sessions.ts         # createSession, updateLineup, recordSubstitution
 ├── fatigue.ts          # submitFatigueResponse (com outbox fallback)
 ├── events.ts           # recordMatchEvent (com outbox fallback)
-├── readiness.ts        # markDataDrivenDecision (FR52)
+├── readiness.ts        # markDataDrivenDecision (FR52), getReadinessPanelData (inclui declaredAbsent + absenceNote)
+├── attendance.ts       # refreshAttendanceForSession (FR30c), upsertAttendance
+├── player-attendance.ts # declarePlayerAbsence, cancelPlayerAbsence, getPlayerAttendanceForSession (player-facing)
 ├── consent.ts          # initiateParentalConsent
 └── data-rights.ts      # requestExport, requestDeletion, withdrawConsent
 ```
@@ -1286,7 +1291,8 @@ sparta/
 │   │   ├── (player)/
 │   │   │   ├── layout.tsx, home/, eu/, historico/
 │   │   │   ├── calendario/                 # page.tsx — read-only; reuses getSessionsForClub; no write actions
-│   │   │   └── questionario/[sessionId]/   # page.tsx, actions.ts
+│   │   │   ├── agenda/[sessionId]/                 # page.tsx — session detail + absence declaration (player only)
+│   │   │   ├── questionario/[sessionId]/   # page.tsx, actions.ts
 │   │   ├── (staff)/
 │   │   │   ├── layout.tsx
 │   │   │   ├── prontidao/                  # Painel A "Lista" default
@@ -1445,10 +1451,10 @@ Tabelas system (sem RLS — service-role only):
 | --- | --- | --- | --- | --- |
 | Identity, Access & Consent (FR1–FR11) | `consent/`, `onboarding/` | `consent.ts` | `profiles`, `parental_consents` | `consent-validate` |
 | Player & Squad (FR12–FR16) | `readiness/player-row.tsx`, `readiness/player-drilldown.tsx` | `players.ts` | `players`, `player_metrics`, `positions` | — |
-| Calendar & Sessions (FR17–FR20) | `lineup/`, `match/` | `sessions.ts` | `seasons`, `sessions`, `match_lineups`, `attendances` | — |
+| Calendar & Sessions (FR17–FR20, FR20b) | `lineup/`, `match/`, `(player)/agenda/[sessionId]/` | `sessions.ts`, `player-attendance.ts` | `seasons`, `sessions`, `match_lineups`, `attendances` | — |
 | Fatigue & Wellness (FR21–FR26) | `fatigue/` | `fatigue.ts` | `fatigue_responses` | — |
 | Performance Recording (FR27–FR31) | `match/` | `events.ts` | `match_events`, `session_metrics` | — |
-| Readiness Intelligence (FR32–FR41) | `readiness/`, `trends/` | `readiness.ts` (FR52) | `readiness_snapshots` (mat. view) | — |
+| Readiness Intelligence (FR31a, FR32–FR41) | `readiness/`, `trends/` | `readiness.ts` (FR52; getReadinessPanelData with absence join) | `readiness_snapshots` (mat. view), `attendances` (absence query) | — |
 | Notifications (FR42–FR45) | `onboarding/push-permission-request.tsx` | (subscription mgmt em `lib/push/`) | `push_subscriptions`, `notification_log` | `send-push`, `schedule-handler` |
 | Compliance & Audit (FR46–FR54) | `data-rights/`, `consent/` | `data-rights.ts` | `audit_logs`, `data_decisions` | `exporta-csv`, `delete-cascade` |
 | System Ops (FR55–FR59) | (PDF Phase 2) | — | — | `backup.yml` + `heartbeat.yml` |
@@ -1536,6 +1542,46 @@ Player tap "Submeter"
      → success: status 'synced'; cleanup após 24h
   → <PendingBadge count--> via useOutboxStatus()
   → logTelemetry('sync_drained', { count, durationMs })
+```
+
+**Declaração de ausência pelo Jogador:**
+
+```text
+Jogador taps "Declarar ausência" em /agenda/[sessionId]
+  → Server Action declarePlayerAbsence(sessionId, note) in player-attendance.ts
+  → requirePlayerRole() — scopes to auth.uid() only
+  → supabase.from('attendances').upsert({ session_id, player_id: auth.uid(), status: 'absent', note })
+  → RLS: player can only write own attendance row (player_id = auth.uid())
+  → Returns { ok: true }
+  → <CalmConfirmation> "Ausência registada"
+  → getPlayerAttendanceForSession() re-fetches to update button state
+```
+
+**Indicador "Vai faltar" no Painel de Prontidão:**
+
+```text
+Staff opens /prontidao
+  → page.tsx calls refreshUpcomingReadiness(sessionId) then getReadinessPanelData(sessionId)
+  → getReadinessPanelData queries:
+     1. readiness_snapshots for state/acwr/fatigue data (existing)
+     2. attendances WHERE session_id = ? AND status = 'absent' (new join)
+  → Merges: each PlayerReadinessData row gets { declaredAbsent: boolean, absenceNote: string | null }
+  → <PlayerRow> renders orange "Vai faltar" badge + session datetime + note (if present)
+  → Staff sees absence declarations without leaving the readiness panel
+```
+
+**Auto-transição sem_questionario → present:**
+
+```text
+Player submits pre-session questionnaire (online or via outbox drain)
+  → submitFatigueResponse(payload) with phase='pre'
+  → On successful upsert to fatigue_responses:
+     → fire-and-forget: supabase.from('attendances').upsert(
+         { session_id, player_id, status: 'present', club_id },
+         { onConflict: 'session_id,player_id', ignoreDuplicates: false }
+       ) WHERE existing status = 'sem_questionario' OR no row exists
+     → If status is 'absent'/'late'/etc. → upsert is skipped (status check before write)
+  → Does not block questionnaire response to client
 ```
 
 **Push notification:**
@@ -1927,3 +1973,49 @@ Dois pontos de entrada obrigatórios para `refreshUpcomingReadiness(sessionId)`:
 - Ganho: dados sempre frescos sem depender de eventos Realtime ou acções manuais do utilizador.
 
 **Ficheiros:** `sparta/src/app/(staff)/prontidao/page.tsx`, `sparta/src/components/domain/readiness/readiness-panel.tsx`
+
+---
+
+### ADR-005 — Estado `sem_questionario` como Default de Presença
+
+**Data:** 2026-06-04
+**Estado:** Aceite
+
+**Contexto:**
+O estado de presença original apenas suportava `present`, `absent`, `late`, `injured`, `excused`. Não havia forma de distinguir "registo ainda não feito" de "jogador presente confirmado". O painel de presenças mostrava uma lista vazia até o staff interagir, o que dificultava saber quem ainda não tinha informação.
+
+A migração 000335 acrescenta `sem_questionario` ao CHECK constraint da tabela `attendances`.
+
+**Decisão:**
+`sem_questionario` é o estado default inicial quando uma linha de presença é criada pela primeira vez (ou quando é feita a primeira abertura do painel para uma sessão). O ciclo de toggle manual do staff inclui este estado. A transição automática de `sem_questionario` → `present` acontece como side-effect fire-and-forget em `submitFatigueResponse` quando `phase='pre'`.
+
+**Trade-offs aceites:**
+
+- A transição automática é fire-and-forget — uma falha silenciosa não bloqueia a submissão do questionário. O estado pode ficar em `sem_questionario` se o side-effect falhar. Mitigação: o botão "Actualizar presenças" permite ao staff corrigir em bulk.
+- O nome `sem_questionario` é em português, consistente com a filosofia de nomes de domínio PT-PT, mas diferente dos outros estados em inglês. Decisão pragmática para refletir que este estado tem semântica distinta dos estados operacionais.
+
+**Ficheiros:** `sparta/supabase/migrations/000335_attendances_sem_questionario.sql`, `sparta/src/lib/actions/fatigue.ts`, `sparta/src/lib/actions/attendance.ts`
+
+---
+
+### ADR-006 — Indicador de Ausência no Painel de Prontidão via Join Direto
+
+**Data:** 2026-06-04
+**Estado:** Aceite
+
+**Contexto:**
+O Painel de Prontidão (`getReadinessPanelData`) lia apenas `readiness_snapshots`. Para mostrar o badge "Vai faltar" era necessário saber se o jogador tinha `status='absent'` na tabela `attendances` para a sessão em questão. Duas abordagens foram consideradas:
+
+1. Materializar a informação de ausência no `readiness_snapshots` (snapshot mais completo, menor latência de leitura).
+2. Join direto em `getReadinessPanelData` à tabela `attendances` no momento da leitura.
+
+**Decisão:**
+Join direto em `getReadinessPanelData`. A query faz `LEFT JOIN attendances ON session_id AND player_id WHERE status = 'absent'` e enriquece cada `PlayerReadinessData` com `{ declaredAbsent, absenceNote }`. O tipo `PlayerReadinessData` em `lib/readiness/snapshot.ts` é alargado com estes dois campos.
+
+**Rationale:** O número de absências declaradas por sessão é tipicamente baixo (0–5 em 40 jogadores). O join é leve e evita a complexidade de manter um campo adicional no processo de materialização de snapshots (`refreshSnapshotForSession`). A solução é mais simples e não tem impacto mensurável na performance para o tamanho de plantel do MVP.
+
+**Trade-offs aceites:**
+
+- Se o plantel crescer para >100 jogadores, o join pode ser revisto para materialização. Ponto de revisão: NFR1 ≤2s para 40 jogadores deve ser reavaliado se plantel duplicar.
+
+**Ficheiros:** `sparta/src/lib/actions/readiness.ts` (`getReadinessPanelData`), `sparta/src/lib/readiness/snapshot.ts` (`PlayerReadinessData` type)

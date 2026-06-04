@@ -919,6 +919,13 @@ Notação adicional: `[MVP]` indica funcionalidade da Fase 1; `[Growth]` indica 
 - **FR19:** Analista pode registar substituições durante o jogo, e sistema deriva automaticamente os minutos jogados por cada jogador. [MVP]
 - **FR20:** Treinador e Analista podem criar e gerir épocas com data de início e fim, e visualizar dados filtrados por época ou cumulativos. [MVP]
 - **FR20a:** Jogador pode consultar o calendário de sessões do clube em modo só de leitura, com vista semanal e mensal e navegação entre semanas/meses. O Jogador não pode criar, editar nem cancelar sessões. [MVP]
+- **FR20b:** Jogador pode tocar numa sessão do calendário para abrir um ecrã de detalhe de sessão que mostra o tipo, data/hora, local e duração. A partir desse ecrã, o Jogador pode declarar a sua ausência com uma nota justificativa opcional (máximo 500 caracteres), ou cancelar uma ausência previamente declarada. [MVP]
+
+### Attendance & Absence Management
+
+- **FR30a:** A tabela de presenças suporta um estado adicional `sem_questionario` que representa o estado inicial de um jogador quando a presença é registada pela primeira vez — antes de qualquer submissão de questionário. O ciclo de estados manual para o staff é: sem_questionario → present → absent → late → injured → excused → sem_questionario. [MVP]
+- **FR30b:** Quando um jogador submete o questionário pré-sessão, o sistema automaticamente altera o estado de presença de `sem_questionario` para `present` (transição automática fire-and-forget em `submitFatigueResponse`). Outros estados (absent, late, etc.) não são alterados automaticamente. [MVP]
+- **FR30c:** O staff pode acionar um botão "Actualizar presenças" no painel de presenças que sincroniza as presenças com as submissões de questionário pré-sessão: jogadores com estado `sem_questionario` que já submeteram o questionário são atualizados para `present`; jogadores sem registo de presença que submeteram o questionário obtêm um novo registo `present`; outros estados ficam inalterados. O botão está desativado em modo offline. [MVP]
 
 ### Fatigue & Wellness Tracking
 
@@ -938,6 +945,8 @@ Notação adicional: `[MVP]` indica funcionalidade da Fase 1; `[Growth]` indica 
 - **FR31:** Analista pode registar Session-RPE (escala 1–10 × duração em minutos) para cada jogador no fim de cada sessão. [MVP]
 
 ### Readiness Intelligence
+
+- **FR31a:** Quando um jogador tem ausência declarada para a sessão seguinte (status `absent` na tabela de presenças), o cartão do jogador no painel de prontidão (`/prontidao`) mostra um badge laranja "Vai faltar" com ícone UserX, a data/hora da sessão e a nota justificativa do jogador (se fornecida), em itálico. O campo `declaredAbsent: boolean` e `absenceNote: string | null` são adicionados ao tipo `PlayerReadinessData`, e a action `getReadinessPanelData` é alargada para incluir esta informação. [MVP]
 
 - **FR32:** Sistema calcula automaticamente o ACWR (rácio carga aguda 7d / carga crónica 28d) por jogador, aplicando limiares diferenciados consoante o escalão etário (sub-14, sub-15, sub-17, sub-19, seniores). [MVP]
 - **FR33:** Sistema calcula automaticamente o sRPE (Session-RPE × duração) por sessão e mantém histórico cumulativo. [MVP]
@@ -1007,6 +1016,10 @@ Esta tabela verifica que cada elemento das secções anteriores tem pelo menos u
 | Project Type — Realtime parcimonioso | FR36 |
 | Scoping — heartbeat + backup | FR55, FR56 |
 | Brainstorming #12 — PDF export mediado | FR59 |
+| Attendance — estado sem_questionario + transição automática | FR30a, FR30b |
+| Attendance — botão actualizar presenças | FR30c |
+| Player — detalhe de sessão + declaração de ausência | FR20b |
+| Readiness — indicador "Vai faltar" no painel | FR31a |
 
 **Cada capacidade discutida nas secções anteriores está coberta. Capacidades não listadas neste contrato não serão construídas.**
 
