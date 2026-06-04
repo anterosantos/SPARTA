@@ -26,7 +26,7 @@ interface BottomTabNavProps {
 const TAB_CONFIG: Record<"player" | "coach" | "analyst", TabConfig[]> = {
   player: [
     { label: "Hoje", href: "/hoje", icon: CheckCircle },
-    { label: "Calendário", href: "/calendario", icon: Calendar },
+    { label: "Agenda", href: "/agenda", icon: Calendar },
     { label: "Histórico", href: "/historico", icon: Clock },
     { label: "Eu", href: "/configuracoes", icon: Settings },
   ],

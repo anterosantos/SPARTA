@@ -22,9 +22,9 @@ import {
 import { pt } from "date-fns/locale";
 import type { Session } from "@/lib/schemas/sessions";
 
-export const metadata = { title: "Calendário" };
+export const metadata = { title: "Agenda" };
 
-export default async function PlayerCalendarioPage({
+export default async function PlayerAgendaPage({
   searchParams,
 }: {
   searchParams?: Promise<{ vista?: string; mes?: string }>;
@@ -84,7 +84,7 @@ export default async function PlayerCalendarioPage({
 
   return (
     <main id="main-content">
-      <StickyHeader title="Calendário" />
+      <StickyHeader title="Agenda" />
       <div className="px-4 py-6 sm:px-6 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <CalendarViewToggle />
