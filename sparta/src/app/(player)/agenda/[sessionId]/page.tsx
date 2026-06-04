@@ -81,7 +81,7 @@ export default async function PlayerSessionDetailPage({
               {STATUS_LABEL[attendance.status] ?? attendance.status}
             </p>
             {attendance.note && (
-              <p className="text-sm text-muted-foreground">"{attendance.note}"</p>
+              <p className="text-sm text-muted-foreground">&ldquo;{attendance.note}&rdquo;</p>
             )}
           </div>
         )}

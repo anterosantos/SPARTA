@@ -142,8 +142,7 @@ export async function refreshAttendanceForSession(
 
   // 2. Of those, find who already submitted a pre-questionnaire
   if (semQPlayerIds.length > 0) {
-    // eslint-disable-next-line custom/no-direct-health-data-read -- service role, staff-only action, requireStaffRole() guard above
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, custom/no-direct-health-data-read -- service role, staff-only action, requireStaffRole() guard above
     const { data: preResponses } = await (serviceRole as any)
       .from("fatigue_responses")
       .select("player_id")
