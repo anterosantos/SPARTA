@@ -183,14 +183,23 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       try {
-        // Send push notification
-        await webpush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: rawKeys,
-          },
+        // Use generateRequestDetails + native fetch to avoid node:https compatibility
+        // issues in the Supabase Deno edge function runtime (node:https hangs).
+        const details = await webpush.generateRequestDetails(
+          { endpoint: subscription.endpoint, keys: rawKeys },
           JSON.stringify(payload)
         );
+        const pushResponse = await fetch(details.endpoint, {
+          method: "POST",
+          headers: details.headers as Record<string, string>,
+          body: details.body ?? undefined,
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (pushResponse.status !== 201) {
+          const err = new Error(`Push service returned ${pushResponse.status}`);
+          (err as Record<string, unknown>)["statusCode"] = pushResponse.status;
+          throw err;
+        }
 
         // Success: update status and sent_at
         const { error: updateError } = await supabase
