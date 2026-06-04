@@ -965,6 +965,8 @@ Notação adicional: `[MVP]` indica funcionalidade da Fase 1; `[Growth]` indica 
 - **FR43:** Sistema envia notificações com payload opaco (texto genérico, sem dados de saúde) e deep link autenticado para o questionário. [MVP]
 - **FR44:** Jogador pode subscrever ou cancelar push notifications a qualquer momento; cancelamento não bloqueia acesso ao sistema. [MVP]
 - **FR45:** Sistema envia email transacional ao Encarregado de Educação para fluxo de consentimento parental, e ao titular para confirmações de exportação ou apagamento. [MVP]
+- **FR60:** Quando um Jogador declara ausência para uma sessão (via `/agenda/[sessionId]`), o sistema envia imediatamente uma Web Push notification ao Treinador (apenas Treinadores, não Analistas) do mesmo clube, informando-o da ausência. O payload é opaco: inclui texto genérico com o nome do jogador e a data/hora da sessão, sem dados de saúde. O deep link aponta para `/prontidao` ou para o painel de presenças da sessão. A notificação não é enviada se o Treinador não tiver subscrição de push ativa. [MVP]
+- **FR61:** Antes do início de uma sessão, se existirem jogadores com estado de presença `sem_questionario` (questionário pré-sessão ainda não submetido), o sistema envia uma Web Push notification ao Treinador do clube a alertar que alguns jogadores ainda não preencheram o questionário. A notificação inclui apenas a contagem de jogadores sem questionário (sem nomes, em conformidade com o RGPD). O deep link aponta para o painel de presenças da sessão. O momento de envio é configurável por `pre_minutes` em `notification_settings` (default: 30 minutos antes da sessão); a notificação só é enviada se houver pelo menos um jogador com estado `sem_questionario`. [MVP]
 
 ### Compliance, Audit & Data Rights
 
@@ -1009,6 +1011,8 @@ Esta tabela verifica que cada elemento das secções anteriores tem pelo menos u
 | Domain — direitos titulares | FR46–FR51 |
 | Domain — payload push opaco | FR43 |
 | Domain — logs de acesso | FR50, FR51 |
+| Notificação ao treinador quando jogador declara ausência | FR60 |
+| Notificação ao treinador quando jogadores sem questionário pré-sessão | FR61 |
 | Innovation #1 — integração 3 pilares | FR21, FR27, FR34 |
 | Innovation #2 — dados mediados | FR3, FR26 |
 | Innovation #3 — ACWR por escalão | FR32 |

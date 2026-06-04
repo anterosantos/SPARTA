@@ -100,6 +100,8 @@ This document provides the complete epic and story breakdown for SPARTA, decompo
 - FR43: Sistema envia push com payload opaco (texto genérico, sem dados de saúde) e deep link autenticado. [MVP]
 - FR44: Jogador pode subscrever ou cancelar push notifications a qualquer momento; cancelamento não bloqueia acesso. [MVP]
 - FR45: Sistema envia email transacional para consentimento parental e para confirmações de exportação/apagamento. [MVP]
+- FR60: Quando um Jogador declara ausência para uma sessão, o sistema envia imediatamente uma Web Push notification ao Treinador do mesmo clube com payload opaco (nome do jogador + data/hora da sessão, sem dados de saúde) e deep link para `/prontidao` ou painel de presenças da sessão. Apenas Treinadores com subscrição de push ativa recebem a notificação. [MVP]
+- FR61: Antes do início de uma sessão, se existirem jogadores com estado `sem_questionario`, o sistema envia uma Web Push notification ao Treinador a indicar a contagem de jogadores sem questionário (sem nomes, RGPD-compliant). O envio ocorre `pre_minutes` antes da sessão (valor de `notification_settings`, default 30) e só se houver pelo menos um jogador sem questionário. Deep link para o painel de presenças. [MVP]
 
 **Compliance, Audit & Data Rights**
 
@@ -492,12 +494,14 @@ Analytics Dashboards & Reporting:
 | FR39, FR40, FR41 | Epic 7 | Correlações + curva recuperação + agregado equipa (Growth) |
 | FR42, FR43, FR44 | Epic 4 | Push opaco + subscrição |
 | FR45 | Epic 3 | Email transacional consent + GDPR |
+| FR60 | Epic 4 | Push ao Treinador quando jogador declara ausência |
+| FR61 | Epic 4 | Push ao Treinador quando jogadores sem questionário pré-sessão |
 | FR46, FR47, FR48, FR49, FR50, FR51, FR53, FR54 | Epic 3 | Direitos RGPD + audit logs + política versionada |
 | FR52 | Epic 5 | Decisão data-driven (KPI auditável) |
 | FR55, FR56, FR57, FR58 | Epic 1 | Heartbeat + backup + browser blocks |
 | FR59 | Epic 7 | PDF export mediado (Growth) |
 
-**Cobertura: 65/65 FRs** (inclui FR20b, FR30a, FR30b, FR30c, FR31a adicionados em atualização pós-implementação).
+**Cobertura: 67/67 FRs** (inclui FR20b, FR30a, FR30b, FR30c, FR31a adicionados em atualização pós-implementação; FR60 e FR61 adicionados com as stories de notificação ao treinador).
 
 ## Epic List
 
@@ -521,9 +525,9 @@ Encarregados confirmam consentimento parental via link tokenizado (sem criar con
 
 ### Epic 4: Recolha de Fadiga & Notificações (jornada do Tomás)
 
-Jogador responde questionário de fadiga (5 dimensões, slider 1–5 com snap discreto, adaptação sub-14), em modo offline com sincronização automática e badge de pendentes; recebe push notifications opacas X minutos antes/depois de sessão (X/Y configuráveis pelo staff); pode subscrever/cancelar. Staff vê respostas individuais e tendências sem mediação adicional. Filosofia "dados mediados" enforçada (Jogador não vê o seu Painel, Curva de Recuperação ou relatórios processados).
+Jogador responde questionário de fadiga (5 dimensões, slider 1–5 com snap discreto, adaptação sub-14), em modo offline com sincronização automática e badge de pendentes; recebe push notifications opacas X minutos antes/depois de sessão (X/Y configuráveis pelo staff); pode subscrever/cancelar. Staff vê respostas individuais e tendências sem mediação adicional. Filosofia "dados mediados" enforçada (Jogador não vê o seu Painel, Curva de Recuperação ou relatórios processados). O épico inclui ainda dois triggers de push para o Treinador: notificação imediata quando um jogador declara ausência, e alerta pré-sessão quando há jogadores sem questionário.
 
-**FRs covered:** FR21, FR22, FR23, FR24, FR25, FR26, FR42, FR43, FR44
+**FRs covered:** FR21, FR22, FR23, FR24, FR25, FR26, FR42, FR43, FR44, FR60, FR61
 
 ### Epic 5: Painel de Prontidão & Inteligência (defining experience do José)
 
@@ -2445,6 +2449,85 @@ So that I am gently nudged to fill the questionnaire without disclosing health c
 **Given** test coverage (NFR54)
 **When** integration tests run
 **Then** payload-opacity (no PII/health in body), retry on 410, cancellation propagation, and unsubscribed-skip are covered
+
+### Story 4.9: Push Notification to Coach When Player Declares Absence
+
+As a Treinador,
+I want to receive an immediate Web Push notification when a player of my club declares absence for an upcoming session,
+So that I am informed in time to adjust the squad or contact the player without having to poll the attendance panel.
+
+**Acceptance Criteria:**
+
+**Given** a Jogador submits "Declarar ausência" on `/agenda/[sessionId]` (Story 2.13)
+**When** the Server Action `declarePlayerAbsence` completes successfully
+**Then** the system identifies all active `push_subscriptions` rows for profiles with `role='coach'` scoped to the same `club_id`
+**And** for each such subscription it either calls the `send-push` Edge Function directly OR inserts a `notification_log` row with `kind='absence_declared'`, `status='scheduled'`, `scheduled_for=now()` so the existing 5-minute cron picks it up immediately (FR60)
+
+**Given** the push payload (NFR21, FR43)
+**When** the notification is sent
+**Then** the payload body contains only opaque text such as "Tomás Silva vai faltar ao treino de qua 4 jun às 19:30" (player name + session date/time) and the deep link points to `/prontidao` or `/sessoes/[sessionId]/presencas`
+**And** the payload does NOT contain any health data, fatigue scores, or ACWR values (NFR21)
+
+**Given** the target audience (FR60)
+**When** subscriptions are evaluated
+**Then** only coaches (`role='coach'`) receive the notification — analysts (`role='analyst'`) are excluded
+**And** coaches without an active push subscription (`is_active=false`) are skipped silently
+
+**Given** a cancelled absence (player taps "Cancelar ausência")
+**When** `cancelPlayerAbsence` completes
+**Then** no push notification is sent for the cancellation (informational only; coach can re-check the panel)
+
+**Given** a session that has already started or is in the past
+**When** absence is declared for it
+**Then** the notification is still sent (the coach may still need to adjust the substitution pool)
+
+**Given** the `notification_log` delivery path
+**When** `status='scheduled'` rows are processed by the `send-push` cron
+**Then** on HTTP 410 from the push service the subscription is deactivated (Story 4.7 pattern)
+**And** `notification_log.status` is updated to `'sent'` on success or `'failed'` on persistent error (Story 4.8 pattern)
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** absence → push flow, role-filter (coach only), payload opacity, 410 cleanup, and no-push-on-cancellation are covered
+
+### Story 4.10: Pre-Session Push to Coach When Players Have Not Submitted Questionnaire
+
+As a Treinador,
+I want to receive a Web Push notification before a session starts if there are players who have not yet submitted the pre-session questionnaire,
+So that I can follow up with those players or make informed decisions knowing their fatigue status is incomplete.
+
+**Acceptance Criteria:**
+
+**Given** the Edge Function `schedule-session-pushes` runs on its existing hourly pg_cron schedule (Story 4.8)
+**When** it evaluates an upcoming session whose pre-notification window is within the next scheduling horizon
+**Then** it queries `attendances` for the session and counts players with `status='sem_questionario'`
+**And** if the count is ≥ 1 it enqueues a `notification_log` row with `kind='questionnaire_reminder_coach'`, `status='scheduled'`, `scheduled_for = session.scheduled_at - pre_minutes` where `pre_minutes` is read from `notification_settings` (default 30) (FR61)
+**And** if the count is 0 (all players have submitted or absence declared), no row is enqueued
+
+**Given** the push payload (NFR21, FR61)
+**When** the notification is sent to coaches
+**Then** the payload body contains opaque text such as "3 jogadores ainda não preencheram o questionário pré-sessão" (count only, no names, no health data) and the deep link points to `/sessoes/[sessionId]/presencas`
+**And** the payload does NOT include any player names or health data — only the count (RGPD-compliant opaque payload, NFR21)
+
+**Given** the target audience (FR61)
+**When** subscriptions are evaluated
+**Then** only coaches (`role='coach'`) with an active push subscription receive the notification — analysts are excluded
+
+**Given** `notification_settings.is_enabled = false` for the club
+**When** the scheduling pass runs
+**Then** no `questionnaire_reminder_coach` rows are enqueued for that club
+
+**Given** a session that is cancelled (`status='cancelled'`, Story 2.6)
+**When** the scheduling pass evaluates it
+**Then** no pre-session coach push is enqueued
+
+**Given** the notification is already enqueued for a session (idempotency)
+**When** the hourly job runs again for the same session
+**Then** a duplicate `notification_log` row is not inserted — the job checks for an existing `kind='questionnaire_reminder_coach'` row for that session before inserting
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** the following branches are covered: sem_questionario count ≥ 1 triggers push; count = 0 skips; is_enabled=false skips; cancelled session skips; idempotency guard prevents duplicates; payload opacity (no PII/health, only count)
 
 ## Epic 5: Painel de Prontidão & Inteligência (defining experience do José)
 

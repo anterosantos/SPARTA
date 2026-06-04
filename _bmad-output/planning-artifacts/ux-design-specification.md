@@ -1308,6 +1308,34 @@ Estado de presença `sem_questionario` representa o estado inicial antes de qual
 - Desativado com `disabled` + tooltip explicativo quando offline: "Sem ligação — não é possível actualizar agora"
 - Após sucesso: `<CalmConfirmation>` "Presenças actualizadas"
 
+#### Notificações Push Enviadas ao Treinador (Server-Side, não-visuais)
+
+Dois triggers de push são enviados exclusivamente ao Treinador (não ao Analista). Ambos usam payloads opacos em conformidade com o RGPD Art. 9 (sem dados de saúde no payload).
+
+**Trigger A — Declaração de ausência pelo Jogador (FR60):**
+
+- Enviado imediatamente quando um Jogador declara ausência via `/agenda/[sessionId]`
+- Payload body: texto opaco com nome do jogador e data/hora da sessão, e.g. "Tomás Silva vai faltar ao treino de qua 4 jun às 19:30"
+- Deep link: `/prontidao` ou `/sessoes/[sessionId]/presencas`
+- Entregue diretamente pelo `send-push` Edge Function (ou via `notification_log` com `scheduled_for=now()` para o cron de 5 minutos)
+- Não é enviado no cancelamento de ausência (o Treinador pode verificar o painel)
+
+**Trigger B — Aviso pré-sessão de questionários não submetidos (FR61):**
+
+- Enviado `pre_minutes` antes do início da sessão (valor de `notification_settings`, default 30 min)
+- Condição: existirem ≥ 1 jogadores com estado `sem_questionario` na tabela de presenças para essa sessão
+- Payload body: contagem opaca apenas, e.g. "3 jogadores ainda não preencheram o questionário pré-sessão" — sem nomes, sem dados de saúde (RGPD-compliant)
+- Deep link: `/sessoes/[sessionId]/presencas`
+- Tratado pelo Edge Function `schedule-session-pushes` (extensão da lógica existente de Story 4.8)
+- Não enviado se `notification_settings.is_enabled = false` ou se a sessão foi cancelada
+
+**Princípios de ambos os triggers:**
+
+- Sem dados Art. 9 RGPD no payload (NFR21) — a informação de saúde (fadiga, ACWR) nunca aparece em notificações
+- Destinatário exclusivo: `role='coach'` com subscrição ativa — analistas excluídos
+- 410 do serviço de push → desativa a subscrição automaticamente (padrão Story 4.7)
+- `notification_log` regista cada envio para auditoria
+
 #### Badge "Vai Faltar" no Painel de Prontidão (`/prontidao`)
 
 Quando um jogador declarou a sua ausência para a sessão seguinte, o cartão do jogador no painel de prontidão mostra informação adicional.

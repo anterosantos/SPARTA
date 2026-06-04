@@ -1455,7 +1455,7 @@ Tabelas system (sem RLS — service-role only):
 | Fatigue & Wellness (FR21–FR26) | `fatigue/` | `fatigue.ts` | `fatigue_responses` | — |
 | Performance Recording (FR27–FR31) | `match/` | `events.ts` | `match_events`, `session_metrics` | — |
 | Readiness Intelligence (FR31a, FR32–FR41) | `readiness/`, `trends/` | `readiness.ts` (FR52; getReadinessPanelData with absence join) | `readiness_snapshots` (mat. view), `attendances` (absence query) | — |
-| Notifications (FR42–FR45) | `onboarding/push-permission-request.tsx` | (subscription mgmt em `lib/push/`) | `push_subscriptions`, `notification_log` | `send-push`, `schedule-handler` |
+| Notifications (FR42–FR45, FR60–FR61) | `onboarding/push-permission-request.tsx` | (subscription mgmt em `lib/push/`); side-effect em `player-attendance.ts` (FR60) | `push_subscriptions`, `notification_log` | `send-push`, `schedule-session-pushes` (extended for FR61) |
 | Compliance & Audit (FR46–FR54) | `data-rights/`, `consent/` | `data-rights.ts` | `audit_logs`, `data_decisions` | `exporta-csv`, `delete-cascade` |
 | System Ops (FR55–FR59) | (PDF Phase 2) | — | — | `backup.yml` + `heartbeat.yml` |
 
@@ -1584,7 +1584,7 @@ Player submits pre-session questionnaire (online or via outbox drain)
   → Does not block questionnaire response to client
 ```
 
-**Push notification:**
+**Push notification (questionário pré/pós-sessão ao Jogador):**
 
 ```text
 pg_cron tick (every minute)
@@ -1596,6 +1596,46 @@ pg_cron tick (every minute)
   → On 410/404: delete row from push_subscriptions
   → On success: insert notification_log row
 ```
+
+**Push notification ao Treinador — declaração de ausência pelo Jogador (FR60):**
+
+```text
+Jogador taps "Declarar ausência" em /agenda/[sessionId]
+  → Server Action declarePlayerAbsence(sessionId, note) completes (attendances.status='absent')
+  → Fire-and-forget side-effect:
+     → SELECT push_subscriptions WHERE profile.role='coach' AND profile.club_id = session.club_id AND is_active=true
+     → If subscriptions exist:
+         Option A (direct): call send-push Edge Function immediately
+         Option B (cron):   INSERT notification_log(kind='absence_declared', status='scheduled', scheduled_for=now())
+     → Payload: opaque body ("Tomás Silva vai faltar ao treino de qua 4 jun às 19:30")
+                + deep link to /prontidao or /sessoes/[sessionId]/presencas
+     → No health/Art.9 data in payload (NFR21)
+  → On 410 from push service: push_subscriptions.is_active = false
+  → On success: notification_log.status = 'sent'
+  → Analyst role is excluded — coach only
+```
+
+**Push notification ao Treinador — aviso pré-sessão de jogadores sem questionário (FR61):**
+
+```text
+pg_cron tick (hourly) → schedule-session-pushes Edge Function
+  → SELECT sessions WHERE scheduled_at BETWEEN NOW()+pre_minutes-30min AND NOW()+pre_minutes+30min
+  → For each session:
+     → SELECT COUNT(*) FROM attendances WHERE session_id=? AND status='sem_questionario'
+     → If count >= 1 AND notification_settings.is_enabled=true AND session.status != 'cancelled':
+         → Check: no existing notification_log row with kind='questionnaire_reminder_coach' for this session
+         → INSERT notification_log(kind='questionnaire_reminder_coach', status='scheduled',
+                                   scheduled_for = session.scheduled_at - pre_minutes)
+  → send-push cron (5-min) picks up scheduled rows:
+     → SELECT push_subscriptions WHERE profile.role='coach' AND profile.club_id=session.club_id AND is_active=true
+     → Payload: opaque body ("3 jogadores ainda não preencheram o questionário pré-sessão")
+                + deep link to /sessoes/[sessionId]/presencas
+     → No player names, no health data — count only (RGPD-compliant, NFR21)
+  → On 410: push_subscriptions.is_active = false
+  → On success: notification_log.status = 'sent'
+```
+
+**Nota de implementação:** a lógica de `schedule-session-pushes` é estendida para tratar dois tipos de `notification_log.kind`: os existentes (`fatigue_pre`, `fatigue_post` para jogadores) e os novos (`questionnaire_reminder_coach` para treinadores). O Edge Function `send-push` já é genérico e aceita `profileIds` + payload — sem alteração de interface necessária.
 
 ### File Organization Patterns
 
@@ -1676,7 +1716,7 @@ Sem conflitos.
 
 ### Requirements Coverage Validation ✅
 
-**Functional Requirements (50/50 MVP):**
+**Functional Requirements (52/52 MVP):**
 
 | Área | FR count | Cobertura |
 | --- | --- | --- |
@@ -1686,7 +1726,7 @@ Sem conflitos.
 | Fatigue & Wellness (FR21–FR26) | 6 | ✅ Completa (offline outbox; sub-14 i18n) |
 | Performance Recording (FR27–FR31) | 5 | ✅ Completa |
 | Readiness Intelligence (FR32–FR41) | 10 | ✅ MVP / FR39–FR41 Growth |
-| Notifications (FR42–FR45) | 4 | ✅ Completa (schedule-handler + send-push) |
+| Notifications (FR42–FR45, FR60–FR61) | 6 | ✅ Completa (schedule-handler + send-push; FR60 absence push; FR61 pre-session sem_questionario push) |
 | Compliance & Audit (FR46–FR54) | 9 | ✅ Completa |
 | System Ops (FR55–FR59) | 5 | ✅ MVP / FR59 PDF Phase 2 |
 
