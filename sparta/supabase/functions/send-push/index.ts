@@ -1,8 +1,17 @@
 // @ts-nocheck — Deno Edge Function: Deno global não existe no tsconfig do Next.js
-// Usa ligação directa ao PostgreSQL (postgresjs) em vez de supabase-js/PostgREST
-// para evitar o deadlock HTTP que causa WORKER_RESOURCE_LIMIT de 150s.
+// Usa supabase-js (createClient + service role) tal como TODAS as outras edge
+// functions deste projeto (schedule-session-pushes, consent-validate, etc.).
+//
+// IMPORTANTE — duas decisões de design que resolveram bugs reais:
+//   1. NÃO usar webpush.sendNotification() — internamente usa node:https, que
+//      fica pendurado indefinidamente no runtime Deno do Supabase. Em vez disso,
+//      usamos generateRequestDetails() (apenas crypto, sem I/O) + fetch().
+//   2. Timeout manual com setTimeout — o AbortSignal.timeout e o connect_timeout
+//      NÃO são respeitados neste runtime custom. setTimeout funciona. Isto garante
+//      que a função NUNCA pendura até aos 150s (IDLE_TIMEOUT) sem flush dos logs:
+//      devolve sempre em poucos segundos com diagnóstico.
+import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
-import postgres from "postgres";
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -31,6 +40,24 @@ function extractHttpStatus(err: unknown): number {
   return 0;
 }
 
+/**
+ * withTimeout — rejeita após `ms` se a promise não resolver. Usa setTimeout
+ * (funciona no runtime Deno do Supabase, ao contrário de AbortSignal.timeout).
+ * Garante que nenhum await pendura a função até ao IDLE_TIMEOUT de 150s.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`[timeout] ${label} excedeu ${ms}ms`)),
+      ms
+    );
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); }
+    );
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
@@ -40,88 +67,96 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const dbUrl = Deno.env.get("SUPABASE_DB_URL");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const siteUrl = Deno.env.get("SITE_URL") ?? "https://sparta-webapp.vercel.app";
 
   console.log("[send-push] start:", {
-    hasDbUrl: !!dbUrl,
+    hasSupabaseUrl: !!supabaseUrl,
+    hasServiceRoleKey: !!serviceRoleKey,
     hasVapidPublicKey: !!vapidPublicKey,
     hasVapidPrivateKey: !!vapidPrivateKey,
   });
 
-  if (!dbUrl || !vapidPublicKey || !vapidPrivateKey) {
+  if (!supabaseUrl || !serviceRoleKey || !vapidPublicKey || !vapidPrivateKey) {
     return new Response(
-      JSON.stringify({ error: "Missing environment variables", missing: { dbUrl: !dbUrl, vapid: !vapidPublicKey } }),
+      JSON.stringify({
+        error: "Missing environment variables",
+        missing: {
+          supabaseUrl: !supabaseUrl,
+          serviceRoleKey: !serviceRoleKey,
+          vapidPublicKey: !vapidPublicKey,
+          vapidPrivateKey: !vapidPrivateKey,
+        },
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 
   webpush.setVapidDetails(siteUrl, vapidPublicKey, vapidPrivateKey);
 
-  // Ligação directa ao PostgreSQL — bypassa PostgREST/Kong que fica em deadlock
-  // quando chamado de dentro de um edge function do mesmo projecto.
-  const sql = postgres(dbUrl, {
-    max: 1,
-    ssl: "require",
-    connect_timeout: 10,
-    idle_timeout: 30,
-  });
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-    // Reset rows 'processing' bloqueadas há > 10 min
-    const [staleRow] = await sql`
-      WITH reset AS (
-        UPDATE notification_log
-        SET
-          status        = 'failed',
-          error_message = 'Processing timeout — reset by cleanup'
-        WHERE status = 'processing'
-          AND created_at < now() - interval '10 minutes'
-        RETURNING id
-      )
-      SELECT COUNT(*)::int AS count FROM reset
-    `;
-    const staleCount = staleRow?.count ?? 0;
-    if (staleCount > 0) {
-      console.warn(`[send-push] reset ${staleCount} stale 'processing' rows to 'failed'`);
+    // Reset rows 'processing' bloqueadas há > 10 min (salvaguarda contra crashes)
+    console.log("[send-push] resetting stale rows…");
+    const { data: staleCount, error: staleError } = await withTimeout(
+      supabase.rpc("reset_stale_processing_notifications", { stale_minutes: 10 }),
+      15_000,
+      "reset_stale"
+    );
+    if (staleError) {
+      console.warn("[send-push] reset_stale RPC error:", staleError);
+    } else if ((staleCount ?? 0) > 0) {
+      console.warn(`[send-push] reset ${staleCount} stale 'processing' rows`);
     }
 
-    // Claim notificações atomicamente (FOR UPDATE SKIP LOCKED previne duplo envio)
-    const notifications = await sql`
-      UPDATE notification_log
-      SET status = 'processing'
-      WHERE id IN (
-        SELECT id FROM notification_log
-        WHERE status = 'scheduled'
-          AND scheduled_for <= now()
-        ORDER BY scheduled_for ASC
-        LIMIT 50
-        FOR UPDATE SKIP LOCKED
-      )
-      RETURNING id, profile_id, session_id, kind, context_player_id
-    `;
+    // Claim atómico (FOR UPDATE SKIP LOCKED via RPC) — previne duplo envio
+    console.log("[send-push] claiming notifications…");
+    const { data: notifications, error: claimError } = await withTimeout(
+      supabase.rpc("claim_push_notifications", { batch_size: 50 }),
+      15_000,
+      "claim"
+    );
 
-    console.log("[send-push] claimed:", notifications.length);
+    if (claimError) {
+      console.error("[send-push] claim RPC error:", claimError);
+      return new Response(
+        JSON.stringify({ error: "Failed to claim notifications", details: claimError }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const claimed = notifications ?? [];
+    console.log("[send-push] claimed:", claimed.length);
 
     let sent = 0;
     let failed = 0;
     let skipped = 0;
 
-    for (const notif of notifications) {
-      // Fetch subscrição activa mais recente do perfil
-      const [subscription] = await sql`
-        SELECT id, endpoint, keys_json, is_active
-        FROM push_subscriptions
-        WHERE profile_id = ${notif.profile_id}
-          AND is_active = true
-        ORDER BY created_at DESC
-        LIMIT 1
-      `;
+    for (const notif of claimed) {
+      // Subscrição activa mais recente do perfil
+      const { data: subs, error: subError } = await withTimeout(
+        supabase
+          .from("push_subscriptions")
+          .select("id, endpoint, keys_json, is_active")
+          .eq("profile_id", notif.profile_id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(1),
+        15_000,
+        `fetch_sub:${notif.id}`
+      );
+
+      const subscription = subError ? null : (subs ?? [])[0];
 
       if (!subscription) {
-        await sql`UPDATE notification_log SET status = 'skipped' WHERE id = ${notif.id}`;
+        await supabase
+          .from("notification_log")
+          .update({ status: "skipped" })
+          .eq("id", notif.id);
         skipped++;
         continue;
       }
@@ -131,13 +166,12 @@ const handler = async (req: Request): Promise<Response> => {
         : subscription.keys_json;
 
       if (!isValidPushKeys(rawKeys)) {
-        console.warn(`[send-push] invalid keys_json for subscription ${subscription.id} — deactivating`);
-        await sql`UPDATE push_subscriptions SET is_active = false WHERE endpoint = ${subscription.endpoint}`;
-        await sql`
-          UPDATE notification_log
-          SET status = 'failed', error_message = 'Invalid push keys'
-          WHERE id = ${notif.id}
-        `;
+        console.warn(`[send-push] invalid keys_json sub ${subscription.id} — deactivating`);
+        await supabase.from("push_subscriptions")
+          .update({ is_active: false }).eq("endpoint", subscription.endpoint);
+        await supabase.from("notification_log")
+          .update({ status: "failed", error_message: "Invalid push keys" })
+          .eq("id", notif.id);
         failed++;
         continue;
       }
@@ -150,9 +184,12 @@ const handler = async (req: Request): Promise<Response> => {
       if (notif.kind === "player_absence") {
         let playerFirstName = "Um jogador";
         if (notif.context_player_id) {
-          const [player] = await sql`
-            SELECT full_name FROM players WHERE id = ${notif.context_player_id}
-          `;
+          const { data: player } = await withTimeout(
+            supabase.from("players").select("full_name")
+              .eq("id", notif.context_player_id).maybeSingle(),
+            15_000,
+            `fetch_player:${notif.id}`
+          );
           if (player?.full_name) {
             playerFirstName = (player.full_name as string).split(" ")[0] ?? player.full_name;
           }
@@ -181,43 +218,41 @@ const handler = async (req: Request): Promise<Response> => {
           { endpoint: subscription.endpoint, keys: rawKeys },
           JSON.stringify(payload)
         );
-        const pushResponse = await fetch(details.endpoint, {
-          method: "POST",
-          headers: details.headers as Record<string, string>,
-          body: details.body ?? undefined,
-          signal: AbortSignal.timeout(30_000),
-        });
+        const pushResponse = await withTimeout(
+          fetch(details.endpoint, {
+            method: "POST",
+            headers: details.headers as Record<string, string>,
+            body: details.body ?? undefined,
+          }),
+          20_000,
+          `push_fetch:${notif.id}`
+        );
         if (pushResponse.status !== 201) {
           const err = new Error(`Push service returned ${pushResponse.status}`);
           (err as Record<string, unknown>)["statusCode"] = pushResponse.status;
           throw err;
         }
 
-        await sql`
-          UPDATE notification_log
-          SET status = 'sent', sent_at = now()
-          WHERE id = ${notif.id}
-        `;
+        await supabase.from("notification_log")
+          .update({ status: "sent", sent_at: new Date().toISOString() })
+          .eq("id", notif.id);
         sent++;
         console.log(`[send-push] sent ${notif.id}`);
       } catch (pushError: unknown) {
         const statusCode = extractHttpStatus(pushError);
 
         if (statusCode === 410 || statusCode === 404) {
-          await sql`UPDATE push_subscriptions SET is_active = false WHERE endpoint = ${subscription.endpoint}`;
-          await sql`
-            UPDATE notification_log
-            SET status = 'failed', error_message = ${`${statusCode} Gone`}
-            WHERE id = ${notif.id}
-          `;
+          await supabase.from("push_subscriptions")
+            .update({ is_active: false }).eq("endpoint", subscription.endpoint);
+          await supabase.from("notification_log")
+            .update({ status: "failed", error_message: `${statusCode} Gone` })
+            .eq("id", notif.id);
           console.log(`[send-push] ${statusCode} — deactivated ${subscription.endpoint}`);
         } else {
           const errorMsg = pushError instanceof Error ? pushError.message : "Unknown error";
-          await sql`
-            UPDATE notification_log
-            SET status = 'failed', error_message = ${errorMsg.substring(0, 255)}
-            WHERE id = ${notif.id}
-          `;
+          await supabase.from("notification_log")
+            .update({ status: "failed", error_message: errorMsg.substring(0, 255) })
+            .eq("id", notif.id);
           console.warn(`[send-push] push error ${notif.id} (status ${statusCode}):`, errorMsg);
         }
         failed++;
@@ -226,7 +261,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const response = {
       event: "send_push",
-      processed: notifications.length,
+      processed: claimed.length,
       sent,
       failed,
       skipped,
@@ -243,8 +278,6 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ error: "Internal server error", details: String(error) }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
-  } finally {
-    await sql.end({ timeout: 5 });
   }
 };
 
