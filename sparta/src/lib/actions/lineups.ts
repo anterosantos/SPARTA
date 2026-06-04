@@ -20,25 +20,24 @@ const PlayersArraySchema = z
     { message: "Deve seleccionar exactamente 11 titulares" }
   );
 
-const SubmitLineupSchema = z.object({
-  sessionId: z.string().uuid("ID de sessão inválido"),
-  players: PlayersArraySchema,
+const ConvocatoriaFieldsSchema = z.object({
   concentrationTime: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Formato inválido (HH:MM)")
     .nullable()
     .optional(),
+  opponentName: z.string().max(100).nullable().optional(),
 });
+
+const SubmitLineupSchema = z.object({
+  sessionId: z.string().uuid("ID de sessão inválido"),
+  players: PlayersArraySchema,
+}).merge(ConvocatoriaFieldsSchema);
 
 const SendConvocatoriaSchema = z.object({
   sessionId: z.string().uuid("ID de sessão inválido"),
   players: PlayersArraySchema,
-  concentrationTime: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/, "Formato inválido (HH:MM)")
-    .nullable()
-    .optional(),
-});
+}).merge(ConvocatoriaFieldsSchema);
 
 export interface SubmitLineupResult {
   ok: boolean;
@@ -216,12 +215,15 @@ export async function submitLineup(
     };
   }
 
-  // Save concentration_time to session if provided
-  if (concentrationTime !== undefined) {
+  // Save concentration_time and opponent_name to session if provided
+  if (concentrationTime !== undefined || opponentName !== undefined) {
     await supabase
       .from("sessions")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ concentration_time: concentrationTime ?? null } as any)
+      .update({
+        ...(concentrationTime !== undefined && { concentration_time: concentrationTime ?? null }),
+        ...(opponentName !== undefined && { opponent_name: opponentName ?? null }),
+      } as any)
       .eq("id", sessionId);
   }
 
@@ -352,7 +354,7 @@ export async function sendConvocatoria(
     return { ok: false, error: message };
   }
 
-  const { sessionId, players, concentrationTime } = validated.data;
+  const { sessionId, players, concentrationTime, opponentName } = validated.data;
   const { supabase, user, profile } = await getAuthContext();
 
   if (!user) return { ok: false, error: "Não autenticado" };
@@ -395,11 +397,14 @@ export async function sendConvocatoria(
   const matchLineupTable = (supabase.from as any)("match_lineups");
 
   try {
-    // 1. Save concentration_time to session
+    // 1. Save concentration_time and opponent_name to session
     await supabase
       .from("sessions")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ concentration_time: concentrationTime ?? null } as any)
+      .update({
+        concentration_time: concentrationTime ?? null,
+        opponent_name: opponentName ?? null,
+      } as any)
       .eq("id", sessionId);
 
     // 2. Save lineup (delete + insert, same as submitLineup)

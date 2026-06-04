@@ -161,6 +161,7 @@ export default async function ConvocatoriaPage({
     scheduled_at: session.scheduled_at,
     duration_min: session.duration_min,
     concentration_time: session.concentration_time ?? null,
+    opponent_name: session.opponent_name ?? null,
   };
 
   return (

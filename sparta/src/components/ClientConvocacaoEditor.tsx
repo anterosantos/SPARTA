@@ -12,6 +12,7 @@ export interface Session {
   scheduled_at: string;
   duration_min: number;
   concentration_time?: string | null;
+  opponent_name?: string | null;
 }
 
 export interface PlayerWithConsent {
@@ -52,6 +53,9 @@ export function ClientConvocacaoEditor({
 
   const [concentrationTime, setConcentrationTime] = useState(
     session.concentration_time ?? ""
+  );
+  const [opponentName, setOpponentName] = useState(
+    session.opponent_name ?? ""
   );
 
   const [selections, setSelections] = useState<LineupSelection>(() => {
@@ -97,6 +101,7 @@ export function ClientConvocacaoEditor({
           sessionId: session.id,
           players: buildPlayers(),
           concentrationTime: concentrationTime || null,
+          opponentName: opponentName || null,
         });
         if (!result.ok) {
           setError(result.error ?? "Erro ao guardar");
@@ -117,6 +122,7 @@ export function ClientConvocacaoEditor({
           sessionId: session.id,
           players: buildPlayers(),
           concentrationTime: concentrationTime || null,
+          opponentName: opponentName || null,
         });
         if (!result.ok) {
           setError(result.error ?? "Erro ao enviar");
@@ -138,25 +144,45 @@ export function ClientConvocacaoEditor({
         </p>
       </div>
 
-      {/* Hora de concentração */}
-      <div className="border-b border-border bg-background px-4 py-4 sm:px-6">
-        <label
-          htmlFor="concentration-time"
-          className="block text-sm font-medium text-foreground mb-1"
-        >
-          Hora de concentração
-        </label>
-        <input
-          id="concentration-time"
-          type="time"
-          value={concentrationTime}
-          onChange={(e) => setConcentrationTime(e.target.value)}
-          disabled={readOnly}
-          className="w-36 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Incluída na notificação enviada aos convocados
-        </p>
+      {/* Adversário + Hora de concentração */}
+      <div className="border-b border-border bg-background px-4 py-4 sm:px-6 flex flex-col gap-4">
+        <div>
+          <label
+            htmlFor="opponent-name"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
+            Adversário
+          </label>
+          <input
+            id="opponent-name"
+            type="text"
+            placeholder="Ex: Sporting CP"
+            value={opponentName}
+            onChange={(e) => setOpponentName(e.target.value)}
+            disabled={readOnly}
+            maxLength={100}
+            className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="concentration-time"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
+            Hora de concentração
+          </label>
+          <input
+            id="concentration-time"
+            type="time"
+            value={concentrationTime}
+            onChange={(e) => setConcentrationTime(e.target.value)}
+            disabled={readOnly}
+            className="w-36 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Incluída na notificação push enviada aos convocados
+          </p>
+        </div>
       </div>
 
       {/* Lista de jogadores por posição */}

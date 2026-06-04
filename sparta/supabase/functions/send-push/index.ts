@@ -164,19 +164,54 @@ const handler = async (req: Request): Promise<Response> => {
         const { data: sessionData } = await withTimeout(
           supabase
             .from("sessions")
-            .select("type, concentration_time")
+            .select("type, scheduled_at, concentration_time, opponent_name, club_id")
             .eq("id", notif.session_id)
             .maybeSingle(),
           15_000,
           `fetch_session:${notif.id}`
         );
-        const sessionTypeLabel =
-          sessionData?.type === "match" ? "jogo" :
-          sessionData?.type === "friendly" ? "jogo amigável" : "sessão";
-        const concTime = (sessionData as Record<string, unknown> | null)?.["concentration_time"] as string | null ?? null;
-        bodyText = concTime
-          ? `Estás convocado para o ${sessionTypeLabel}. Concentração às ${concTime}.`
-          : `Estás convocado para o ${sessionTypeLabel}.`;
+        const sd = sessionData as Record<string, unknown> | null;
+
+        // Club name for "nas instalações do ..."
+        let clubName = "";
+        if (sd?.["club_id"]) {
+          const { data: clubData } = await withTimeout(
+            supabase.from("clubs").select("name").eq("id", sd["club_id"]).maybeSingle(),
+            10_000,
+            `fetch_club:${notif.id}`
+          );
+          clubName = (clubData as Record<string, unknown> | null)?.["name"] as string ?? "";
+        }
+
+        // Match time formatted as "HHhMM" in Europe/Lisbon timezone
+        const scheduledAt = sd?.["scheduled_at"] as string | null ?? null;
+        let matchTimeFmt = "";
+        if (scheduledAt) {
+          const matchDate = new Date(scheduledAt);
+          const timeStr = new Intl.DateTimeFormat("pt-PT", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "Europe/Lisbon",
+            hour12: false,
+          }).format(matchDate); // "14:30"
+          matchTimeFmt = timeStr.replace(":", "h ") + "m"; // "14h 30m"
+        }
+
+        // Concentration time "14:30" → "14h 30m"
+        const concTimeRaw = sd?.["concentration_time"] as string | null ?? null;
+        const concTimeFmt = concTimeRaw ? concTimeRaw.replace(":", "h ") + "m" : null;
+
+        const opponent = sd?.["opponent_name"] as string | null ?? null;
+        const sessionTypeLabel = sd?.["type"] === "friendly" ? "jogo amigável" : "jogo";
+
+        // "Está convocado para o jogo vs Opponent às 16h 00m. Tens que estar às 14h 30m nas instalações do Club."
+        const vsOpponent = opponent ? ` vs ${opponent}` : "";
+        const atMatchTime = matchTimeFmt ? ` às ${matchTimeFmt}` : "";
+        const concPart = concTimeFmt
+          ? ` Tens que estar às ${concTimeFmt}${clubName ? ` nas instalações do ${clubName}` : ""}.`
+          : "";
+
+        bodyText = `Está convocado para o ${sessionTypeLabel}${vsOpponent}${atMatchTime}.${concPart}`;
         deepLink = `/sessoes/${notif.session_id}`;
         tag = "convocado";
       } else {

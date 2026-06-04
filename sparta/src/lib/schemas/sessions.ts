@@ -85,4 +85,5 @@ export type Session = {
   created_by: string;
   created_at: string;
   concentration_time: string | null;
+  opponent_name: string | null;
 };
