@@ -1,6 +1,8 @@
 // @ts-nocheck — Deno Edge Function: Deno global não existe no tsconfig do Next.js
 import { createClient } from "@supabase/supabase-js";
 
+// ENTRYPOINT: Deno.serve(handler) — OBRIGATÓRIO. `export default handler` NÃO é
+// invocado pela runtime das edge functions do Supabase (isolate idle até kill 150s).
 const handler = async (req: Request): Promise<Response> => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -241,4 +243,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-export default handler;
+Deno.serve(handler);
