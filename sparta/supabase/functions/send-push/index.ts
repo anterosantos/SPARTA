@@ -219,4 +219,5 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
+// (entrypoint nativo da runtime Supabase)
 Deno.serve(handler);
