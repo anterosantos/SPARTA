@@ -918,6 +918,7 @@ Notação adicional: `[MVP]` indica funcionalidade da Fase 1; `[Growth]` indica 
 - **FR18:** Treinador pode definir convocados e equipa inicial para cada jogo. [MVP]
 - **FR19:** Analista pode registar substituições durante o jogo, e sistema deriva automaticamente os minutos jogados por cada jogador. [MVP]
 - **FR20:** Treinador e Analista podem criar e gerir épocas com data de início e fim, e visualizar dados filtrados por época ou cumulativos. [MVP]
+- **FR20a:** Jogador pode consultar o calendário de sessões do clube em modo só de leitura, com vista semanal e mensal e navegação entre semanas/meses. O Jogador não pode criar, editar nem cancelar sessões. [MVP]
 
 ### Fatigue & Wellness Tracking
 

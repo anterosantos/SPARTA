@@ -1285,6 +1285,7 @@ sparta/
 │   │   ├── consentimento/[token]/          # page.tsx, actions.ts (público)
 │   │   ├── (player)/
 │   │   │   ├── layout.tsx, home/, eu/, historico/
+│   │   │   ├── calendario/                 # page.tsx — read-only; reuses getSessionsForClub; no write actions
 │   │   │   └── questionario/[sessionId]/   # page.tsx, actions.ts
 │   │   ├── (staff)/
 │   │   │   ├── layout.tsx

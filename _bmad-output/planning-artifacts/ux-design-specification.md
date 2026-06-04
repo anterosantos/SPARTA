@@ -1241,7 +1241,7 @@ Prioridade por **criticidade ao MVP** — não por dependência técnica. Ordem 
 | --- | --- | --- |
 | **Treinador** | Prontidão · Calendário · Plantel · Eu | Sticky header em `<ReadinessPanel>` |
 | **Analista** | Sessões · Plantel · Tendências · Eu | Sidebar esquerda em desktop ≥1024px |
-| **Jogador** | Hoje · Histórico · Eu | (3 tabs apenas — minimal) |
+| **Jogador** | Hoje · Calendário · Histórico · Eu | (4 tabs — calendário só de leitura) |
 
 **Regras:**
 
@@ -1249,6 +1249,22 @@ Prioridade por **criticidade ao MVP** — não por dependência técnica. Ordem 
 - Header sticky com título + meta contextual ("Painel · Sáb 16:00")
 - Sem breadcrumbs em mobile. Em desktop staff (≥1024px), breadcrumb em rotas profundas
 - Back button: confiar no gesture nativo iOS/Android. Sem botão "voltar" custom
+
+#### Ecrã: Calendário do Jogador (`/calendario`, papel Jogador)
+
+Vista **só de leitura** do calendário de sessões do clube. O Jogador pode consultar sessões passadas e futuras mas não pode criar, editar nem cancelar.
+
+**Layout e comportamento:**
+
+- Reutiliza os componentes visuais de Story 2-11 (blocos coloridos por tipo de sessão, grelha de mês, "Próximos 7 dias") com as seguintes diferenças:
+  - Sem botão "Nova sessão" nem nenhum CTA de escrita
+  - Sem badge de contagem de presenças (informação restrita ao staff)
+  - Sem link para `/sessoes/[id]` de detalhe staff — tap num bloco mostra apenas tipo, data, hora e local num tooltip/sheet leve
+- Toggle "Semana | Mês" disponível no header, com persistência em `localStorage`
+- Navegação entre semanas/meses via setas no header (`aria-label="Semana anterior"` / `"Próxima semana"` / etc.)
+- Estado vazio: `<EmptyState>` com copy "Sem sessões agendadas neste período"
+
+**Diferenciação deliberada face ao calendário do staff:** o Jogador vê *o quê e quando*, não *quem* nem *quantos*. A informação de convocatória e presenças é mediada pelo staff (filosofia "dados mediados").
 
 **Drill-down vs nova rota:**
 

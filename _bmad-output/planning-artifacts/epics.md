@@ -476,6 +476,7 @@ Analytics Dashboards & Reporting:
 | FR12, FR13, FR15, FR16 | Epic 2 | Gestão de jogadores + métricas + retenção |
 | FR14 | Epic 7 | Perfil unificado (Growth) |
 | FR17, FR18, FR20 | Epic 2 | Calendário + convocatória + épocas |
+| FR20a | Epic 2 | Calendário só de leitura para Jogador |
 | FR19 | Epic 6 | Substituições com derivação de minutos |
 | FR21, FR22, FR23, FR24, FR25, FR26 | Epic 4 | Questionário fadiga + offline + dados mediados |
 | FR27, FR28, FR29, FR30, FR31 | Epic 6 | Touchscreen 7 métricas + presenças + sRPE |
@@ -503,7 +504,7 @@ Treinador, Analista e Jogador autenticam-se no clube com permissões corretas (m
 
 Analista gere plantel completo (jogadores, métricas peso/altura série temporal, posições principal + 4 alternativas, marcar inativos, política de retenção 5 épocas) e Treinador gere calendário (sessões treino/jogo/amigável, convocados, equipa inicial, épocas com dados filtrados ou cumulativos). Permite operar a app antes de haver fadiga, prontidão ou estatísticas — desbloqueia todos os épicos seguintes que dependem de jogador + sessão.
 
-**FRs covered:** FR12, FR13, FR15, FR16, FR17, FR18, FR20
+**FRs covered:** FR12, FR13, FR15, FR16, FR17, FR18, FR20, FR20a
 
 ### Epic 3: Consentimento Parental & Direitos GDPR
 
@@ -1621,6 +1622,56 @@ So that the experience is polished, role-appropriate, and consistent with the es
 **When** `npm run test --run` executes
 **Then** all prior calendar tests continue to pass
 **And** ≥6 new tests cover: day chip selection, session block color mapping, month grid dot rendering, "Próximos 7 dias" list, toggle persistence, dark mode token usage via CSS variables
+
+### Story 2.12: Player Calendar — Read-Only View (Jogador)
+
+As a Jogador,
+I want to view the club's session calendar in read-only mode with week and month views,
+So that I can see upcoming training sessions and matches without needing to contact staff.
+
+**Acceptance Criteria:**
+
+**Given** a Jogador on `/calendario`
+**When** the page loads
+**Then** sessions for the club are displayed in week view by default
+**And** no create, edit or cancel controls are rendered (FR20a)
+**And** the page header shows "Calendário" with the week/month toggle
+
+**Given** the week view
+**When** the Jogador navigates to it
+**Then** the same session block colours and "Próximos 7 dias" section from Story 2-11 are rendered
+**And** the attendance count badge is hidden (staff-only information)
+**And** the Jogador can navigate to the previous and next week via arrow controls in the header
+
+**Given** the month view
+**When** the Jogador toggles to it
+**Then** the full-month grid renders with coloured dots per session type (Story 2-11 pattern)
+**And** tapping a day scrolls to that day's session block
+**And** the Jogador can navigate to the previous and next month via arrow controls in the header
+
+**Given** the week/month toggle
+**When** the Jogador changes mode
+**Then** the selected mode persists across navigation (localStorage or URL param)
+
+**Given** the role-based middleware
+**When** a Jogador navigates to `/calendario`
+**Then** the route is permitted and renders the read-only layout (no redirect)
+**And** the bottom tab bar shows "Hoje · Calendário · Histórico · Eu" (4th tab added)
+
+**Given** no sessions in the visible range
+**When** the page renders
+**Then** an `<EmptyState>` is shown with copy "Sem sessões agendadas neste período"
+
+**Given** accessibility
+**When** the Calendar renders
+**Then** all session blocks have `role="article"` with `aria-label` describing type, time, and location
+**And** the week/month toggle uses `role="tablist"` / `role="tab"` with `aria-selected`
+**And** navigation arrows have descriptive `aria-label` ("Semana anterior", "Próxima semana", etc.)
+
+**Given** RLS policies
+**When** the page's server action calls `getSessionsForClub`
+**Then** existing RLS policies for the `sessions` table allow Jogador read access scoped to `club_id`
+**And** no new migrations are required
 
 ## Epic 3: Consentimento Parental & Direitos GDPR
 
