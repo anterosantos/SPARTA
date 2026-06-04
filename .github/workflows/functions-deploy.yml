@@ -36,3 +36,5 @@ jobs:
           supabase functions deploy send-rectification-sla
           supabase functions deploy staff-alert-consent
           supabase functions deploy validate-subject-token
+          supabase functions deploy schedule-session-pushes
+          supabase functions deploy send-push
