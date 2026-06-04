@@ -23,9 +23,10 @@ import { Calendar } from "lucide-react"
 interface CalendarWeekViewProps {
   allSessions: Session[]
   isCoach: boolean
+  sessionBasePath?: string
 }
 
-export function CalendarWeekView({ allSessions }: CalendarWeekViewProps) {
+export function CalendarWeekView({ allSessions, sessionBasePath = "/sessoes" }: CalendarWeekViewProps) {
   const today = startOfDay(new Date())
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(today, { weekStartsOn: 1 })
@@ -120,12 +121,12 @@ export function CalendarWeekView({ allSessions }: CalendarWeekViewProps) {
       ) : (
         <div className="space-y-2">
           {daySessions.map((session) => (
-            <SessionBlock key={session.id} session={session} />
+            <SessionBlock key={session.id} session={session} sessionBasePath={sessionBasePath} />
           ))}
         </div>
       )}
 
-      <NextSevenDaysList sessions={next7Sessions} />
+      <NextSevenDaysList sessions={next7Sessions} sessionBasePath={sessionBasePath} />
     </div>
   )
 }

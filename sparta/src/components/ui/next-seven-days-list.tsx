@@ -7,9 +7,10 @@ import { Eyebrow } from "@/components/ui/eyebrow"
 
 interface NextSevenDaysListProps {
   sessions: Session[]
+  sessionBasePath?: string
 }
 
-export function NextSevenDaysList({ sessions }: NextSevenDaysListProps) {
+export function NextSevenDaysList({ sessions, sessionBasePath = "/sessoes" }: NextSevenDaysListProps) {
   if (sessions.length === 0) return null
 
   return (
@@ -29,7 +30,7 @@ export function NextSevenDaysList({ sessions }: NextSevenDaysListProps) {
           return (
             <li key={session.id}>
               <Link
-                href={`/sessoes/${session.id}`}
+                href={`${sessionBasePath}/${session.id}`}
                 className="flex items-start gap-3 rounded-lg bg-surface p-3 border-l-4 hover:opacity-80 transition-opacity"
                 style={{ borderLeftColor: config.bg }}
               >

@@ -15,6 +15,7 @@ interface CalendarMonthViewProps {
   monthLabel: string
   prevMonthHref: string
   nextMonthHref: string
+  sessionBasePath?: string
 }
 
 export function CalendarMonthView({
@@ -24,6 +25,7 @@ export function CalendarMonthView({
   monthLabel,
   prevMonthHref,
   nextMonthHref,
+  sessionBasePath = "/sessoes",
 }: CalendarMonthViewProps) {
   const monthDate = new Date(month)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -73,7 +75,7 @@ export function CalendarMonthView({
       />
 
       <div ref={agendaRef}>
-        <NextSevenDaysList sessions={agendaSessions} />
+        <NextSevenDaysList sessions={agendaSessions} sessionBasePath={sessionBasePath} />
       </div>
     </div>
   )

@@ -9,9 +9,10 @@ import { useDarkMode } from "@/hooks/useDarkMode"
 
 interface SessionBlockProps {
   session: Session
+  sessionBasePath?: string
 }
 
-export function SessionBlock({ session }: SessionBlockProps) {
+export function SessionBlock({ session, sessionBasePath = "/sessoes" }: SessionBlockProps) {
   const isDark = useDarkMode()
   const config = SESSION_TYPE_COLORS[session.type]
   const bgColor = isDark ? config.bgDark : config.bg
@@ -20,7 +21,7 @@ export function SessionBlock({ session }: SessionBlockProps) {
 
   return (
     <Link
-      href={`/sessoes/${session.id}`}
+      href={`${sessionBasePath}/${session.id}`}
       aria-label={`${config.label}, ${time}${session.location ? `, ${session.location}` : ", sem local"}`}
       className="block w-full rounded-lg p-4 text-white transition-opacity hover:opacity-90"
       style={{ backgroundColor: bgColor, opacity: isCancelled ? 0.5 : 1 }}

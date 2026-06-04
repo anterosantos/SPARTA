@@ -1,0 +1,101 @@
+import { redirect } from "next/navigation";
+import { format } from "date-fns";
+import { pt } from "date-fns/locale";
+import { createServerClient } from "@/lib/supabase/server";
+import { getSessionById } from "@/lib/actions/sessions";
+import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
+import { StickyHeader } from "@/components/patterns/StickyHeader";
+import { SESSION_TYPE_COLORS } from "@/lib/constants/session-colors";
+import { AbsenceForm } from "./absence-form";
+
+export const metadata = { title: "Detalhe da sessão" };
+
+export default async function PlayerSessionDetailPage({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
+  const { sessionId } = await params;
+
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "player") redirect("/hoje");
+
+  const [sessionResult, attendanceResult] = await Promise.all([
+    getSessionById(sessionId),
+    getPlayerAttendanceForSession(sessionId),
+  ]);
+
+  if (!sessionResult.ok) redirect("/agenda");
+
+  const session = sessionResult.data;
+  const attendance = attendanceResult.ok ? attendanceResult.data : null;
+
+  const config = SESSION_TYPE_COLORS[session.type] ?? SESSION_TYPE_COLORS.training;
+  const date = new Date(session.scheduled_at);
+  const formattedDate = format(date, "EEEE, d 'de' MMMM", { locale: pt });
+  const formattedTime = format(date, "HH:mm", { locale: pt });
+
+  const STATUS_LABEL: Record<string, string> = {
+    sem_questionario: "Sem questionário",
+    present: "Presente",
+    absent: "Ausente",
+    late: "Atrasado",
+    injured: "Lesionado",
+    excused: "Justificado",
+  };
+
+  return (
+    <main id="main-content">
+      <StickyHeader title="Sessão" backHref="/agenda" />
+
+      <div className="px-4 py-6 space-y-6">
+        {/* Session card */}
+        <div
+          className="rounded-xl p-5 text-white space-y-3"
+          style={{ backgroundColor: config.bg }}
+        >
+          <p className="text-lg font-bold">{config.label}</p>
+          <div className="space-y-1 text-sm opacity-90">
+            <p className="capitalize">{formattedDate}</p>
+            <p>{formattedTime} · {session.duration_min ?? 90} min</p>
+            {session.location && <p>{session.location}</p>}
+          </div>
+        </div>
+
+        {/* Current status (if any) */}
+        {attendance && (
+          <div className="rounded-lg border border-border bg-card p-4 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              O teu estado atual
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {STATUS_LABEL[attendance.status] ?? attendance.status}
+            </p>
+            {attendance.note && (
+              <p className="text-sm text-muted-foreground">"{attendance.note}"</p>
+            )}
+          </div>
+        )}
+
+        {/* Absence declaration */}
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold text-foreground">Presença</h2>
+          <AbsenceForm
+            sessionId={sessionId}
+            initialStatus={attendance?.status ?? null}
+            initialNote={attendance?.note ?? null}
+          />
+        </div>
+      </div>
+    </main>
+  );
+}

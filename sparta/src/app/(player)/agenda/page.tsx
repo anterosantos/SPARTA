@@ -97,7 +97,7 @@ export default async function PlayerAgendaPage({
             description="Ainda não há sessões marcadas para esta época."
           />
         ) : vista === "semana" ? (
-          <CalendarWeekView allSessions={sessions} isCoach={false} />
+          <CalendarWeekView allSessions={sessions} isCoach={false} sessionBasePath="/agenda" />
         ) : (
           <CalendarMonthView
             monthSessions={monthSessions}
@@ -106,6 +106,7 @@ export default async function PlayerAgendaPage({
             monthLabel={monthLabel}
             prevMonthHref={prevMonthHref}
             nextMonthHref={nextMonthHref}
+            sessionBasePath="/agenda"
           />
         )}
       </div>
