@@ -10,7 +10,9 @@ import { Calendar, CheckCircle2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SessionCard } from '@/components/ui/session-card';
 import { TodayOutboxBadge } from '@/components/domain/today-outbox-badge';
+import { PlayerNotificationsInbox } from '@/components/domain/player-notifications-inbox';
 import type { Session } from '@/lib/schemas/sessions';
+import type { PlayerNotificationItem } from '@/lib/actions/player-notifications';
 
 interface TodayPageContentProps {
   nextSession: Session | null;
@@ -18,6 +20,7 @@ interface TodayPageContentProps {
   recentSession?: Session | null;
   allDoneToday?: boolean;
   userRole: 'player' | 'coach' | 'analyst';
+  notifications?: PlayerNotificationItem[];
 }
 
 export function TodayPageContent({
@@ -26,6 +29,7 @@ export function TodayPageContent({
   recentSession,
   allDoneToday,
   userRole,
+  notifications = [],
 }: TodayPageContentProps) {
   return (
     <div className="px-4 py-6 sm:px-6 space-y-4">
@@ -77,6 +81,11 @@ export function TodayPageContent({
           title="Sem sessões nos próximos 7 dias"
           description="Não há sessões agendadas para os próximos 7 dias."
         />
+      )}
+
+      {/* Secção de notificações — apenas para jogadores */}
+      {userRole === 'player' && (
+        <PlayerNotificationsInbox items={notifications} />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getSessionFatigueStatus } from "@/lib/actions/fatigue";
+import { getPlayerNotifications } from "@/lib/actions/player-notifications";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { TodayPageContent } from "@/components/app/today-page-content";
 
@@ -61,11 +62,14 @@ export default async function HojePage() {
     }
   }
 
-  // AC #2 — Chamar getSessionFatigueStatus em paralelo para ambas as sessões
-  const [nextFatigueStatus, recentFatigueStatus] = await Promise.all([
+  // AC #2 — Chamar getSessionFatigueStatus em paralelo para ambas as sessões + notificações
+  const [nextFatigueStatus, recentFatigueStatus, notificationsResult] = await Promise.all([
     nextSession ? getSessionFatigueStatus(nextSession.id) : Promise.resolve(null),
     recentSession ? getSessionFatigueStatus(recentSession.id) : Promise.resolve(null),
+    getPlayerNotifications(),
   ]);
+
+  const notifications = notificationsResult.ok ? notificationsResult.data : [];
 
   // Derivar props para TodayPageContent
   const nextSessionAnswered = nextFatigueStatus?.ok ? nextFatigueStatus.data.pre : false;
@@ -89,6 +93,7 @@ export default async function HojePage() {
           recentSession={showRecentSession ? recentSession : null}
           allDoneToday={allDoneToday}
           userRole={profile.role}
+          notifications={notifications}
         />
       </main>
     </>
