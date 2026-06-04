@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PendingBadge } from "@/components/domain/pending-badge";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { upsertAttendance } from "@/lib/actions/attendance";
+import { upsertAttendance, refreshAttendanceForSession } from "@/lib/actions/attendance";
 import { enqueueMutation } from "@/lib/outbox/enqueue";
 import { newId } from "@/lib/uuid";
 import {
@@ -88,6 +88,7 @@ export function AttendancePanel({
   );
   const [showInactive, setShowInactive] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -105,6 +106,27 @@ export function AttendancePanel({
       return next;
     });
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setError(null);
+    setSuccessMsg(null);
+    const result = await refreshAttendanceForSession(sessionId);
+    setIsRefreshing(false);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    // Merge returned records into local state
+    setStatuses((prev) => {
+      const next = new Map(prev);
+      for (const record of result.data) {
+        next.set(record.player_id, record.status);
+      }
+      return next;
+    });
+    setSuccessMsg("Presenças actualizadas");
+  }, [sessionId]);
 
   const handleSave = useCallback(async () => {
     if (visiblePlayers.length === 0) {
@@ -264,7 +286,18 @@ export function AttendancePanel({
         </Button>
       )}
 
-      <div className="sticky bottom-0 pt-4 pb-safe bg-background/95 backdrop-blur-sm border-t border-border mt-auto">
+      <div className="sticky bottom-0 pt-4 pb-safe bg-background/95 backdrop-blur-sm border-t border-border mt-auto space-y-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full flex items-center justify-center gap-2"
+          disabled={isRefreshing || !isOnline}
+          onClick={() => void handleRefresh()}
+          aria-label="Actualizar presenças e verificar questionários submetidos"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+          {isRefreshing ? "A actualizar…" : "Actualizar presenças"}
+        </Button>
         <Button
           type="button"
           variant="primary"

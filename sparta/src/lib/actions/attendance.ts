@@ -112,6 +112,86 @@ export async function getSessionAttendances(
   );
 }
 
+/**
+ * refreshAttendanceForSession — Sincroniza presenças com questionários submetidos.
+ *
+ * Para qualquer jogador ainda com 'sem_questionario', verifica se já submeteu
+ * o questionário pré-sessão e, se sim, transita automaticamente para 'present'.
+ * Retorna todos os registos de presença actualizados para a sessão.
+ *
+ * Usado pelo botão ↻ no painel de presenças.
+ */
+export async function refreshAttendanceForSession(
+  sessionId: string
+): Promise<Result<AttendanceRecord[], AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId } = authResult.data;
+
+  const serviceRole = getServiceRoleClient();
+
+  // 1. Find players still in sem_questionario for this session
+  const { data: semQ } = await serviceRole
+    .from("attendances")
+    .select("player_id")
+    .eq("session_id", sessionId)
+    .eq("club_id", clubId)
+    .eq("status", "sem_questionario");
+
+  const semQPlayerIds = (semQ ?? []).map((r) => r.player_id);
+
+  // 2. Of those, find who already submitted a pre-questionnaire
+  if (semQPlayerIds.length > 0) {
+    // eslint-disable-next-line custom/no-direct-health-data-read -- service role, staff-only action, requireStaffRole() guard above
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: preResponses } = await (serviceRole as any)
+      .from("fatigue_responses")
+      .select("player_id")
+      .eq("session_id", sessionId)
+      .eq("phase", "pre")
+      .in("player_id", semQPlayerIds);
+
+    const respondedIds: string[] = (preResponses ?? []).map(
+      (r: { player_id: string }) => r.player_id
+    );
+
+    // 3. Transition those players to 'present'
+    if (respondedIds.length > 0) {
+      await serviceRole
+        .from("attendances")
+        .update({ status: "present" })
+        .eq("session_id", sessionId)
+        .eq("club_id", clubId)
+        .eq("status", "sem_questionario")
+        .in("player_id", respondedIds);
+    }
+  }
+
+  // 4. Return all attendance records for the session
+  const { data, error } = await serviceRole
+    .from("attendances")
+    .select("player_id, status, note, recorded_at")
+    .eq("session_id", sessionId)
+    .eq("club_id", clubId);
+
+  if (error) return err({ code: "db_error", message: error.message });
+
+  return ok(
+    (data ?? [])
+      .map((r) => {
+        const statusParsed = ATTENDANCE_STATUSES.find((s) => s === r.status);
+        if (!statusParsed) return null;
+        return {
+          player_id: r.player_id,
+          status: statusParsed,
+          note: r.note ?? null,
+          recorded_at: r.recorded_at,
+        };
+      })
+      .filter((r) => r !== null)
+  );
+}
+
 export async function upsertAttendance(
   input: unknown
 ): Promise<Result<void, AppError>> {
