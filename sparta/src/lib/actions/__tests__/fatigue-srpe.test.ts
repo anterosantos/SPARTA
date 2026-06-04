@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
 }));
 
 vi.mock("@/lib/logger", () => ({
-  logger: { info: vi.fn(), error: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { createServerClient } from "@/lib/supabase/server";
