@@ -242,7 +242,7 @@ export function ClientConvocacaoEditor({
           </div>
           <div className="flex gap-3">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={handleSave}
               disabled={!canSubmit}
               className="flex-1"

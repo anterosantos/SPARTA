@@ -73,7 +73,7 @@ export async function submitLineup(
     return { ok: false, error: message };
   }
 
-  const { sessionId, players, concentrationTime } = validated.data;
+  const { sessionId, players, concentrationTime, opponentName } = validated.data;
 
   const { supabase, user, profile } = await getAuthContext();
   if (!user) {
