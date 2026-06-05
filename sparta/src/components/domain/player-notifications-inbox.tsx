@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarCheck, Users, Bell, X, MessageSquare } from "lucide-react";
 import type { PlayerNotificationItem } from "@/lib/actions/player-notifications";
 import { dismissPlayerNotification } from "@/lib/actions/player-notifications";
+import { NotificationsRefreshButton } from "@/components/domain/notifications-refresh-button";
 
 interface PlayerNotificationsInboxProps {
   items: PlayerNotificationItem[];
@@ -141,6 +142,7 @@ export function PlayerNotificationsInbox({
       >
         <Bell className="h-4 w-4" aria-hidden="true" />
         Notificações
+        <NotificationsRefreshButton />
       </h2>
 
       {!hasContent ? (
