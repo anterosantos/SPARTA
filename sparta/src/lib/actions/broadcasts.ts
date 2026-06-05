@@ -81,22 +81,32 @@ export async function sendBroadcast(
 
   if (eligibleProfileIds.length > 0) {
     const now = new Date().toISOString();
+    const broadcastId = (broadcast as { id: string }).id;
     const notifRows = eligibleProfileIds.map((profileId) => ({
       club_id: profile.club_id,
       profile_id: profileId,
       session_id: null,
-      broadcast_id: (broadcast as { id: string }).id,
+      broadcast_id: broadcastId,
       kind: "broadcast",
       scheduled_for: now,
       status: "scheduled",
     }));
 
-    // notification_log requer service role — RLS só tem SELECT para authenticated
+    // notification_log requer service role — RLS só tem SELECT para authenticated.
+    // upsert com onConflict="profile_id,broadcast_id" usa o UNIQUE CONSTRAINT
+    // notification_log_broadcast_unique (migration 000380).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (serviceRole as any).from("notification_log").upsert(notifRows, {
-      onConflict: "profile_id,broadcast_id",
-      ignoreDuplicates: true,
-    });
+    const { error: notifError } = await (serviceRole as any)
+      .from("notification_log")
+      .upsert(notifRows, {
+        onConflict: "profile_id,broadcast_id",
+        ignoreDuplicates: true,
+      });
+
+    if (notifError) {
+      console.error("[sendBroadcast] notification_log upsert error:", notifError);
+      // Não bloquear — broadcast já foi guardado; push será tentado posteriormente
+    }
   }
 
   revalidatePath("/mensagens");
