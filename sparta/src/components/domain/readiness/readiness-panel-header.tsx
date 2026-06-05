@@ -61,7 +61,7 @@ export function ReadinessPanelHeader({
             onClick={() => onViewChange("formation")}
             aria-pressed={view === "formation"}
           >
-            Formação
+            Equipa em Campo
           </button>
 
           {!inWindow && onRefresh && (

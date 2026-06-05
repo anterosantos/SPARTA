@@ -207,7 +207,7 @@ export function ReadinessPanel({
           flashedIds={flashedIds}
         />
       ) : (
-        <ReadinessPanelFormation players={players} sessionId={sessionId} flashedIds={flashedIds} />
+        <ReadinessPanelFormation players={players} flashedIds={flashedIds} />
       )}
     </div>
   );
