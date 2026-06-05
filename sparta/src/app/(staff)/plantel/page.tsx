@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
+import { Plus, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SemaforoBadge } from "@/components/ui/semaforo-badge";
 import { PlayerPhoto } from "@/components/ui/player-photo";
@@ -68,12 +68,20 @@ export default async function PlantelPage({
         <h1 className="text-xl font-semibold text-foreground">
           Plantel{showInactive ? " — Inativos" : ""}
         </h1>
-        <Button asChild size="sm">
-          <Link href="/plantel/novo">
-            <Plus className="h-4 w-4" />
-            Adicionar
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="ghost" className="lg:hidden">
+            <Link href="/equipa/agregado">
+              <LayoutDashboard className="h-4 w-4" />
+              Equipa
+            </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/plantel/novo">
+              <Plus className="h-4 w-4" />
+              Adicionar
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4">
