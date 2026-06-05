@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
 import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
@@ -40,9 +38,14 @@ export default async function PlayerSessionDetailPage({
   const attendance = attendanceResult.ok ? attendanceResult.data : null;
 
   const config = SESSION_TYPE_COLORS[session.type] ?? SESSION_TYPE_COLORS.training;
+  const TZ = "Europe/Lisbon";
   const date = new Date(session.scheduled_at);
-  const formattedDate = format(date, "EEEE, d 'de' MMMM", { locale: pt });
-  const formattedTime = format(date, "HH:mm", { locale: pt });
+  const formattedDate = date.toLocaleDateString("pt-PT", {
+    weekday: "long", day: "numeric", month: "long", timeZone: TZ,
+  });
+  const formattedTime = date.toLocaleTimeString("pt-PT", {
+    hour: "2-digit", minute: "2-digit", timeZone: TZ, hour12: false,
+  });
 
   const STATUS_LABEL: Record<string, string> = {
     sem_questionario: "Sem questionário",

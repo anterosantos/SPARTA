@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { format, isToday, isTomorrow, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
 import { CalendarCheck, Users, Bell, X } from "lucide-react";
 import type { PlayerNotificationItem } from "@/lib/actions/player-notifications";
 import { dismissPlayerNotification } from "@/lib/actions/player-notifications";
@@ -9,12 +7,30 @@ interface PlayerNotificationsInboxProps {
   items: PlayerNotificationItem[];
 }
 
+const TZ = "Europe/Lisbon";
+
 function formatSessionDate(iso: string): string {
-  const date = parseISO(iso);
-  const time = format(date, "HH:mm", { locale: pt });
-  if (isToday(date)) return `Hoje · ${time}`;
-  if (isTomorrow(date)) return `Amanhã · ${time}`;
-  return format(date, "EEE d MMM · HH:mm", { locale: pt });
+  const date = new Date(iso);
+  const now = new Date();
+
+  // Comparar datas em Europe/Lisbon para evitar desvios UTC
+  const toDateStr = (d: Date) =>
+    d.toLocaleDateString("pt-PT", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+
+  const time = date.toLocaleTimeString("pt-PT", {
+    hour: "2-digit", minute: "2-digit", timeZone: TZ, hour12: false,
+  });
+
+  const dateStr = toDateStr(date);
+  const todayStr = toDateStr(now);
+  const tomorrowStr = toDateStr(new Date(now.getTime() + 86_400_000));
+
+  if (dateStr === todayStr) return `Hoje · ${time}`;
+  if (dateStr === tomorrowStr) return `Amanhã · ${time}`;
+
+  return date.toLocaleDateString("pt-PT", {
+    weekday: "short", day: "numeric", month: "short", timeZone: TZ,
+  }) + ` · ${time}`;
 }
 
 function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
