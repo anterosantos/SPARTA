@@ -68,6 +68,11 @@ function ConvocadoCard({ item }: { item: PlayerNotificationItem }) {
         {dateLabel && (
           <p className="text-xs text-muted-foreground capitalize">{dateLabel}</p>
         )}
+        {item.concentrationTime && (
+          <p className="text-xs font-semibold text-foreground mt-1">
+            Concentração: {item.concentrationTime}
+          </p>
+        )}
       </div>
       {item.sessionId && (
         <CalendarCheck

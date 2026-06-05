@@ -19,6 +19,8 @@ export interface PlayerNotificationItem {
   sessionLocation: string | null;
   /** Adversário (jogos/amigáveis) */
   opponentName: string | null;
+  /** Hora de concentração definida pelo treinador (HH:MM) */
+  concentrationTime: string | null;
   /** Para mensagens futuras do staff */
   message: string | null;
   createdAt: string;
@@ -96,6 +98,7 @@ export async function getPlayerNotifications(): Promise<
     scheduled_at: string;
     location: string | null;
     opponent_name: string | null;
+    concentration_time: string | null;
   }
 
   // 3. Sessões futuras (dentro de 2 semanas, não canceladas, não dispensadas)
@@ -103,7 +106,7 @@ export async function getPlayerNotifications(): Promise<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawSessions } = await (supabase as any)
     .from("sessions")
-    .select("id, type, scheduled_at, location, opponent_name")
+    .select("id, type, scheduled_at, location, opponent_name, concentration_time")
     .in("id", lineupSessionIds)
     .eq("club_id", player.club_id)
     .neq("status", "cancelled")
@@ -128,6 +131,7 @@ export async function getPlayerNotifications(): Promise<
         sessionScheduledAt: s.scheduled_at,
         sessionLocation: s.location ?? null,
         opponentName: s.opponent_name ?? null,
+        concentrationTime: s.concentration_time ?? null,
         message: null,
         createdAt: lineup?.createdAt ?? s.scheduled_at,
       };
