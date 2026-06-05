@@ -64,12 +64,13 @@ export async function getPlayerNotifications(): Promise<
   // 1. Convocatórias: sessões futuras onde o jogador está em match_lineups
   interface LineupRow { id: string; session_id: string; created_at: string; }
 
+  // match_lineups não tem club_id direto — isolamento garantido pelo player.id
+  // (um jogador pertence a um único clube) + RLS via session_id→sessions.club_id
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawLineups } = await (supabase as any)
     .from("match_lineups")
     .select("id, session_id, created_at")
-    .eq("player_id", player.id)
-    .eq("club_id", player.club_id);
+    .eq("player_id", player.id);
 
   const lineups: LineupRow[] = rawLineups ?? [];
   const lineupSessionIds: string[] = lineups.map((l) => l.session_id);
