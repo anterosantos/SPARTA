@@ -8,8 +8,16 @@
  * - Combinação: nextSession + recentSession (Story 4.9) ambos visíveis
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+// NotificationsRefreshButton usa useRouter — precisa de mock do App Router
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { TodayPageContent } from "@/components/app/today-page-content";
 import type { Session } from "@/lib/schemas/sessions";
 

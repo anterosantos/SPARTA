@@ -24,7 +24,7 @@ const mockSession = {
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
