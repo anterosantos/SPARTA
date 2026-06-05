@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
 
@@ -46,14 +47,57 @@ export async function sendBroadcast(
   if (profile.role !== "coach")
     return err({ code: "forbidden", message: "Apenas treinadores podem enviar mensagens" });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("broadcasts").insert({
-    club_id: profile.club_id,
-    coach_id: user.id,
-    message: validated.data.message.trim(),
-  });
+  const serviceRole = getServiceRoleClient();
 
-  if (error) return err({ code: "unknown", message: error.message });
+  // 1. Inserir o broadcast
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: broadcast, error: broadcastError } = await (serviceRole as any)
+    .from("broadcasts")
+    .insert({
+      club_id: profile.club_id,
+      coach_id: user.id,
+      message: validated.data.message.trim(),
+    })
+    .select("id")
+    .single();
+
+  if (broadcastError) return err({ code: "unknown", message: broadcastError.message });
+
+  // 2. Criar notification_log para todos os jogadores activos do clube
+  // send-push (cron de 5 min) irá processar e enviar o push.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: players } = await (serviceRole as any)
+    .from("players")
+    .select("profile_id")
+    .eq("club_id", profile.club_id)
+    .eq("is_archived", false)
+    .eq("is_active", true)
+    .eq("processing_restricted", false)
+    .not("profile_id", "is", null);
+
+  const eligibleProfileIds: string[] = ((players ?? []) as Array<{ profile_id: string }>)
+    .map((p) => p.profile_id)
+    .filter(Boolean);
+
+  if (eligibleProfileIds.length > 0) {
+    const now = new Date().toISOString();
+    const notifRows = eligibleProfileIds.map((profileId) => ({
+      club_id: profile.club_id,
+      profile_id: profileId,
+      session_id: null,
+      broadcast_id: (broadcast as { id: string }).id,
+      kind: "broadcast",
+      scheduled_for: now,
+      status: "scheduled",
+    }));
+
+    // notification_log requer service role — RLS só tem SELECT para authenticated
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (serviceRole as any).from("notification_log").upsert(notifRows, {
+      onConflict: "profile_id,broadcast_id",
+      ignoreDuplicates: true,
+    });
+  }
 
   revalidatePath("/mensagens");
   return ok(undefined);

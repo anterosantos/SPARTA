@@ -214,6 +214,21 @@ const handler = async (req: Request): Promise<Response> => {
         bodyText = `Está convocado para o ${sessionTypeLabel}${vsOpponent}${atMatchTime}.${concPart}`;
         deepLink = `/sessoes/${notif.session_id}`;
         tag = "convocado";
+      } else if (notif.kind === "broadcast") {
+        const broadcastId = notif["broadcast_id"] as string | null ?? null;
+        let message = "Nova mensagem do staff";
+        if (broadcastId) {
+          const { data: broadcastData } = await withTimeout(
+            supabase.from("broadcasts").select("message").eq("id", broadcastId).maybeSingle(),
+            15_000,
+            `fetch_broadcast:${notif.id}`
+          );
+          const bMsg = (broadcastData as Record<string, unknown> | null)?.["message"] as string | null;
+          if (bMsg) message = bMsg;
+        }
+        bodyText = message;
+        deepLink = "/hoje";
+        tag = "broadcast";
       } else {
         bodyText = notif.kind === "fatigue_pre"
           ? "Sessão daqui a pouco — abre o app"
