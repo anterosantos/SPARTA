@@ -5,6 +5,8 @@
  * AC #6: Fetch server-side; skeleton em loading.tsx
  */
 
+import Link from "next/link";
+import { TrendingUp } from "lucide-react";
 import { ReadinessPanel } from "@/components/domain/readiness/readiness-panel";
 import { ReadinessPanelEmptyState } from "@/components/domain/readiness/readiness-panel-empty-state";
 import {
@@ -27,13 +29,23 @@ export default async function ProntidaoPage() {
   if (!sessionResult.ok || !sessionResult.data) {
     return (
       <div className="px-4 py-6 sm:px-6">
-        {/* P-20: Breadcrumb "Prontidão" — Story 1.9 pattern */}
-        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-1">
-          <ol className="flex items-center gap-2">
-            <li aria-current="page" className="text-foreground font-medium">Prontidão</li>
-          </ol>
-        </nav>
-        <h1 className="text-xl font-semibold text-foreground mb-6">Prontidão</h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-1">
+              <ol className="flex items-center gap-2">
+                <li aria-current="page" className="text-foreground font-medium">Prontidão</li>
+              </ol>
+            </nav>
+            <h1 className="text-xl font-semibold text-foreground mb-6">Prontidão</h1>
+          </div>
+          <Link
+            href="/tendencias"
+            className="lg:hidden flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <TrendingUp className="h-4 w-4" />
+            Tendências
+          </Link>
+        </div>
         <ReadinessPanelEmptyState />
       </div>
     );
@@ -67,15 +79,26 @@ export default async function ProntidaoPage() {
     <div className="flex flex-col">
       {/* Page header + P-20: Breadcrumb */}
       <div className="px-4 pt-6 pb-2 sm:px-6">
-        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-1">
-          <ol className="flex items-center gap-2">
-            <li aria-current="page" className="text-foreground font-medium">Prontidão</li>
-          </ol>
-        </nav>
-        <h1 className="text-xl font-semibold text-foreground">Prontidão</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Próxima sessão: {sessionDate} · {players.length} jogadores
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-1">
+              <ol className="flex items-center gap-2">
+                <li aria-current="page" className="text-foreground font-medium">Prontidão</li>
+              </ol>
+            </nav>
+            <h1 className="text-xl font-semibold text-foreground">Prontidão</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Próxima sessão: {sessionDate} · {players.length} jogadores
+            </p>
+          </div>
+          <Link
+            href="/tendencias"
+            className="lg:hidden flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <TrendingUp className="h-4 w-4" />
+            Tendências
+          </Link>
+        </div>
       </div>
 
       {/* Panel (Client Component — toggle + drill-down) */}
