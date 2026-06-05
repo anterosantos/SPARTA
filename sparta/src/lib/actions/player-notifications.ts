@@ -137,22 +137,70 @@ export async function getPlayerNotifications(): Promise<
       };
     });
 
-  // 4. Broadcasts futuros: quando implementado, adicionar aqui
-  // const broadcastItems = await fetchBroadcasts(player.club_id);
+  // 4. Broadcasts do clube nos últimos 30 dias
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  return ok(convocatoriaItems);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawBroadcasts } = await (supabase as any)
+    .from("broadcasts")
+    .select("id, message, created_at")
+    .eq("club_id", player.club_id)
+    .gte("created_at", thirtyDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const broadcastIds: string[] = ((rawBroadcasts ?? []) as Array<{ id: string }>).map(
+    (b) => b.id
+  );
+
+  let dismissedBroadcastIds = new Set<string>();
+  if (broadcastIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rawBroadcastDismissals } = await (supabase as any)
+      .from("broadcast_dismissals")
+      .select("broadcast_id")
+      .eq("profile_id", user.id)
+      .in("broadcast_id", broadcastIds);
+
+    dismissedBroadcastIds = new Set<string>(
+      ((rawBroadcastDismissals ?? []) as Array<{ broadcast_id: string }>).map(
+        (d) => d.broadcast_id
+      )
+    );
+  }
+
+  interface BroadcastRow { id: string; message: string; created_at: string; }
+  const broadcastItems: PlayerNotificationItem[] = (
+    (rawBroadcasts ?? []) as BroadcastRow[]
+  )
+    .filter((b) => !dismissedBroadcastIds.has(b.id))
+    .map((b) => ({
+      id: b.id,
+      kind: "broadcast" as PlayerNotificationKind,
+      sessionId: null,
+      sessionTypeLabel: null,
+      sessionScheduledAt: null,
+      sessionLocation: null,
+      opponentName: null,
+      concentrationTime: null,
+      message: b.message,
+      createdAt: b.created_at,
+    }));
+
+  return ok([...broadcastItems, ...convocatoriaItems]);
 }
 
 /**
  * dismissPlayerNotification — Jogador dispensa uma notificação do inbox.
- * A notificação deixa de aparecer até à próxima convocatória ou até ser
- * re-enviada pelo treinador (upsert reset status a 'scheduled').
+ *
+ * Para kind="convocado": id = sessionId → player_inbox_dismissals
+ * Para kind="broadcast": id = broadcastId → broadcast_dismissals
  */
 export async function dismissPlayerNotification(
-  sessionId: string,
+  id: string,
   kind: string
 ): Promise<void> {
-  if (!sessionId || !kind) return;
+  if (!id || !kind) return;
 
   const supabase = await createServerClient();
   const {
@@ -161,12 +209,20 @@ export async function dismissPlayerNotification(
 
   if (!user) return;
 
-  // Upsert idempotente — dismiss repetido não cria duplicado
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("player_inbox_dismissals").upsert(
-    { profile_id: user.id, session_id: sessionId, kind },
-    { onConflict: "profile_id,session_id,kind", ignoreDuplicates: true }
-  );
+  if (kind === "broadcast") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("broadcast_dismissals").upsert(
+      { profile_id: user.id, broadcast_id: id },
+      { onConflict: "profile_id,broadcast_id", ignoreDuplicates: true }
+    );
+  } else {
+    // convocado: id = sessionId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("player_inbox_dismissals").upsert(
+      { profile_id: user.id, session_id: id, kind },
+      { onConflict: "profile_id,session_id,kind", ignoreDuplicates: true }
+    );
+  }
 
   revalidatePath("/hoje");
 }

@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Shield,
   LayoutDashboard,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ const NAV_CONFIG: Record<"coach" | "analyst", NavItem[]> = {
     { label: "Plantel", href: "/plantel", icon: Users },
     { label: "Tendências", href: "/tendencias", icon: TrendingUp },
     { label: "Equipa", href: "/equipa/agregado", icon: LayoutDashboard },
+    { label: "Mensagens", href: "/mensagens", icon: MessageSquare },
     { label: "Configurações", href: "/configuracoes", icon: Settings },
   ],
   analyst: [

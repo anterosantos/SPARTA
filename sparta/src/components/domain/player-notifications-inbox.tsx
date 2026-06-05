@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, Users, Bell, X } from "lucide-react";
+import { CalendarCheck, Users, Bell, X, MessageSquare } from "lucide-react";
 import type { PlayerNotificationItem } from "@/lib/actions/player-notifications";
 import { dismissPlayerNotification } from "@/lib/actions/player-notifications";
 
@@ -8,6 +8,17 @@ interface PlayerNotificationsInboxProps {
 }
 
 const TZ = "Europe/Lisbon";
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `há ${days} dia${days !== 1 ? "s" : ""}`;
+}
 
 function formatSessionDate(iso: string): string {
   const date = new Date(iso);
@@ -144,18 +155,43 @@ export function PlayerNotificationsInbox({
             </li>
           ))}
 
-          {broadcasts.map((item) => (
-            <li key={item.id}>
-              <div className="rounded-xl border border-border bg-card p-4 border-l-4 border-l-yellow-500 dark:border-l-yellow-400">
-                <p className="text-sm font-semibold text-foreground">
-                  Mensagem do staff
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {item.message}
-                </p>
-              </div>
-            </li>
-          ))}
+          {broadcasts.map((item) => {
+            const dismissBroadcast = dismissPlayerNotification.bind(
+              null,
+              item.id,
+              "broadcast"
+            );
+            return (
+              <li key={item.id}>
+                <div className="relative rounded-xl border border-border bg-card p-4 border-l-4 border-l-yellow-500 dark:border-l-yellow-400">
+                  <div className="flex items-start gap-3 pr-6">
+                    <MessageSquare
+                      className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5"
+                      aria-hidden="true"
+                    />
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="text-sm font-semibold text-foreground">
+                        Mensagem do staff
+                      </p>
+                      <p className="text-sm text-foreground">{item.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {relativeTime(item.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <form action={dismissBroadcast} className="absolute top-2 right-2">
+                    <button
+                      type="submit"
+                      className="flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label="Remover mensagem"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </form>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

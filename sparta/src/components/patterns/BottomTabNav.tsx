@@ -11,6 +11,7 @@ import {
   Users,
   Settings,
   TrendingUp,
+  MessageSquare,
 } from "lucide-react";
 
 type TabConfig = {
@@ -34,7 +35,7 @@ const TAB_CONFIG: Record<"player" | "coach" | "analyst", TabConfig[]> = {
     { label: "Prontidão", href: "/prontidao", icon: AlertCircle },
     { label: "Calendário", href: "/calendario", icon: Calendar },
     { label: "Plantel", href: "/plantel", icon: Users },
-    { label: "Tendências", href: "/tendencias", icon: TrendingUp },
+    { label: "Mensagens", href: "/mensagens", icon: MessageSquare },
     { label: "Eu", href: "/configuracoes", icon: Settings },
   ],
   analyst: [
