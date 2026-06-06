@@ -2140,6 +2140,57 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 }
 
 // ============================================================================
+// Helper list actions (for dropdowns and page data)
+// ============================================================================
+
+export async function listSeasons() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data } = await db
+      .from("seasons")
+      .select("id, name, is_current")
+      .eq("club_id", clubId)
+      .order("start_date", { ascending: false });
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listClubPlayers() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data } = await db
+      .from("players")
+      .select("id, full_name, jersey_num, age_group")
+      .eq("club_id", clubId)
+      .eq("is_archived", false)
+      .order("full_name", { ascending: true });
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listClubProfiles() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data } = await db
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("club_id", clubId)
+      .in("role", ["coach", "analyst"])
+      .order("full_name", { ascending: true });
+    return data ?? [];
+  } catch { return []; }
+}
+
+// ============================================================================
 // List actions for admin pages
 // ============================================================================
 
