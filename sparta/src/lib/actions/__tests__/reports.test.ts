@@ -12,9 +12,17 @@ vi.mock("@/lib/actions/data-rights", () => ({
   checkProcessingRestricted: vi.fn(),
 }));
 
+// Mock requireStaffRole directly to avoid internal getServiceRoleClient chain
+// (requireStaffRole now queries team_coaches via service role; mocking the
+// supabase internals would require threading that through every test)
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { checkProcessingRestricted } from "@/lib/actions/data-rights";
+import { requireStaffRole } from "@/lib/actions/auth";
 import { generateReport, getPlayerReports, revokeReport, shareReport } from "../reports";
 
 const PLAYER_ID = "player-00000000-0000-0000-0000-000000000001";
@@ -54,28 +62,17 @@ function setupAuth(
   clubId = CLUB_ID,
   userId = USER_ID,
 ): void {
-  const profileQuery = createMockQuery();
-  profileQuery.single.mockResolvedValue({
-    data: { role, club_id: clubId },
-    error: null,
+  (requireStaffRole as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: true,
+    data: { userId, clubId, role, teamIds: [] },
   });
-  const authClient = {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId } } }),
-    },
-    from: vi.fn().mockReturnValue(profileQuery),
-  };
-  (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue(authClient);
 }
 
 function setupAuthForbidden(): void {
-  const authClient = {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-    },
-    from: vi.fn().mockReturnValue(createMockQuery()),
-  };
-  (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue(authClient);
+  (requireStaffRole as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: false,
+    error: { code: "unauthorized", message: "Não autorizado" },
+  });
 }
 
 // Mock fetch global para Edge Function e Brevo
