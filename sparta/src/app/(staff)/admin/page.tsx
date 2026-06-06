@@ -3,25 +3,53 @@ import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { redirect } from "next/navigation";
 
 async function getAdminStats(clubId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = getServiceRoleClient() as any;
+  const db = getServiceRoleClient();
 
-  const [rostersResult, teamsResult, playersResult, loansResult] =
-    await Promise.all([
-      db.from("rosters").select("id", { count: "exact" }).eq("club_id", clubId).eq("status", "active"),
-      db.from("teams").select("id", { count: "exact" }).eq("is_archived", false)
-        .in("roster_id", db.from("rosters").select("id").eq("club_id", clubId)),
-      db.from("team_players").select("id", { count: "exact" }).eq("status", "active")
-        .in("team_id", db.from("teams").select("id")
-          .in("roster_id", db.from("rosters").select("id").eq("club_id", clubId))),
-      db.from("player_loans").select("id", { count: "exact" }).eq("status", "pending")
-        .in("from_team_id", db.from("teams").select("id")
-          .in("roster_id", db.from("rosters").select("id").eq("club_id", clubId))),
-    ]);
+  // Fetch roster IDs for this club first (Supabase JS doesn't support subquery in .in())
+  const { data: rosters } = await db
+    .from("rosters")
+    .select("id")
+    .eq("club_id", clubId)
+    .eq("status", "active");
+
+  const rosterIds = rosters?.map((r) => r.id) ?? [];
+  const activeRosters = rosterIds.length;
+
+  if (rosterIds.length === 0) {
+    return { rosters: 0, teams: 0, players: 0, loans: 0 };
+  }
+
+  // Fetch team IDs for these rosters
+  const { data: teams } = await db
+    .from("teams")
+    .select("id")
+    .in("roster_id", rosterIds)
+    .eq("is_archived", false);
+
+  const teamIds = teams?.map((t) => t.id) ?? [];
+  const activeTeams = teamIds.length;
+
+  if (teamIds.length === 0) {
+    return { rosters: activeRosters, teams: 0, players: 0, loans: 0 };
+  }
+
+  // Count active players and pending loans in parallel
+  const [playersResult, loansResult] = await Promise.all([
+    db
+      .from("team_players")
+      .select("id", { count: "exact", head: true })
+      .in("team_id", teamIds)
+      .eq("status", "active"),
+    db
+      .from("player_loans")
+      .select("id", { count: "exact", head: true })
+      .in("from_team_id", teamIds)
+      .eq("status", "pending"),
+  ]);
 
   return {
-    rosters: rostersResult.count ?? 0,
-    teams: teamsResult.count ?? 0,
+    rosters: activeRosters,
+    teams: activeTeams,
     players: playersResult.count ?? 0,
     loans: loansResult.count ?? 0,
   };
