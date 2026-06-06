@@ -31,27 +31,27 @@ function isValidState(state: unknown): state is keyof typeof STATE_COLORS {
 // Coordinates per sub-position (% of SVG viewBox 300×400, origin top-left).
 // Our goal is at the bottom; attack direction is upward.
 const POSITION_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
-  GR:  { xPct: 50, yPct: 84, halfSpan: 10 },
-  DC:  { xPct: 50, yPct: 70, halfSpan: 12 },
-  DD:  { xPct: 78, yPct: 70, halfSpan:  7 },
-  DE:  { xPct: 22, yPct: 70, halfSpan:  7 },
-  LIB: { xPct: 50, yPct: 64, halfSpan: 10 },
+  GR:  { xPct: 50, yPct: 89, halfSpan: 10 },
+  DC:  { xPct: 50, yPct: 76, halfSpan: 12 },
+  DD:  { xPct: 78, yPct: 76, halfSpan:  7 },
+  DE:  { xPct: 22, yPct: 76, halfSpan:  7 },
+  LIB: { xPct: 50, yPct: 69, halfSpan: 10 },
   MDC: { xPct: 50, yPct: 57, halfSpan: 10 },
-  MC:  { xPct: 50, yPct: 44, halfSpan: 12 },
-  MO:  { xPct: 50, yPct: 37, halfSpan: 10 },
-  MD:  { xPct: 72, yPct: 44, halfSpan:  7 },
-  ME:  { xPct: 28, yPct: 44, halfSpan:  7 },
-  EXD: { xPct: 76, yPct: 26, halfSpan:  7 },
-  EXE: { xPct: 24, yPct: 26, halfSpan:  7 },
-  SC:  { xPct: 50, yPct: 18, halfSpan: 12 },
-  PL:  { xPct: 50, yPct: 14, halfSpan: 10 },
+  MC:  { xPct: 50, yPct: 45, halfSpan: 12 },
+  MO:  { xPct: 50, yPct: 38, halfSpan: 10 },
+  MD:  { xPct: 72, yPct: 45, halfSpan:  7 },
+  ME:  { xPct: 28, yPct: 45, halfSpan:  7 },
+  EXD: { xPct: 76, yPct: 28, halfSpan:  7 },
+  EXE: { xPct: 24, yPct: 28, halfSpan:  7 },
+  SC:  { xPct: 50, yPct: 20, halfSpan: 12 },
+  PL:  { xPct: 50, yPct: 15, halfSpan: 10 },
 };
 
 // Fallback coordinates when primaryPosition holds a canonical group name (DEF/MED/AVA)
 const FALLBACK_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
-  DEF: { xPct: 50, yPct: 70, halfSpan: 14 },
-  MED: { xPct: 50, yPct: 44, halfSpan: 14 },
-  AVA: { xPct: 50, yPct: 26, halfSpan: 14 },
+  DEF: { xPct: 50, yPct: 76, halfSpan: 14 },
+  MED: { xPct: 50, yPct: 45, halfSpan: 14 },
+  AVA: { xPct: 50, yPct: 28, halfSpan: 14 },
 };
 
 const DEFAULT_COORDS = { xPct: 50, yPct: 44, halfSpan: 14 };
@@ -230,12 +230,12 @@ export function FieldFormation({ players, onSelectPlayer, onSelectPosition, flas
               aria-label={`Estado: ${stateLabel}, ${player.playerName}, ${player.primaryPosition ?? 'posição desconhecida'}, ACWR ${acwrLabel}`}
             >
               <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white shadow-md"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold border-2 border-white shadow-md"
                 style={{ backgroundColor: stateColor }}
               >
                 {player.jerseyNum != null ? player.jerseyNum : '?'}
               </div>
-              <span className="text-white text-[10px] font-medium drop-shadow-sm max-w-[52px] truncate">
+              <span className="text-white text-[9px] font-medium drop-shadow-sm max-w-[44px] truncate">
                 {firstName}
               </span>
             </button>
