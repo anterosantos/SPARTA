@@ -31,27 +31,27 @@ function isValidState(state: unknown): state is keyof typeof STATE_COLORS {
 // Coordinates per sub-position (% of SVG viewBox 300×400, origin top-left).
 // Our goal is at the bottom; attack direction is upward.
 const POSITION_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
-  GR:  { xPct: 50, yPct: 89, halfSpan: 10 },
-  DC:  { xPct: 50, yPct: 76, halfSpan: 12 },
+  GR:  { xPct: 50, yPct: 89, halfSpan:  7 },
+  DC:  { xPct: 50, yPct: 76, halfSpan:  8 },
   DD:  { xPct: 78, yPct: 76, halfSpan:  7 },
   DE:  { xPct: 22, yPct: 76, halfSpan:  7 },
-  LIB: { xPct: 50, yPct: 69, halfSpan: 10 },
-  MDC: { xPct: 50, yPct: 57, halfSpan: 10 },
-  MC:  { xPct: 50, yPct: 45, halfSpan: 12 },
-  MO:  { xPct: 50, yPct: 38, halfSpan: 10 },
+  LIB: { xPct: 50, yPct: 69, halfSpan:  7 },
+  MDC: { xPct: 50, yPct: 57, halfSpan:  7 },
+  MC:  { xPct: 50, yPct: 45, halfSpan:  8 },
+  MO:  { xPct: 50, yPct: 33, halfSpan:  7 },
   MD:  { xPct: 72, yPct: 45, halfSpan:  7 },
   ME:  { xPct: 28, yPct: 45, halfSpan:  7 },
   EXD: { xPct: 76, yPct: 28, halfSpan:  7 },
   EXE: { xPct: 24, yPct: 28, halfSpan:  7 },
-  SC:  { xPct: 50, yPct: 20, halfSpan: 12 },
-  PL:  { xPct: 50, yPct: 15, halfSpan: 10 },
+  SC:  { xPct: 50, yPct: 20, halfSpan:  8 },
+  PL:  { xPct: 50, yPct: 15, halfSpan:  7 },
 };
 
 // Fallback coordinates when primaryPosition holds a canonical group name (DEF/MED/AVA)
 const FALLBACK_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
-  DEF: { xPct: 50, yPct: 76, halfSpan: 14 },
-  MED: { xPct: 50, yPct: 45, halfSpan: 14 },
-  AVA: { xPct: 50, yPct: 28, halfSpan: 14 },
+  DEF: { xPct: 50, yPct: 76, halfSpan: 10 },
+  MED: { xPct: 50, yPct: 45, halfSpan: 10 },
+  AVA: { xPct: 50, yPct: 28, halfSpan: 10 },
 };
 
 const DEFAULT_COORDS = { xPct: 50, yPct: 44, halfSpan: 14 };
@@ -110,7 +110,7 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   }
 
   const result: PlayerWithCoords[] = [];
-  const ROW_Y_OFFSET = 3; // % of container height; creates two staggered rows for large groups
+  const ROW_Y_OFFSET = 5; // % of container height; creates two staggered rows for large groups
 
   for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
     if (group.length < 3) {
