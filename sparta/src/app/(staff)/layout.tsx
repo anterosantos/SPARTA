@@ -17,7 +17,8 @@ export default async function StaffLayout({
     redirect("/login");
   }
 
-  let staffRole!: "coach" | "analyst";
+  let staffRole: "coach" | "analyst" | null = null;
+  let isAdmin = false;
   try {
     const { data: profile, error } = await supabase
       .from("profiles")
@@ -35,24 +36,28 @@ export default async function StaffLayout({
       redirect("/hoje");
     }
 
-    // Admin has its own layout — skip the staff sidebar/nav wrapper
     if (role === "admin") {
-      return <>{children}</>;
+      isAdmin = true;
+    } else {
+      staffRole = role as "coach" | "analyst";
     }
-
-    staffRole = role as "coach" | "analyst";
   } catch {
     // Database error or missing profile; redirect to login
     redirect("/login");
   }
 
+  // Admin has its own layout — skip the staff sidebar/nav wrapper
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen">
-      <StaffSidebar role={staffRole} />
+      <StaffSidebar role={staffRole!} />
       {/* lg:pl-64 offsets the fixed sidebar */}
       <div className="flex flex-1 flex-col lg:pl-64">
         <main id="main-content" className="flex-1 pb-[60px] lg:pb-0">{children}</main>
-        <BottomTabNav role={staffRole} />
+        <BottomTabNav role={staffRole!} />
       </div>
     </div>
   );
