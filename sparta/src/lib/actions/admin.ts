@@ -2243,7 +2243,7 @@ export async function listRosterPlayers() {
     // Get team assignments for these players
     const { data: teamPlayers } = await (db as any)
       .from("team_players")
-      .select("player_id, team_id, status, position, teams(id, name)")
+      .select("id, player_id, team_id, status, position, teams(id, name)")
       .in("player_id", playerIds)
       .eq("is_archived", false);
 
