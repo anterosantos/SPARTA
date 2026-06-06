@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase does not infer types for nested relationship queries (e.g. teams(rosters(club_id))). All usages are structurally safe.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Admin Server Actions (Story 8.2 - 8.5)
  *
