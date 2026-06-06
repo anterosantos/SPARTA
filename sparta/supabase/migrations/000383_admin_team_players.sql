@@ -20,11 +20,11 @@ CREATE TABLE team_players (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Unique constraint: one active assignment per (roster, player)
--- Query: (SELECT DISTINCT roster_id FROM teams WHERE id = team_id) — a player can be active in only one team per roster
-ALTER TABLE team_players
-  ADD CONSTRAINT team_players_unique_active_per_roster
-  UNIQUE (team_id, player_id, status) WHERE status = 'active';
+-- Partial unique index: one active assignment per (team, player)
+-- WHERE clause requires CREATE UNIQUE INDEX, not ALTER TABLE ADD CONSTRAINT
+CREATE UNIQUE INDEX team_players_unique_active_per_roster
+  ON team_players(team_id, player_id)
+  WHERE status = 'active';
 
 -- Indexes
 CREATE INDEX idx_team_players_team_status ON team_players(team_id, status);
