@@ -2064,3 +2064,77 @@ export async function getAuditLogsForAdmin(filters: {
     };
   }
 }
+
+// ============================================================================
+// Story 8.7: Admin Dashboard Stats
+// ============================================================================
+
+export interface AdminDashboardStats {
+  rosters: number;
+  teams: number;
+  players: number;
+  loans: number;
+}
+
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return { rosters: 0, teams: 0, players: 0, loans: 0 };
+
+  const { clubId } = authResult.data;
+
+  try {
+    const db = getAdminClient();
+
+    const { data: rosters, error: rostersError } = await db
+      .from("rosters")
+      .select("id")
+      .eq("club_id", clubId)
+      .eq("status", "active");
+
+    if (rostersError || !Array.isArray(rosters)) {
+      return { rosters: 0, teams: 0, players: 0, loans: 0 };
+    }
+
+    const rosterIds: string[] = rosters.map((r: { id: string }) => r.id);
+    if (rosterIds.length === 0) {
+      return { rosters: 0, teams: 0, players: 0, loans: 0 };
+    }
+
+    const { data: teams, error: teamsError } = await db
+      .from("teams")
+      .select("id")
+      .in("roster_id", rosterIds)
+      .eq("is_archived", false);
+
+    if (teamsError || !Array.isArray(teams)) {
+      return { rosters: rosterIds.length, teams: 0, players: 0, loans: 0 };
+    }
+
+    const teamIds: string[] = teams.map((t: { id: string }) => t.id);
+    if (teamIds.length === 0) {
+      return { rosters: rosterIds.length, teams: 0, players: 0, loans: 0 };
+    }
+
+    const [playersResult, loansResult] = await Promise.all([
+      db
+        .from("team_players")
+        .select("id", { count: "exact", head: true })
+        .in("team_id", teamIds)
+        .eq("status", "active"),
+      db
+        .from("player_loans")
+        .select("id", { count: "exact", head: true })
+        .in("from_team_id", teamIds)
+        .eq("status", "pending"),
+    ]);
+
+    return {
+      rosters: rosterIds.length,
+      teams: teamIds.length,
+      players: playersResult.count ?? 0,
+      loans: loansResult.count ?? 0,
+    };
+  } catch {
+    return { rosters: 0, teams: 0, players: 0, loans: 0 };
+  }
+}

@@ -1,73 +1,12 @@
+import { getAdminDashboardStats } from "@/lib/actions/admin";
 import { requireStaffRole } from "@/lib/actions/auth";
-import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { redirect } from "next/navigation";
-
-async function getAdminStats(clubId: string) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = getServiceRoleClient() as any;
-
-    const { data: rosters, error: rostersError } = await db
-      .from("rosters")
-      .select("id")
-      .eq("club_id", clubId)
-      .eq("status", "active");
-
-    if (rostersError || !Array.isArray(rosters)) {
-      return { rosters: 0, teams: 0, players: 0, loans: 0 };
-    }
-
-    const rosterIds: string[] = rosters.map((r: { id: string }) => r.id);
-    if (rosterIds.length === 0) {
-      return { rosters: 0, teams: 0, players: 0, loans: 0 };
-    }
-
-    const { data: teams, error: teamsError } = await db
-      .from("teams")
-      .select("id")
-      .in("roster_id", rosterIds)
-      .eq("is_archived", false);
-
-    if (teamsError || !Array.isArray(teams)) {
-      return { rosters: rosterIds.length, teams: 0, players: 0, loans: 0 };
-    }
-
-    const teamIds: string[] = teams.map((t: { id: string }) => t.id);
-    if (teamIds.length === 0) {
-      return { rosters: rosterIds.length, teams: 0, players: 0, loans: 0 };
-    }
-
-    const [playersResult, loansResult] = await Promise.all([
-      db
-        .from("team_players")
-        .select("id", { count: "exact", head: true })
-        .in("team_id", teamIds)
-        .eq("status", "active"),
-      db
-        .from("player_loans")
-        .select("id", { count: "exact", head: true })
-        .in("from_team_id", teamIds)
-        .eq("status", "pending"),
-    ]);
-
-    return {
-      rosters: rosterIds.length,
-      teams: teamIds.length,
-      players: playersResult.count ?? 0,
-      loans: loansResult.count ?? 0,
-    };
-  } catch {
-    // Admin tables not yet migrated — return zeros instead of crashing
-    return { rosters: 0, teams: 0, players: 0, loans: 0 };
-  }
-}
 
 export default async function AdminDashboard() {
   const authResult = await requireStaffRole();
   if (!authResult.ok) redirect("/login");
 
-  const { clubId } = authResult.data;
-  const stats = await getAdminStats(clubId);
+  const stats = await getAdminDashboardStats();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
