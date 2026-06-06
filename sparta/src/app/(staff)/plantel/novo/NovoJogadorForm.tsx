@@ -26,9 +26,18 @@ interface NovoJogadorFormProps {
 export function NovoJogadorForm({ teams }: NovoJogadorFormProps) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(
-    teams.length === 1 ? (teams[0]?.id ?? "") : ""
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
+    teams.length === 1 && teams[0] ? new Set([teams[0].id]) : new Set()
   );
+
+  function toggleTeam(id: string) {
+    setSelectedTeamIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const form = useForm<PlayerCreate>({
     resolver: zodResolver(PlayerCreateSchema),
@@ -56,7 +65,8 @@ export function NovoJogadorForm({ teams }: NovoJogadorFormProps) {
     setServerError(null);
     setIsPending(true);
     try {
-      const result = await createPlayer(data, selectedTeamId || undefined);
+      const teamIds = [...selectedTeamIds];
+      const result = await createPlayer(data, teamIds.length > 0 ? teamIds : undefined);
       if (!result.ok) {
         if (result.error.code === "conflict") {
           form.setError("jerseyNum", { message: "Camisola já usada neste clube" });
@@ -91,41 +101,39 @@ export function NovoJogadorForm({ teams }: NovoJogadorFormProps) {
           </div>
         )}
 
-        {/* Seleção de equipa — só aparece se staff tiver mais de uma equipa */}
-        {teams.length > 1 && (
+        {/* Seleção de equipas — checkboxes, disponível se staff tiver equipas */}
+        {teams.length > 0 && (
           <div>
-            <label htmlFor="teamId" className="block text-sm font-medium text-foreground mb-1">
-              Equipa <span aria-hidden="true">*</span>
-            </label>
-            <select
-              id="teamId"
-              value={selectedTeamId}
-              onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
-              disabled={isPending}
-            >
-              <option value="">Sem equipa (só roster)</option>
+            <p className="block text-sm font-medium text-foreground mb-2">
+              Equipa(s)
+            </p>
+            <div className="space-y-2">
               {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} — {t.rosterName}
-                </option>
+                <label
+                  key={t.id}
+                  className="flex items-center gap-2.5 cursor-pointer select-none"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTeamIds.has(t.id)}
+                    onChange={() => toggleTeam(t.id)}
+                    disabled={isPending}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-foreground">
+                    {t.name}
+                    <span className="text-xs text-muted-foreground ml-1">— {t.rosterName}</span>
+                  </span>
+                </label>
               ))}
-            </select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              O jogador fica no roster mesmo sem equipa atribuída.
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Sem equipa selecionada, o jogador fica só no roster.
             </p>
           </div>
         )}
 
-        {/* Info: equipa única auto-selecionada */}
-        {teams.length === 1 && teams[0] && (
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            Será adicionado a <strong className="text-foreground">{teams[0].name}</strong>{" "}
-            ({teams[0].rosterName})
-          </div>
-        )}
-
-        {/* Info: sem equipa atribuída */}
+        {/* Info: sem equipas atribuídas ao staff */}
         {teams.length === 0 && (
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             Sem equipas atribuídas — o jogador ficará no roster ativo do clube.

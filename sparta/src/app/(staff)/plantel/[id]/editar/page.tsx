@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import dynamicImport from "next/dynamic";
-import { getPlayer } from "@/lib/actions/players";
+import { getPlayer, getStaffTeamsForPlayerCreation } from "@/lib/actions/players";
 
 const EditPlayerForm = dynamicImport(() =>
   import("./edit-player-form").then(m => ({ default: m.EditPlayerForm })),
@@ -9,22 +9,8 @@ const EditPlayerForm = dynamicImport(() =>
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export async function generateMetadata() {
   return { title: "Editar Jogador" };
-}
-
-async function loadPlayer(id: string) {
-  try {
-    const result = await getPlayer(id);
-    if (!result.ok) throw new Error("Not found");
-    return result.data;
-  } catch {
-    return null;
-  }
 }
 
 export default async function EditarJogadorPage({
@@ -34,8 +20,12 @@ export default async function EditarJogadorPage({
 }) {
   const { id } = await params;
 
-  const player = await loadPlayer(id);
-  if (!player) notFound();
+  const [playerResult, staffTeams] = await Promise.all([
+    getPlayer(id),
+    getStaffTeamsForPlayerCreation(),
+  ]);
 
-  return <EditPlayerForm player={player} />;
+  if (!playerResult.ok) notFound();
+
+  return <EditPlayerForm player={playerResult.data} staffTeams={staffTeams} />;
 }

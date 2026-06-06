@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
-import { getPlayerIdsForTeams } from "@/lib/actions/auth";
+import { getPlayerIdsForTeams, requireStaffRole } from "@/lib/actions/auth";
 import { newId } from "@/lib/uuid";
 import { logAccess } from "@/lib/actions/audit";
 import { uploadPlayerPhotoFile } from "@/lib/storage";
@@ -31,9 +31,10 @@ export interface PlayerPosition {
 }
 
 export interface PlayerTeamInfo {
-  id: string;
+  id: string;       // team.id
   name: string;
   status: string;
+  teamPlayersId: string; // team_players.id (needed for removal)
 }
 
 export interface PlayerRosterInfo {
@@ -132,7 +133,7 @@ export async function getPlayers(
   const [teamAssignmentsRes, rosterAssignmentsRes] = await Promise.all([
     serviceRole
       .from("team_players")
-      .select("player_id, status, teams(id, name)")
+      .select("id, player_id, status, teams(id, name)")
       .in("player_id", playerIds)
       .in("team_id", teamIds)
       .eq("is_archived", false),
@@ -150,7 +151,7 @@ export async function getPlayers(
     const team = row.teams as { id: string; name: string } | null;
     if (!team) continue;
     const list = teamsByPlayer.get(pid) ?? [];
-    list.push({ id: team.id, name: team.name, status: row.status as string });
+    list.push({ id: team.id, name: team.name, status: row.status as string, teamPlayersId: row.id as string });
     teamsByPlayer.set(pid, list);
   }
 
@@ -223,6 +224,82 @@ export async function getStaffTeamsForPlayerCreation(): Promise<StaffTeam[]> {
   });
 }
 
+/**
+ * Assigns a player to a team (staff-accessible).
+ * Verifies the team is in the staff's assigned teams.
+ */
+export async function assignPlayerToTeam(
+  playerId: string,
+  teamId: string,
+): Promise<Result<void, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { teamIds } = authResult.data;
+
+  if (!teamIds.includes(teamId)) {
+    return err({ code: "forbidden", message: "Equipa não autorizada" });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serviceRole = getServiceRoleClient() as any;
+
+  const { data: team } = await serviceRole
+    .from("teams")
+    .select("roster_id")
+    .eq("id", teamId)
+    .single();
+
+  if (team?.roster_id) {
+    await serviceRole.from("roster_players").insert({
+      roster_id: team.roster_id,
+      player_id: playerId,
+    });
+  }
+
+  const { error } = await serviceRole.from("team_players").insert({
+    team_id: teamId,
+    player_id: playerId,
+    status: "active",
+    joined_at: new Date().toISOString(),
+  });
+
+  if (error) return err({ code: "unknown", message: error.message });
+  return ok(undefined);
+}
+
+/**
+ * Removes a player from a team (staff-accessible) via team_players.id.
+ * Verifies the team_players record belongs to one of the staff's teams.
+ */
+export async function unassignPlayerFromTeam(
+  teamPlayersId: string,
+): Promise<Result<void, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { teamIds } = authResult.data;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serviceRole = getServiceRoleClient() as any;
+
+  const { data: record } = await serviceRole
+    .from("team_players")
+    .select("id, team_id")
+    .eq("id", teamPlayersId)
+    .single();
+
+  if (!record || !teamIds.includes(record.team_id)) {
+    return err({ code: "forbidden", message: "Registo não autorizado" });
+  }
+
+  const { error } = await serviceRole
+    .from("team_players")
+    .update({ is_archived: true, left_at: new Date().toISOString(), status: "reserve" })
+    .eq("id", teamPlayersId);
+
+  if (error) return err({ code: "unknown", message: error.message });
+  return ok(undefined);
+}
+
 export async function getPlayer(
   playerId: string
 ): Promise<Result<PlayerWithPositions, AppError>> {
@@ -268,7 +345,7 @@ export async function getPlayer(
 
 export async function createPlayer(
   input: PlayerCreate,
-  teamId?: string
+  teamIds?: string[]
 ): Promise<Result<{ id: string }, AppError>> {
   const validated = PlayerCreateSchema.safeParse(input);
   if (!validated.success) {
@@ -358,32 +435,40 @@ export async function createPlayer(
     }
   }
 
-  // Assign player to roster and optionally to a specific team (via service role)
+  // Assign player to roster and optionally to specific teams (via service role)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const serviceRole = getServiceRoleClient() as any;
+  const selectedTeamIds = teamIds && teamIds.length > 0 ? teamIds : [];
+  const joinedAt = new Date().toISOString();
 
-  if (teamId) {
-    // Get the roster from this team (to register in roster_players)
-    const { data: team } = await serviceRole
+  if (selectedTeamIds.length > 0) {
+    // Fetch roster_id for each selected team and register in roster_players
+    const { data: teamsData } = await serviceRole
       .from("teams")
-      .select("roster_id")
-      .eq("id", teamId)
-      .single();
+      .select("id, roster_id")
+      .in("id", selectedTeamIds);
 
-    if (team?.roster_id) {
+    const rosterIds = new Set<string>();
+    for (const t of teamsData ?? []) {
+      if (t.roster_id) rosterIds.add(t.roster_id);
+    }
+
+    for (const rosterId of rosterIds) {
       await serviceRole.from("roster_players").insert({
-        roster_id: team.roster_id,
+        roster_id: rosterId,
         player_id: playerId,
       });
     }
 
-    // Create team_players record
-    await serviceRole.from("team_players").insert({
-      team_id: teamId,
-      player_id: playerId,
-      status: "active",
-      joined_at: new Date().toISOString(),
-    });
+    // Create team_players records for each selected team
+    for (const tid of selectedTeamIds) {
+      await serviceRole.from("team_players").insert({
+        team_id: tid,
+        player_id: playerId,
+        status: "active",
+        joined_at: joinedAt,
+      });
+    }
   } else {
     // No team selected: assign to the club's active roster only
     const { data: activeRoster } = await serviceRole

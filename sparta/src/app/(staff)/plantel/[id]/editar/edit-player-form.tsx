@@ -1,38 +1,49 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useTransition } from "react";
 import Image from "next/image";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Plus, Trash2, ChevronLeft, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
-import { PlayerUpdateSchema, POSITIONS, AGE_GROUPS } from "@/lib/schemas/players";
+import { PlayerUpdateSchema, POSITIONS } from "@/lib/schemas/players";
 import type { PlayerUpdate } from "@/lib/schemas/players";
-import type { PlayerWithPositions } from "@/lib/actions/players";
-import { updatePlayer, uploadPlayerPhoto } from "@/lib/actions/players";
-
-const AGE_GROUP_LABELS: Record<string, string> = {
-  u14: "Sub-14",
-  u15: "Sub-15",
-  u17: "Sub-17",
-  u19: "Sub-19",
-  senior: "Sénior",
-};
+import type { PlayerWithPositions, StaffTeam } from "@/lib/actions/players";
+import { updatePlayer, uploadPlayerPhoto, assignPlayerToTeam, unassignPlayerFromTeam } from "@/lib/actions/players";
 
 interface EditPlayerFormProps {
   player: PlayerWithPositions;
+  staffTeams: StaffTeam[];
 }
 
-export function EditPlayerForm({ player }: EditPlayerFormProps) {
+export function EditPlayerForm({ player, staffTeams }: EditPlayerFormProps) {
+  const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoSuccess, setPhotoSuccess] = useState(false);
+  const [teamsTransition, startTeamsTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const assignedTeamIds = new Set(player.teams.map((t) => t.id));
+  const teamPlayersIdByTeamId = new Map(player.teams.map((t) => [t.id, t.teamPlayersId]));
+
+  function handleTeamToggle(teamId: string, checked: boolean) {
+    startTeamsTransition(async () => {
+      if (checked) {
+        await assignPlayerToTeam(player.id, teamId);
+      } else {
+        const tpId = teamPlayersIdByTeamId.get(teamId);
+        if (tpId) await unassignPlayerFromTeam(tpId);
+      }
+      router.refresh();
+    });
+  }
 
   const sortedPositions = [...player.positions].sort(
     (a, b) => a.sort_order - b.sort_order
@@ -46,7 +57,7 @@ export function EditPlayerForm({ player }: EditPlayerFormProps) {
       fullName: player.full_name,
       birthdate: player.birthdate,
       jerseyNum: player.jersey_num,
-      ageGroup: player.age_group as PlayerUpdate["ageGroup"],
+      ageGroup: player.age_group as PlayerUpdate["ageGroup"], // kept in schema, hidden from UI
       positions:
         sortedPositions.length > 0
           ? sortedPositions.map((p, i) => ({
@@ -216,33 +227,32 @@ export function EditPlayerForm({ player }: EditPlayerFormProps) {
           )}
         </div>
 
-        {/* Escalão */}
-        <div>
-          <label htmlFor="ageGroup" className="block text-sm font-medium text-foreground mb-1">
-            Escalão <span aria-hidden="true">*</span>
-          </label>
-          <select
-            id="ageGroup"
-            aria-describedby={errors.ageGroup ? "ageGroup-error" : undefined}
-            aria-invalid={!!errors.ageGroup}
-            {...form.register("ageGroup")}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-signal-alert"
-            disabled={isPending}
-          >
-            <option value="">Seleccionar escalão</option>
-            {AGE_GROUPS.map((g) => (
-              <option key={g} value={g}>
-                {AGE_GROUP_LABELS[g] ?? g}
-              </option>
-            ))}
-          </select>
-          {errors.ageGroup && (
-            <p id="ageGroup-error" className="mt-1 flex items-center gap-1 text-xs text-signal-alert">
-              <AlertCircle className="h-3 w-3" />
-              {errors.ageGroup.message}
-            </p>
-          )}
-        </div>
+        {/* ageGroup mantido no schema mas oculto no UI */}
+        <input type="hidden" {...form.register("ageGroup")} />
+
+        {/* Equipas — checkboxes das equipas do staff */}
+        {staffTeams.length > 0 && (
+          <div>
+            <p className="block text-sm font-medium text-foreground mb-2">Equipa(s)</p>
+            <div className={`space-y-2 ${teamsTransition ? "opacity-50 pointer-events-none" : ""}`}>
+              {staffTeams.map((team) => (
+                <label key={team.id} className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={assignedTeamIds.has(team.id)}
+                    onChange={(e) => handleTeamToggle(team.id, e.target.checked)}
+                    disabled={teamsTransition}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-foreground">
+                    {team.name}
+                    <span className="text-xs text-muted-foreground ml-1">— {team.rosterName}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Posições */}
         <div>
