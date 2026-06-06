@@ -9,6 +9,7 @@ import { DrillDownSheet } from "@/components/ui/drill-down-sheet";
 import { Button } from "@/components/ui/button";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { createSession, updateSession } from "@/lib/actions/sessions";
+import type { StaffTeam } from "@/lib/actions/players";
 import {
   SessionCreateSchema,
   SessionUpdateSchema,
@@ -45,13 +46,25 @@ function toISOFromLocal(localStr: string): string {
 interface SessionFormCreateProps {
   mode: "create";
   hasSeason: boolean;
+  staffTeams?: StaffTeam[];
 }
 
-function SessionCreateForm({ hasSeason }: SessionFormCreateProps) {
+function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProps) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
+    staffTeams.length === 1 && staffTeams[0] ? new Set([staffTeams[0].id]) : new Set()
+  );
+
+  function toggleTeam(id: string) {
+    setSelectedTeamIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const form = useForm<SessionCreateInput>({
     resolver: zodResolver(SessionCreateSchema),
@@ -70,15 +83,23 @@ function SessionCreateForm({ hasSeason }: SessionFormCreateProps) {
   }
 
   function onSubmit(data: SessionCreateInput) {
+    if (staffTeams.length > 0 && selectedTeamIds.size === 0) {
+      form.setError("root", { message: "Seleciona pelo menos uma equipa." });
+      return;
+    }
     startTransition(async () => {
       try {
-        const result = await createSession({
-          type: data.type,
-          scheduledAt: data.scheduledAt ? toISOFromLocal(data.scheduledAt) : "",
-          durationMin: data.durationMin ?? 90,
-          location: data.location || undefined,
-          notes: data.notes || undefined,
-        });
+        const teamIds = [...selectedTeamIds];
+        const result = await createSession(
+          {
+            type: data.type,
+            scheduledAt: data.scheduledAt ? toISOFromLocal(data.scheduledAt) : "",
+            durationMin: data.durationMin ?? 90,
+            location: data.location || undefined,
+            notes: data.notes || undefined,
+          },
+          teamIds.length > 0 ? teamIds : undefined
+        );
         if (!result.ok) {
           form.setError("root", { message: result.error.message });
           return;
@@ -202,6 +223,32 @@ function SessionCreateForm({ hasSeason }: SessionFormCreateProps) {
               {...form.register("notes")}
             />
           </div>
+
+          {/* Equipas — obrigatório se staff tiver equipas atribuídas */}
+          {staffTeams.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Equipa(s) <span aria-hidden>*</span>
+              </p>
+              <div className="space-y-2">
+                {staffTeams.map((team) => (
+                  <label key={team.id} className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedTeamIds.has(team.id)}
+                      onChange={() => toggleTeam(team.id)}
+                      disabled={isPending || !hasSeason}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">
+                      {team.name}
+                      <span className="text-xs text-muted-foreground ml-1">— {team.rosterName}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {form.formState.errors.root && (
             <p className="text-xs text-destructive">

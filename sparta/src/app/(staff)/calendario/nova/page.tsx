@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getCurrentSeason } from "@/lib/actions/seasons";
+import { getStaffTeamsForPlayerCreation } from "@/lib/actions/players";
 import { SessionForm } from "@/app/(staff)/calendario/session-form";
 
 export const metadata = { title: "Nova sessão" };
@@ -22,13 +23,17 @@ export default async function NovaSessionPage() {
     redirect("/calendario");
   }
 
-  const seasonResult = await getCurrentSeason();
+  const [seasonResult, staffTeams] = await Promise.all([
+    getCurrentSeason(),
+    getStaffTeamsForPlayerCreation(),
+  ]);
+
   const hasSeason = seasonResult.ok && seasonResult.data !== null;
 
   return (
     <main id="main-content">
       <div className="px-4 py-6 sm:px-6">
-        <SessionForm mode="create" hasSeason={hasSeason} />
+        <SessionForm mode="create" hasSeason={hasSeason} staffTeams={staffTeams} />
       </div>
     </main>
   );

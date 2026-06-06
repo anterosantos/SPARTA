@@ -340,7 +340,41 @@ export async function getPlayer(
     return err({ code: "not_found", message: "Jogador não encontrado" });
   }
 
-  return ok(data as PlayerWithPositions);
+  // Fetch team assignments (scoped to staff's teams) and roster
+  const srForPlayer = getServiceRoleClient();
+  const [teamAssRes, rosterRes] = await Promise.all([
+    teamIds.length > 0
+      ? srForPlayer
+          .from("team_players")
+          .select("id, team_id, status, teams(id, name)")
+          .eq("player_id", playerId)
+          .in("team_id", teamIds)
+          .eq("is_archived", false)
+      : Promise.resolve({ data: [] }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (srForPlayer as any)
+      .from("roster_players")
+      .select("roster_id, rosters(id, name)")
+      .eq("player_id", playerId)
+      .eq("is_archived", false)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const teams: PlayerTeamInfo[] = (teamAssRes.data ?? []).map((row: { id: string; team_id: string; status: string; teams: { id: string; name: string } | null }) => ({
+    id: row.team_id,
+    name: row.teams?.name ?? "",
+    status: row.status,
+    teamPlayersId: row.id,
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rosterRow = (rosterRes as any).data;
+  const roster: PlayerRosterInfo | null = rosterRow?.rosters
+    ? { id: rosterRow.rosters.id, name: rosterRow.rosters.name }
+    : null;
+
+  return ok({ ...(data as Omit<PlayerWithPositions, "teams" | "roster">), teams, roster });
 }
 
 export async function createPlayer(

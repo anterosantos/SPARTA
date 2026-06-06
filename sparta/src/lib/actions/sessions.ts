@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole } from "@/lib/actions/auth";
 import { logAccess } from "@/lib/actions/audit";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import {
@@ -47,35 +48,54 @@ export async function getSessionsForClub(
     return err({ code: "validation", message: "Filtros inválidos" });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
-  if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
-  if (!profile?.club_id)
-    return err({ code: "forbidden", message: "Perfil não encontrado" });
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, teamIds } = authResult.data;
 
-  let query = supabase
+  const serviceRole = getServiceRoleClient();
+
+  let query = serviceRole
     .from("sessions")
     .select("*")
-    .eq("club_id", profile.club_id);
+    .eq("club_id", clubId);
 
-  if (validated.data.season_id) {
-    query = query.eq("season_id", validated.data.season_id);
-  }
-  if (validated.data.status) {
-    query = query.eq("status", validated.data.status);
-  }
-  if (validated.data.type) {
-    query = query.eq("type", validated.data.type);
-  }
-  if (validated.data.from) {
-    query = query.gte("scheduled_at", validated.data.from);
-  }
-  if (validated.data.to) {
-    query = query.lte("scheduled_at", validated.data.to);
-  }
+  if (validated.data.season_id) query = query.eq("season_id", validated.data.season_id);
+  if (validated.data.status)    query = query.eq("status", validated.data.status);
+  if (validated.data.type)      query = query.eq("type", validated.data.type);
+  if (validated.data.from)      query = query.gte("scheduled_at", validated.data.from);
+  if (validated.data.to)        query = query.lte("scheduled_at", validated.data.to);
 
-  const { data, error } = await query.order("scheduled_at", { ascending: true });
+  const { data: allSessions, error } = await query.order("scheduled_at", { ascending: true });
   if (error) return err({ code: "unknown", message: error.message });
-  return ok((data ?? []) as Session[]);
+
+  const sessions = (allSessions ?? []) as Session[];
+  if (sessions.length === 0) return ok([]);
+
+  // Filter by team assignment:
+  // - sessions with NO session_teams → visible to all (backward compat)
+  // - sessions WITH session_teams → visible only if staff's team is included
+  const sessionIds = sessions.map((s) => s.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stRows } = await (serviceRole as any)
+    .from("session_teams")
+    .select("session_id, team_id")
+    .in("session_id", sessionIds);
+
+  const sessionTeamsMap = new Map<string, Set<string>>();
+  for (const row of stRows ?? []) {
+    const set = sessionTeamsMap.get(row.session_id) ?? new Set<string>();
+    set.add(row.team_id);
+    sessionTeamsMap.set(row.session_id, set);
+  }
+
+  const staffTeamSet = new Set(teamIds);
+  const filtered = sessions.filter((s) => {
+    const assigned = sessionTeamsMap.get(s.id);
+    if (!assigned || assigned.size === 0) return true; // no teams → visible to all
+    return [...assigned].some((tid) => staffTeamSet.has(tid));
+  });
+
+  return ok(filtered);
 }
 
 export async function getSessionById(
@@ -99,7 +119,8 @@ export async function getSessionById(
 }
 
 export async function createSession(
-  input: SessionCreate
+  input: SessionCreate,
+  teamIds?: string[]
 ): Promise<Result<Session, AppError>> {
   const validated = SessionCreateSchema.safeParse(input);
   if (!validated.success) {
@@ -153,6 +174,14 @@ export async function createSession(
     return err({ code: "unknown", message: "Erro ao guardar sessão" });
   }
   const session = data as Session;
+
+  // Create session_teams records for each selected team
+  if (teamIds && teamIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (serviceRole as any)
+      .from("session_teams")
+      .insert(teamIds.map((tid) => ({ session_id: session.id, team_id: tid })));
+  }
 
   logAccess("session.created", "session", session.id).catch((e) => {
     console.error("audit log failed (non-blocking)", e);
