@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
-import { createServerClient } from "@/lib/supabase/server";
 
 /**
  * Integration tests for admin schema (Story 8.1)
@@ -45,10 +44,16 @@ describe("Admin Schema (Story 8.1)", () => {
     }
     testClubId = club.id;
 
-    // Create test season
+    // Create test season (seasons requires club_id, name, start_date, end_date)
     const { data: season, error: seasonError } = await serviceRole
       .from("seasons")
-      .insert({ year: 2026, is_current: true })
+      .insert({
+        club_id: testClubId,
+        name: "Época 2025/2026",
+        start_date: "2025-07-01",
+        end_date: "2026-06-30",
+        is_current: true,
+      })
       .select("id")
       .single();
 
@@ -69,10 +74,17 @@ describe("Admin Schema (Story 8.1)", () => {
     }
     testPlayerId = player.id;
 
-    // Create test profile (coach)
+    // Create test profile (coach) — profiles.id must be provided (links to auth.users)
+    // Use a deterministic UUID for tests
+    const testProfileUuid = "00000000-0000-0000-0000-000000000001";
     const { data: profile, error: profileError } = await serviceRole
       .from("profiles")
-      .insert({ club_id: testClubId, user_role: "coach", email: "coach@test.com" })
+      .upsert({
+        id: testProfileUuid,
+        club_id: testClubId,
+        role: "coach",
+        full_name: "Test Coach",
+      })
       .select("id")
       .single();
 
