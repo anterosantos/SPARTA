@@ -20,10 +20,17 @@ vi.mock("@/lib/actions/audit", () => ({
   logAccess: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole } from "@/lib/actions/auth";
 import { submitMatchEvent, deleteMatchEvent, getRecentMatchEvents } from "@/lib/actions/events";
 import { MATCH_ACTIONS, MATCH_ZONES } from "@/lib/schemas/match-events";
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,7 +40,6 @@ const SESSION_UUID = "01920a4b-c8d3-7000-9c4e-000000000030";
 const PLAYER_UUID  = "01920a4b-c8d3-7000-9c4e-000000000040";
 const EVENT_UUID   = "01920a4b-c8d3-7000-9c4e-000000000050";
 
-const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -53,31 +59,24 @@ function makePayload(overrides: Record<string, unknown> = {}) {
 
 // ─── Mock Builders ─────────────────────────────────────────────────────────────
 
-function buildServerClient(opts: {
+function setupAuth(opts: {
   noUser?: boolean;
   role?: string;
   clubId?: string | null;
   profileError?: boolean;
 } = {}) {
   const { noUser, role = "analyst", clubId = CLUB_UUID, profileError } = opts;
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: noUser ? null : { id: USER_UUID } },
-      }),
-    },
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue(
-            profileError
-              ? { data: null, error: { message: "Not found" } }
-              : { data: { role, club_id: clubId }, error: null }
-          ),
-        }),
-      }),
-    }),
-  };
+  if (noUser || profileError || (role !== "coach" && role !== "analyst") || !clubId) {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Não autorizado" },
+    });
+  } else {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: true,
+      data: { userId: USER_UUID, clubId, role, teamIds: [] },
+    });
+  }
 }
 
 // Chain helpers for service role
@@ -175,14 +174,14 @@ describe("MATCH_ACTIONS e MATCH_ZONES — enums exportados", () => {
 
 describe("submitMatchEvent", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
   // ── Zod validation ─────────────────────────────────────────────────────────
 
   it("retorna erro se action inválida", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload({ action: "invalid_action" }));
@@ -194,7 +193,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna erro se zone inválida", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload({ zone: "invalid_zone" }));
@@ -206,7 +205,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna erro se id não é UUID", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload({ id: "not-a-uuid" }));
@@ -218,7 +217,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna erro se occurred_at não é datetime válido", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload({ occurred_at: "not-a-date" }));
@@ -232,7 +231,7 @@ describe("submitMatchEvent", () => {
   // ── Auth / role ─────────────────────────────────────────────────────────────
 
   it("retorna unauthorized se não autenticado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload());
@@ -244,7 +243,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna forbidden se role é player", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ role: "player" }));
+    setupAuth({ role: "player" });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload());
@@ -256,7 +255,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna forbidden se club_id é null", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ clubId: null }));
+    setupAuth({ clubId: null });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload());
@@ -270,7 +269,7 @@ describe("submitMatchEvent", () => {
   // ── Business validation ─────────────────────────────────────────────────────
 
   it("retorna not_found se sessão não pertence ao clube", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForSubmit({ sessionData: null })
     );
@@ -285,7 +284,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna validation error se player não está em match_lineups", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForSubmit({ lineupData: null })
     );
@@ -300,7 +299,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna forbidden se player tem processing_restricted=true", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForSubmit({ playerData: { processing_restricted: true } })
     );
@@ -317,7 +316,7 @@ describe("submitMatchEvent", () => {
   // ── Success & idempotency ────────────────────────────────────────────────────
 
   it("retorna { ok: true, data: { id } } em sucesso", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload());
@@ -329,13 +328,13 @@ describe("submitMatchEvent", () => {
   });
 
   it("upsert idempotente — mesmo id duas vezes não retorna erro", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const payload = makePayload();
     const first = await submitMatchEvent(payload);
 
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const second = await submitMatchEvent(payload);
@@ -349,7 +348,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("retorna erro desconhecido se upsert falha", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForSubmit({ upsertError: { message: "DB error" } })
     );
@@ -363,7 +362,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("aceita role coach além de analyst", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ role: "coach" }));
+    setupAuth({ role: "coach" });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(makePayload());
@@ -372,7 +371,7 @@ describe("submitMatchEvent", () => {
   });
 
   it("aceita captured_via offline-drain", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
 
     const result = await submitMatchEvent(
@@ -385,12 +384,12 @@ describe("submitMatchEvent", () => {
 
 describe("deleteMatchEvent", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
   it("retorna not_found se evento não existe", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForDelete({ eventData: null })
     );
@@ -405,7 +404,7 @@ describe("deleteMatchEvent", () => {
   });
 
   it("retorna not_found se evento pertence a outro clube (club_id filter)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     // club_id filter no query retorna null para eventos de outros clubes
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForDelete({ eventData: null })
@@ -420,7 +419,7 @@ describe("deleteMatchEvent", () => {
   });
 
   it("retorna { ok: true } em sucesso (soft delete)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForDelete());
 
     const result = await deleteMatchEvent(EVENT_UUID);
@@ -429,7 +428,7 @@ describe("deleteMatchEvent", () => {
   });
 
   it("retorna unauthorized se não autenticado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForDelete());
 
     const result = await deleteMatchEvent(EVENT_UUID);
@@ -441,7 +440,7 @@ describe("deleteMatchEvent", () => {
   });
 
   it("retorna erro desconhecido se update falha", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForDelete({ updateError: { message: "DB error" } })
     );
@@ -455,7 +454,7 @@ describe("deleteMatchEvent", () => {
   });
 
   it("aceita role coach para soft delete", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ role: "coach" }));
+    setupAuth({ role: "coach" });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForDelete());
 
     const result = await deleteMatchEvent(EVENT_UUID);
@@ -509,12 +508,12 @@ function buildServiceRoleForRecentEvents(opts: {
 
 describe("getRecentMatchEvents", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
   it("retorna array vazio quando não há eventos", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForRecentEvents({ eventsData: [] })
     );
@@ -528,7 +527,7 @@ describe("getRecentMatchEvents", () => {
   });
 
   it("retorna eventos com jersey_number da lineup", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForRecentEvents());
 
     const result = await getRecentMatchEvents(SESSION_UUID);
@@ -543,7 +542,7 @@ describe("getRecentMatchEvents", () => {
   });
 
   it("usa shirt_num da lineup se disponível, senão jersey_num do player", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForRecentEvents({
         lineupData: [
@@ -561,7 +560,7 @@ describe("getRecentMatchEvents", () => {
   });
 
   it("retorna erro se query de eventos falha", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceRoleForRecentEvents({
         eventsData: null,
@@ -578,7 +577,7 @@ describe("getRecentMatchEvents", () => {
   });
 
   it("retorna unauthorized se não autenticado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
     mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForRecentEvents());
 
     const result = await getRecentMatchEvents(SESSION_UUID);

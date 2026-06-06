@@ -16,13 +16,20 @@ vi.mock("@/lib/readiness/snapshot", () => ({
   refreshSnapshotForSession: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole } from "@/lib/actions/auth";
 import {
   upsertAttendance,
   getSessionAttendances,
   getPlayersForAttendance,
 } from "@/lib/actions/attendance";
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,34 +40,27 @@ const PLAYER_UUID  = "01920a4b-c8d3-7000-9c4e-000000000004";
 const ATT_UUID     = "01920a4b-c8d3-7000-9c4e-000000000005";
 const PLAYER2_UUID = "01920a4b-c8d3-7000-9c4e-000000000006";
 
-const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-function buildServerClient(opts: {
+function setupAuth(opts: {
   noUser?: boolean;
   role?: string;
   clubId?: string | null;
 } = {}) {
   const { noUser, role = "analyst", clubId = CLUB_UUID } = opts;
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: noUser ? null : { id: USER_UUID } },
-      }),
-    },
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: { role, club_id: clubId },
-            error: null,
-          }),
-        }),
-      }),
-    }),
-  };
+  if (noUser || (role !== "coach" && role !== "analyst") || !clubId) {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Não autorizado" },
+    });
+  } else {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: true,
+      data: { userId: USER_UUID, clubId, role, teamIds: [] },
+    });
+  }
 }
 
 // ─── upsertAttendance ─────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ describe("upsertAttendance", () => {
   });
 
   it("happy path: upserts with status 'present'", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const sessionChain = {
       maybeSingle: vi.fn().mockResolvedValue({ data: { id: SESSION_UUID, club_id: CLUB_UUID }, error: null }),
@@ -98,7 +98,7 @@ describe("upsertAttendance", () => {
   });
 
   it("idempotência: chamar 2x mesma sessão+jogador retorna ok ambas", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const sessionData = { id: SESSION_UUID, club_id: CLUB_UUID };
     const sessionChain = {
@@ -129,7 +129,7 @@ describe("upsertAttendance", () => {
   });
 
   it("sessão não encontrada → retorna not_found", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const sessionChain = {
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -155,7 +155,7 @@ describe("upsertAttendance", () => {
   });
 
   it("requireStaffRole falha → retorna unauthorized", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
 
     const result = await upsertAttendance({
       id: ATT_UUID,
@@ -168,7 +168,7 @@ describe("upsertAttendance", () => {
   });
 
   it("validação inválida (status inválido) → retorna validation error", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const result = await upsertAttendance({
       id: ATT_UUID,
@@ -192,7 +192,7 @@ describe("getSessionAttendances", () => {
   });
 
   it("happy path: retorna 3 registos", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const rows = [
       { player_id: PLAYER_UUID, status: "present", note: null, recorded_at: "2026-05-31T10:00:00Z" },
@@ -226,7 +226,7 @@ describe("getSessionAttendances", () => {
   });
 
   it("lista vazia → retorna array vazio", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const eqFn = vi.fn().mockImplementation(() => Promise.resolve({ data: [], error: null }));
     const firstEqFn = vi.fn().mockReturnValue({ eq: eqFn });
@@ -248,7 +248,7 @@ describe("getSessionAttendances", () => {
   });
 
   it("requireStaffRole falha → retorna unauthorized", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
 
     const result = await getSessionAttendances(SESSION_UUID);
 
@@ -264,7 +264,7 @@ describe("getPlayersForAttendance", () => {
   });
 
   it("happy path: retorna activos e inativos", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const playerRows = [
       { id: PLAYER_UUID, full_name: "João Silva", jersey_num: 10, is_active: true },
@@ -317,7 +317,7 @@ describe("getPlayersForAttendance", () => {
   });
 
   it("lista vazia → retorna array vazio", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
 
     const playersOrderChain = { data: [], error: null };
     const playersEqIsArchived = vi.fn().mockReturnValue({

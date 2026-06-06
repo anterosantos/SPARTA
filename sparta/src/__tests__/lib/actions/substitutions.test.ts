@@ -16,13 +16,20 @@ vi.mock("next/server", () => ({
   after: vi.fn((fn: () => void) => fn()),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole } from "@/lib/actions/auth";
 import {
   registerSubstitution,
   closeMatchRecord,
   getMatchLineupForSubs,
 } from "@/lib/actions/substitutions";
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -34,34 +41,27 @@ const IN_UUID      = "01920a4b-c8d3-7000-9c4e-000000000005";
 const LINE_OUT_ID  = "01920a4b-c8d3-7000-9c4e-000000000006";
 const LINE_IN_ID   = "01920a4b-c8d3-7000-9c4e-000000000007";
 
-const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-function buildServerClient(opts: {
+function setupAuth(opts: {
   noUser?: boolean;
   role?: string;
   clubId?: string | null;
 } = {}) {
   const { noUser, role = "analyst", clubId = CLUB_UUID } = opts;
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: noUser ? null : { id: USER_UUID } },
-      }),
-    },
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: { role, club_id: clubId },
-            error: null,
-          }),
-        }),
-      }),
-    }),
-  };
+  if (noUser || (role !== "coach" && role !== "analyst") || !clubId) {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Não autorizado" },
+    });
+  } else {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: true,
+      data: { userId: USER_UUID, clubId, role, teamIds: [] },
+    });
+  }
 }
 
 // ─── Service role builders ────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function makeUpdateNoSelectChain(error: object | null = null) {
 
 describe("registerSubstitution", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
@@ -143,7 +143,7 @@ describe("registerSubstitution", () => {
   }
 
   it("substitui jogadores com sucesso (happy path)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
 
     const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, 45);
@@ -152,7 +152,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita minuto > 120", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
 
     const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, 121);
@@ -165,7 +165,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita minuto < 0", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
 
     const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, -1);
@@ -177,7 +177,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita sessão de outro clube (sessionData null)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForSub({ sessionData: null })
     );
@@ -191,7 +191,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita outPlayer já substituído (ended_minute !== null)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForSub({
         outRowData: { id: LINE_OUT_ID, role: "starter", ended_minute: 30 },
@@ -208,7 +208,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita outPlayer não é starter", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForSub({
         outRowData: { id: LINE_OUT_ID, role: "bench", ended_minute: null },
@@ -224,7 +224,7 @@ describe("registerSubstitution", () => {
   });
 
   it("rejeita inPlayer não é bench", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForSub({
         inRowData: { id: LINE_IN_ID, role: "starter" },
@@ -241,7 +241,7 @@ describe("registerSubstitution", () => {
   });
 
   it("retorna unauthorized se não autenticado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
 
     const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, 45);
@@ -253,7 +253,7 @@ describe("registerSubstitution", () => {
   });
 
   it("retorna forbidden para role player", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ role: "player" }));
+    setupAuth({ role: "player" });
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
 
     const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, 45);
@@ -269,7 +269,7 @@ describe("registerSubstitution", () => {
 
 describe("closeMatchRecord", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
@@ -295,7 +295,7 @@ describe("closeMatchRecord", () => {
   }
 
   it("actualiza ended_minute para todos os starters em campo (happy path)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForClose());
 
     const result = await closeMatchRecord(SESSION_UUID);
@@ -307,7 +307,7 @@ describe("closeMatchRecord", () => {
   });
 
   it("idempotente: 0 rows actualizados quando já encerrado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForClose({ updatedRows: [] })
     );
@@ -321,7 +321,7 @@ describe("closeMatchRecord", () => {
   });
 
   it("retorna not_found se sessão não existe", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForClose({ sessionData: null })
     );
@@ -335,7 +335,7 @@ describe("closeMatchRecord", () => {
   });
 
   it("retorna erro se update falha", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForClose({ updateError: { message: "DB error" } })
     );
@@ -349,7 +349,7 @@ describe("closeMatchRecord", () => {
   });
 
   it("retorna unauthorized se não autenticado", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient({ noUser: true }));
+    setupAuth({ noUser: true });
     mockGetServiceRoleClient.mockReturnValue(buildServiceForClose());
 
     const result = await closeMatchRecord(SESSION_UUID);
@@ -365,7 +365,7 @@ describe("closeMatchRecord", () => {
 
 describe("getMatchLineupForSubs", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
     mockGetServiceRoleClient.mockClear();
   });
 
@@ -435,7 +435,7 @@ describe("getMatchLineupForSubs", () => {
   }
 
   it("separa starters activos e bench correctamente", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForLineup());
 
     const result = await getMatchLineupForSubs(SESSION_UUID);
@@ -453,7 +453,7 @@ describe("getMatchLineupForSubs", () => {
   });
 
   it("exclui starters que já saíram (ended_minute set)", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForLineup());
 
     const result = await getMatchLineupForSubs(SESSION_UUID);
@@ -467,7 +467,7 @@ describe("getMatchLineupForSubs", () => {
   });
 
   it("retorna not_found se sessão não pertence ao clube", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForLineup({ sessionData: null })
     );
@@ -481,7 +481,7 @@ describe("getMatchLineupForSubs", () => {
   });
 
   it("retorna starters e bench vazios quando sem rows", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForLineup({ rows: null })
     );
@@ -496,7 +496,7 @@ describe("getMatchLineupForSubs", () => {
   });
 
   it("retorna erro se query falha", async () => {
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForLineup({ rowsError: { message: "DB error" } })
     );
@@ -521,7 +521,7 @@ describe("getMatchLineupForSubs", () => {
         players: { full_name: "João Silva", jersey_num: 9 },
       },
     ];
-    mockCreateServerClient.mockResolvedValue(buildServerClient());
+    setupAuth();
     mockGetServiceRoleClient.mockReturnValue(
       buildServiceForLineup({ rows: rowsWithNull })
     );

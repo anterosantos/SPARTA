@@ -19,69 +19,60 @@ vi.mock("@/lib/data/audited", () => ({
   auditedRead: vi.fn((opts, fn) => fn()),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+  getPlayerIdsForTeams: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { getPlayerReadinessSnapshot, getPlayerAcwrTrend } from "@/lib/actions/readiness";
 
-const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
+const mockGetPlayerIdsForTeams = getPlayerIdsForTeams as ReturnType<typeof vi.fn>;
 
 const PLAYER_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const COACH_UUID  = "950e8400-e29b-41d4-a716-446655440005";
 const CLUB_UUID   = "850e8400-e29b-41d4-a716-446655440004";
 
-function buildMockClient(opts: {
+function setupAuth(opts: {
   userId?: string | null;
   role?: string | null;
   clubId?: string | null;
   profileError?: boolean;
 } = {}) {
-  // Use !== undefined to distinguish between "not provided" and explicitly null
   const userId = opts.userId !== undefined ? opts.userId : COACH_UUID;
   const role   = opts.role   !== undefined ? opts.role   : "coach";
   const clubId = opts.clubId !== undefined ? opts.clubId : CLUB_UUID;
 
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: userId ? { id: userId } : null },
-      }),
-    },
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(
-        opts.profileError
-          ? { data: null, error: { message: "Not found" } }
-          : {
-              data: { role, club_id: clubId },
-              error: null,
-            }
-      ),
-      maybeSingle: vi.fn().mockResolvedValue(
-        opts.profileError
-          ? { data: null, error: { message: "Not found" } }
-          : {
-              data: null, // Return null for readiness_snapshots query (no data until Story 5.3)
-              error: null,
-            }
-      ),
-    }),
-  };
+  const isValid = userId && (role === "coach" || role === "analyst") && clubId && !opts.profileError;
+
+  if (!isValid) {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Não autorizado" },
+    });
+    mockGetPlayerIdsForTeams.mockResolvedValue([]);
+  } else {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: true,
+      data: { userId, clubId, role, teamIds: [] },
+    });
+    // Return the player UUID so team membership check passes in happy path tests
+    mockGetPlayerIdsForTeams.mockResolvedValue([PLAYER_UUID]);
+  }
 }
 
 describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", () => {
   beforeEach(() => {
-    mockCreateServerClient.mockClear();
+    
   });
 
   // ─── getPlayerReadinessSnapshot ────────────────────────────────────────────
 
   describe("getPlayerReadinessSnapshot", () => {
     it("returns unauthorized error for player role (AC #2 — dados mediados block)", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "player" })
-      );
+      setupAuth({ role: "player" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -94,9 +85,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns unauthorized error for unknown role", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "unknown" })
-      );
+      setupAuth({ role: "unknown" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -107,9 +96,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns unauthorized error for unauthenticated user", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ userId: null })
-      );
+      setupAuth({ userId: null });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -121,9 +108,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns unauthorized error when profile fetch fails", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ profileError: true })
-      );
+      setupAuth({ profileError: true });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -134,9 +119,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns unauthorized error when club_id is missing", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "coach", clubId: null })
-      );
+      setupAuth({ role: "coach", clubId: null });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -147,7 +130,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns not_found for empty playerId", async () => {
-      mockCreateServerClient.mockResolvedValue(buildMockClient());
+      setupAuth();
 
       const result = await getPlayerReadinessSnapshot("");
 
@@ -158,7 +141,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns ok (stub) for coach with valid playerId (AC #2 — staff allowed)", async () => {
-      mockCreateServerClient.mockResolvedValue(buildMockClient({ role: "coach" }));
+      setupAuth({ role: "coach" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -171,7 +154,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns ok (stub) for analyst with valid playerId (AC #2 — staff allowed)", async () => {
-      mockCreateServerClient.mockResolvedValue(buildMockClient({ role: "analyst" }));
+      setupAuth({ role: "analyst" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
 
@@ -183,9 +166,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
 
   describe("getPlayerAcwrTrend", () => {
     it("returns unauthorized error for player role (ACWR is derived/processed data)", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "player" })
-      );
+      setupAuth({ role: "player" });
 
       const result = await getPlayerAcwrTrend(PLAYER_UUID);
 
@@ -197,7 +178,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("returns ok (stub) for coach (staff may access ACWR trend)", async () => {
-      mockCreateServerClient.mockResolvedValue(buildMockClient({ role: "coach" }));
+      setupAuth({ role: "coach" });
 
       const result = await getPlayerAcwrTrend(PLAYER_UUID);
 
@@ -213,9 +194,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
 
   describe("Error message integrity (AC #2 — no data structure leakage)", () => {
     it("unauthorized error message is generic — does not reveal resource existence", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "player" })
-      );
+      setupAuth({ role: "player" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
       expect(result.ok).toBe(false);
@@ -229,9 +208,7 @@ describe("readiness Server Actions — Dados Mediados Authorization (AC #2)", ()
     });
 
     it("unauthorized response does not include status code that reveals resource existence", async () => {
-      mockCreateServerClient.mockResolvedValue(
-        buildMockClient({ role: "player" })
-      );
+      setupAuth({ role: "player" });
 
       const result = await getPlayerReadinessSnapshot(PLAYER_UUID);
       expect(result.ok).toBe(false);
