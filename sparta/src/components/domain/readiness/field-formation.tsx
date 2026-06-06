@@ -6,17 +6,18 @@ import type { PlayerReadinessData } from "@/types/supabase";
 export interface FieldFormationProps {
   players: PlayerReadinessData[];
   onSelectPlayer: (p: PlayerReadinessData) => void;
+  onSelectPosition?: (positionKey: string, players: PlayerReadinessData[]) => void;
   flashedIds?: Set<string>;
 }
 
-const STATE_COLORS: Record<string, string> = {
+export const STATE_COLORS: Record<string, string> = {
   ready:   '#22c55e',
   caution: '#eab308',
   alert:   '#ef4444',
   neutral: '#6b7280',
 };
 
-const STATE_LABELS: Record<string, string> = {
+export const STATE_LABELS: Record<string, string> = {
   ready:   'Pronto',
   caution: 'Cuidado',
   alert:   'Alerta',
@@ -92,7 +93,7 @@ export function spreadHorizontal(count: number, baseXPct: number, halfSpan: numb
   });
 }
 
-type PlayerWithCoords = { player: PlayerReadinessData; xPct: number; yPct: number };
+type PlayerWithCoords = { player: PlayerReadinessData; xPct: number; yPct: number; positionKey: string };
 
 export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[] {
   const grouped = new Map<string, { players: PlayerReadinessData[]; xPct: number; yPct: number; halfSpan: number }>();
@@ -109,13 +110,13 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   }
 
   const result: PlayerWithCoords[] = [];
-  for (const { players: group, xPct, yPct, halfSpan } of grouped.values()) {
+  for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
     const xPositions = spreadHorizontal(group.length, xPct, halfSpan);
     for (let i = 0; i < group.length; i++) {
       const player = group[i];
       const x = xPositions[i];
       if (player !== undefined && x !== undefined) {
-        result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct });
+        result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct, positionKey: posKey });
       }
     }
   }
@@ -123,7 +124,7 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   return result;
 }
 
-export function FieldFormation({ players, onSelectPlayer, flashedIds }: FieldFormationProps) {
+export function FieldFormation({ players, onSelectPlayer, onSelectPosition, flashedIds }: FieldFormationProps) {
   if (players.length === 0) {
     return (
       <div className="w-full flex items-center justify-center py-12 text-sm text-muted-foreground">
@@ -140,6 +141,16 @@ export function FieldFormation({ players, onSelectPlayer, flashedIds }: FieldFor
         Erro ao posicionar jogadores no campo. Tenta novamente.
       </div>
     );
+  }
+
+  const positionGroups = new Map<string, PlayerReadinessData[]>();
+  for (const { player, positionKey } of positioned) {
+    const existing = positionGroups.get(positionKey);
+    if (existing) {
+      existing.push(player);
+    } else {
+      positionGroups.set(positionKey, [player]);
+    }
   }
 
   return (
@@ -189,7 +200,7 @@ export function FieldFormation({ players, onSelectPlayer, flashedIds }: FieldFor
           <path d="M 285 382 A 8 8 0 0 1 277 390" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
         </svg>
 
-        {positioned.map(({ player, xPct, yPct }) => {
+        {positioned.map(({ player, xPct, yPct, positionKey }) => {
           const stateColor = isValidState(player.state) ? STATE_COLORS[player.state] : STATE_COLORS['neutral'];
           const stateLabel = isValidState(player.state) ? STATE_LABELS[player.state] : 'Sem dados';
           const firstName = (player.playerName?.trim() || 'Jogador').split(' ')[0] ?? 'Jogador';
@@ -209,7 +220,13 @@ export function FieldFormation({ players, onSelectPlayer, flashedIds }: FieldFor
               }`}
               data-flashed={isFlashed ? "true" : undefined}
               style={{ left: `${xPct}%`, top: `${yPct}%` }}
-              onClick={() => onSelectPlayer(player)}
+              onClick={() => {
+                if (onSelectPosition) {
+                  onSelectPosition(positionKey, positionGroups.get(positionKey) ?? [player]);
+                } else {
+                  onSelectPlayer(player);
+                }
+              }}
               aria-label={`Estado: ${stateLabel}, ${player.playerName}, ${player.primaryPosition ?? 'posição desconhecida'}, ACWR ${acwrLabel}`}
             >
               <div

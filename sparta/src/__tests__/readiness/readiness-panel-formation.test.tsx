@@ -107,16 +107,25 @@ describe("ReadinessPanelFormation", () => {
     expect(screen.queryByText(/Banco/i)).not.toBeInTheDocument();
   });
 
-  it("clicking a player chip opens DrillDownSheet", () => {
+  it("clicking a player chip opens position popup", () => {
     render(<ReadinessPanelFormation players={fixturePlayers} />);
     const chips = screen.getAllByRole("button", { name: /Estado:/ });
     fireEvent.click(chips[0]!);
-    expect(screen.getByTestId("drill-down-sheet")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("clicking a specific player passes the correct snapshot", () => {
+  it("position popup lists all players of that position", () => {
+    render(<ReadinessPanelFormation players={fixturePlayers} />);
+    // GR has two players in fixture (Rui Patrício + Beto Reserva)
+    fireEvent.click(screen.getByRole("button", { name: /Rui Patrício/ }));
+    expect(screen.getByRole("button", { name: "Ver detalhe de Rui Patrício" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver detalhe de Beto Reserva" })).toBeInTheDocument();
+  });
+
+  it("clicking player in popup opens DrillDownSheet with correct snapshot", () => {
     render(<ReadinessPanelFormation players={fixturePlayers} />);
     fireEvent.click(screen.getByRole("button", { name: /Rui Patrício/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalhe de Rui Patrício" }));
     expect(screen.getByTestId("drill-down-sheet")).toHaveTextContent("Rui Patrício");
   });
 
