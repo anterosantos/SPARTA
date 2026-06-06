@@ -9,7 +9,7 @@ export default async function TeamsPage() {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
-  const [teams, rosters] = await Promise.all([listTeams(), listRosters()]);
+  const [teams = [], rosters = []] = await Promise.all([listTeams(), listRosters()]);
   const activeRosters = rosters.filter((r: any) => r.status === "active");
 
   async function handleCreate(formData: FormData) {

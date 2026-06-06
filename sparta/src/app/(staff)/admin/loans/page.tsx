@@ -7,7 +7,7 @@ export default async function LoansPage() {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
-  const [loans, teams, allPlayers] = await Promise.all([
+  const [loans = [], teams = [], allPlayers = []] = await Promise.all([
     listPlayerLoans(),
     listTeams(),
     listClubPlayers(),

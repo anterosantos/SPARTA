@@ -14,7 +14,7 @@ export default async function PlayersPage({
   if (!authResult.ok) redirect("/login");
 
   const params = await searchParams;
-  const [teamPlayers, teams, allPlayers] = await Promise.all([
+  const [teamPlayers = [], teams = [], allPlayers = []] = await Promise.all([
     listTeamPlayers(),
     listTeams(),
     listClubPlayers(),

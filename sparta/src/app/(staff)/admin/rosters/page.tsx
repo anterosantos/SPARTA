@@ -9,7 +9,7 @@ export default async function RostersPage() {
   if (!authResult.ok) redirect("/login");
 
   const { clubId } = authResult.data;
-  const [rosters, seasons] = await Promise.all([listRosters(), listSeasons()]);
+  const [rosters = [], seasons = []] = await Promise.all([listRosters(), listSeasons()]);
 
   async function handleCreate(formData: FormData) {
     "use server";

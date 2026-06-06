@@ -12,7 +12,7 @@ export default async function CoachesPage({
   if (!authResult.ok) redirect("/login");
 
   const params = await searchParams;
-  const [coaches, teams, profiles] = await Promise.all([
+  const [coaches = [], teams = [], profiles = []] = await Promise.all([
     listTeamCoaches(),
     listTeams(),
     listClubProfiles(),
