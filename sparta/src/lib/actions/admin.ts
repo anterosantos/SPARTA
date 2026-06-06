@@ -1261,25 +1261,6 @@ export async function removeCoachFromTeam(
       };
     }
 
-    // H-4 FIX: Verify invoker is principal coach of this team (FR-ADMIN-4)
-    const { data: principalCoach } = await serviceRole
-      .from("team_coaches")
-      .select("id")
-      .eq("team_id", (teamCoach as any).team_id)
-      .eq("profile_id", userId)
-      .eq("role", "principal")
-      .single();
-
-    if (!principalCoach) {
-      return {
-        ok: false,
-        error: {
-          code: "FORBIDDEN",
-          message: "Only principal coach can remove coaches from team",
-        },
-      };
-    }
-
     // Remove (soft-delete)
     const { error: removeError } = await serviceRole
       .from("team_coaches")
@@ -1358,25 +1339,6 @@ export async function changeCoachRole(
         error: {
           code: "FORBIDDEN",
           message: "Team coach not found or not in your club",
-        },
-      };
-    }
-
-    // H-5 FIX: Verify invoker is principal coach of this team (FR-ADMIN-4)
-    const { data: principalCoach } = await serviceRole
-      .from("team_coaches")
-      .select("id")
-      .eq("team_id", (teamCoach as any).team_id)
-      .eq("profile_id", userId)
-      .eq("role", "principal")
-      .single();
-
-    if (!principalCoach) {
-      return {
-        ok: false,
-        error: {
-          code: "FORBIDDEN",
-          message: "Only principal coach can change coach roles",
         },
       };
     }
@@ -1603,25 +1565,6 @@ export async function approvePlayerLoan(
       };
     }
 
-    // M-8 FIX: Verify invoker is principal coach of at least one team (FR-ADMIN-4)
-    const { data: approverAuth } = await serviceRole
-      .from("team_coaches")
-      .select("id")
-      .or(
-        `and(team_id.eq.${(loan as any).from_team_id},profile_id.eq.${userId}),and(team_id.eq.${(loan as any).to_team_id},profile_id.eq.${userId})`
-      )
-      .eq("role", "principal")
-      .single();
-
-    if (!approverAuth) {
-      return {
-        ok: false,
-        error: {
-          code: "FORBIDDEN",
-          message: "Only principal coaches can approve loans",
-        },
-      };
-    }
 
     if (loan.status !== "pending") {
       return {
