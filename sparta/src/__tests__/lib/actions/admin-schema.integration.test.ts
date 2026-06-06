@@ -399,9 +399,10 @@ describe("Admin Schema (Story 8.1)", () => {
       expect(data?.left_at).toBeNull();
     });
 
-    it("allows multiple roles per coach (no unique constraint)", async () => {
-      // Same coach, different role (edge case)
-      const { data, error } = await serviceRole
+    it("rejects duplicate (team_id, profile_id) — unique constraint enforced", async () => {
+      // Same coach + same team with a different role must be rejected
+      // team_coaches has UNIQUE(team_id, profile_id): one role per coach per team
+      const { error } = await serviceRole
         .from("team_coaches")
         .insert({
           team_id: coachTeamId,
@@ -411,8 +412,8 @@ describe("Admin Schema (Story 8.1)", () => {
         .select("role")
         .single();
 
-      expect(error).toBeNull();
-      expect(data?.role).toBe("analyst");
+      expect(error).not.toBeNull();
+      expect(error?.code).toBe("23505");
     });
 
     afterAll(async () => {
