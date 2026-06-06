@@ -11,26 +11,26 @@ export default async function AdminDashboard() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-sm font-medium text-gray-500 uppercase">Rosters Ativos</h3>
-        <p className="text-3xl font-bold mt-2">{stats.rosters}</p>
+        <h3 className="text-sm font-medium text-gray-700 uppercase">Rosters Ativos</h3>
+        <p className="text-3xl font-bold mt-2 text-gray-900">{stats.rosters}</p>
         <p className="text-xs text-gray-400 mt-2">Época atual</p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-sm font-medium text-gray-500 uppercase">Equipas</h3>
-        <p className="text-3xl font-bold mt-2">{stats.teams}</p>
+        <h3 className="text-sm font-medium text-gray-700 uppercase">Equipas</h3>
+        <p className="text-3xl font-bold mt-2 text-gray-900">{stats.teams}</p>
         <p className="text-xs text-gray-400 mt-2">Equipas ativas</p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-sm font-medium text-gray-500 uppercase">Jogadores</h3>
-        <p className="text-3xl font-bold mt-2">{stats.players}</p>
+        <h3 className="text-sm font-medium text-gray-700 uppercase">Jogadores</h3>
+        <p className="text-3xl font-bold mt-2 text-gray-900">{stats.players}</p>
         <p className="text-xs text-gray-400 mt-2">Atribuídos a equipas</p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-sm font-medium text-gray-500 uppercase">Empréstimos Pendentes</h3>
-        <p className="text-3xl font-bold mt-2">{stats.loans}</p>
+        <h3 className="text-sm font-medium text-gray-700 uppercase">Empréstimos Pendentes</h3>
+        <p className="text-3xl font-bold mt-2 text-gray-900">{stats.loans}</p>
         <p className="text-xs text-gray-400 mt-2">Aguardam aprovação</p>
       </div>
 

@@ -62,10 +62,10 @@ describe("Admin Schema (Story 8.1)", () => {
     }
     testSeasonId = season.id;
 
-    // Create test player
+    // Create test player (jersey_num is NOT NULL in the players table)
     const { data: player, error: playerError } = await serviceRole
       .from("players")
-      .insert({ club_id: testClubId, full_name: "Test Player", birthdate: "2010-01-01" })
+      .insert({ club_id: testClubId, full_name: "Test Player", birthdate: "2010-01-01", jersey_num: 99 })
       .select("id")
       .single();
 
