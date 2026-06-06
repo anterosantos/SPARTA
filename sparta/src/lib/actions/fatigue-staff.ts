@@ -93,6 +93,31 @@ export async function getPlayerFatigueData(
     return err({ code: "not_found", message: "Recurso não encontrado" });
   }
 
+  // Validate player is in one of the staff's assigned teams
+  const serviceRoleForTeams = getServiceRoleClient();
+  const { data: teamCoaches } = await serviceRoleForTeams
+    .from("team_coaches")
+    .select("team_id")
+    .eq("profile_id", user.id)
+    .eq("is_archived", false);
+  const teamIds = (teamCoaches ?? []).map((tc: { team_id: string }) => tc.team_id);
+
+  if (teamIds.length === 0) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
+  const { data: teamPlayerRow } = await serviceRoleForTeams
+    .from("team_players")
+    .select("id")
+    .in("team_id", teamIds)
+    .eq("player_id", playerId)
+    .eq("is_archived", false)
+    .maybeSingle();
+
+  if (!teamPlayerRow) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
   // 28-day cutoff (UTC, consistent with DB timestamps) — precise ISO calculation
   const since = new Date(Date.now() - DURATION_DAYS * 24 * 60 * 60 * 1000);
 

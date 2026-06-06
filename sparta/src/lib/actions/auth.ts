@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
 
@@ -49,11 +50,12 @@ export async function getCurrentUserRole() {
 }
 
 /**
- * Server Action: Require staff role (coach or analyst) for protected routes
- * Returns user info and club ID if authorized
+ * Server Action: Require staff role (coach or analyst) for protected routes.
+ * Returns user info, club ID, and the team IDs the staff member is assigned to.
+ * Staff without team assignments see no player data (teamIds = []).
  */
 export async function requireStaffRole(): Promise<
-  Result<{ userId: string; clubId: string; role: string }, AppError>
+  Result<{ userId: string; clubId: string; role: string; teamIds: string[] }, AppError>
 > {
   const supabase = await createServerClient();
   const {
@@ -83,11 +85,38 @@ export async function requireStaffRole(): Promise<
     return err({ code: "forbidden", message: "Clube não atribuído." });
   }
 
+  // Fetch assigned teams via service role (team_coaches RLS uses JWT hook, unreliable in CI)
+  const serviceRole = getServiceRoleClient();
+  const { data: teamCoaches } = await serviceRole
+    .from("team_coaches")
+    .select("team_id")
+    .eq("profile_id", user.id)
+    .eq("is_archived", false);
+
+  const teamIds = (teamCoaches ?? []).map((tc: { team_id: string }) => tc.team_id);
+
   return ok({
     userId: user.id,
     clubId: profile.club_id,
     role: profile.role as string,
+    teamIds,
   });
+}
+
+/**
+ * Returns the unique player IDs belonging to the given team IDs.
+ * Uses service role to bypass RLS on team_players.
+ * Returns [] if teamIds is empty (no team assignments → no players visible).
+ */
+export async function getPlayerIdsForTeams(teamIds: string[]): Promise<string[]> {
+  if (teamIds.length === 0) return [];
+  const serviceRole = getServiceRoleClient();
+  const { data } = await serviceRole
+    .from("team_players")
+    .select("player_id")
+    .in("team_id", teamIds)
+    .eq("is_archived", false);
+  return [...new Set((data ?? []).map((tp: { player_id: string }) => tp.player_id))];
 }
 
 /**

@@ -3,7 +3,7 @@
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { auditedRead } from "@/lib/data/audited";
 import { getCurrentSeason } from "@/lib/actions/seasons";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
 
@@ -63,7 +63,7 @@ export async function getTeamAggregateData(): Promise<
 > {
   const authResult = await requireStaffRole();
   if (!authResult.ok) return authResult;
-  const { userId, clubId, role } = authResult.data;
+  const { userId, clubId, role, teamIds } = authResult.data;
 
   const serviceRole = getServiceRoleClient();
 
@@ -79,21 +79,24 @@ export async function getTeamAggregateData(): Promise<
     return { start, end, label: `Sem ${4 - i}` };
   }).reverse();
 
-  const { data: playersData, error: playersError } = await serviceRole
-    .from("players")
-    .select("id, full_name, age_group")
-    .eq("club_id", clubId)
-    .is("archived_at", null);
+  // Scope to the staff's assigned teams only
+  const playerIds = await getPlayerIdsForTeams(teamIds);
 
-  if (playersError) {
-    return err({
-      code: "db_error",
-      message: playersError.message ?? "Erro ao carregar jogadores",
-    });
+  const playersArr: { id: string; full_name: string; age_group: string }[] = [];
+  if (playerIds.length > 0) {
+    const { data: playersData, error: playersError } = await serviceRole
+      .from("players")
+      .select("id, full_name, age_group")
+      .in("id", playerIds)
+      .is("archived_at", null);
+    if (playersError) {
+      return err({
+        code: "db_error",
+        message: playersError.message ?? "Erro ao carregar jogadores",
+      });
+    }
+    playersArr.push(...(playersData ?? []));
   }
-
-  const playersArr = playersData ?? [];
-  const playerIds = playersArr.map((p) => p.id);
 
   const positionMap = new Map<string, string>();
   if (playerIds.length > 0) {

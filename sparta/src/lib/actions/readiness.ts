@@ -20,6 +20,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { auditedRead } from "@/lib/data/audited";
 import { refreshSnapshotForSession } from "@/lib/readiness/snapshot";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { err, ok } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import type { Result, AppError } from "@/lib/types";
@@ -44,51 +45,6 @@ export interface DrillDownData {
   attendanceDenominator: number;
 }
 
-const STAFF_ROLES = ["coach", "analyst"] as const;
-
-/**
- * Checks whether the currently authenticated user is staff (coach or analyst).
- * Returns their profile row if so, or an authorization error result.
- *
- * Used as a shared guard by all readiness Server Actions.
- */
-async function requireStaffRole(): Promise<
-  Result<{ userId: string; clubId: string; role: string }, AppError>
-> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role, club_id")
-    .eq("id", user.id)
-    .single();
-
-  if (
-    profileError ||
-    !profile ||
-    !(STAFF_ROLES as readonly string[]).includes(profile.role ?? "")
-  ) {
-    // Generic error — does not reveal whether resource exists or not (FR26)
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  if (!profile.club_id) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  return ok({
-    userId: user.id,
-    clubId: profile.club_id,
-    role: profile.role as string,
-  });
-}
 
 /**
  * getPlayerReadinessSnapshot — Returns the latest readiness snapshot for a player.
@@ -114,7 +70,12 @@ export async function getPlayerReadinessSnapshot(
   }
 
   const supabase = await createServerClient();
-  const { userId, clubId } = authResult.data;
+  const { userId, clubId, teamIds } = authResult.data;
+
+  const teamPlayerIds = await getPlayerIdsForTeams(teamIds);
+  if (!teamPlayerIds.includes(playerId)) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
 
   const queryResult = await auditedRead(
     {
@@ -260,7 +221,10 @@ export async function getClubReadinessSnapshots(
   if (!authResult.ok) return authResult;
 
   const supabase = await createServerClient();
-  const { userId, clubId } = authResult.data;
+  const { userId, clubId, teamIds } = authResult.data;
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (playerIds.length === 0) return ok({ snapshots: [] });
 
   const result = await auditedRead(
     {
@@ -277,6 +241,7 @@ export async function getClubReadinessSnapshots(
         .select('*')
         .eq('session_id', sessionId)
         .eq('club_id', clubId)
+        .in('player_id', playerIds)
   );
 
   if (result.error) {
@@ -364,8 +329,11 @@ export async function getReadinessPanelData(
     return err({ code: 'not_found', message: 'Sessão inválida' });
   }
 
-  const { userId, clubId } = authResult.data;
+  const { userId, clubId, teamIds } = authResult.data;
   const supabase = await createServerClient();
+
+  const teamPlayerIds = await getPlayerIdsForTeams(teamIds);
+  if (teamPlayerIds.length === 0) return ok({ players: [], history: {} });
 
   // Fetch snapshots with audit logging
   const snapshotResult = await auditedRead(
@@ -383,6 +351,7 @@ export async function getReadinessPanelData(
         .select('*')
         .eq('session_id', sessionId)
         .eq('club_id', clubId)
+        .in('player_id', teamPlayerIds)
   );
 
   if (snapshotResult.error) {

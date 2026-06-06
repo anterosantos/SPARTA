@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { newId } from "@/lib/uuid";
 import { logAccess } from "@/lib/actions/audit";
 import { uploadPlayerPhotoFile } from "@/lib/storage";
@@ -80,10 +81,25 @@ export async function getPlayers(
     .single();
   if (!profile) return err({ code: "forbidden", message: "Perfil não encontrado" });
 
+  // Resolve team-scoped player IDs: staff only see players on their assigned teams
+  const serviceRole = getServiceRoleClient();
+  const { data: teamCoaches } = await serviceRole
+    .from("team_coaches")
+    .select("team_id")
+    .eq("profile_id", user.id)
+    .eq("is_archived", false);
+  const teamIds = (teamCoaches ?? []).map((tc: { team_id: string }) => tc.team_id);
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+
+  if (playerIds.length === 0) {
+    const empty = AGE_GROUPS.reduce<GroupedPlayers>((acc, g) => { acc[g] = []; return acc; }, {} as GroupedPlayers);
+    return ok(empty);
+  }
+
   const { data, error } = await supabase
     .from("players")
     .select("*, positions(*)")
-    .eq("club_id", profile.club_id)
+    .in("id", playerIds)
     .eq("is_archived", false)
     .eq("is_active", options?.showInactive ? false : true)
     .order("full_name");
@@ -130,6 +146,19 @@ export async function getPlayer(
     .eq("id", user.id)
     .single();
   if (!profile) return err({ code: "forbidden", message: "Perfil não encontrado" });
+
+  // Verify player is in one of the staff's assigned teams
+  const serviceRole = getServiceRoleClient();
+  const { data: teamCoaches } = await serviceRole
+    .from("team_coaches")
+    .select("team_id")
+    .eq("profile_id", user.id)
+    .eq("is_archived", false);
+  const teamIds = (teamCoaches ?? []).map((tc: { team_id: string }) => tc.team_id);
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (!playerIds.includes(playerId)) {
+    return err({ code: "not_found", message: "Jogador não encontrado" });
+  }
 
   const { data, error } = await supabase
     .from("players")
