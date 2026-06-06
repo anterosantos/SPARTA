@@ -2,6 +2,7 @@
 import { listRosters, listSeasons, createRoster, archiveRoster } from "@/lib/actions/admin";
 import { requireStaffRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
+import ConfirmButton from "../ConfirmButton";
 
 export default async function RostersPage() {
   const authResult = await requireStaffRole();
@@ -106,13 +107,12 @@ export default async function RostersPage() {
                     {r.status === "active" && (
                       <form action={handleArchive} className="inline">
                         <input type="hidden" name="id" value={r.id} />
-                        <button
-                          type="submit"
+                        <ConfirmButton
+                          message="Arquivar este roster e todas as equipas?"
                           className="text-red-600 hover:text-red-800 text-sm font-medium"
-                          onClick={(e) => { if (!confirm("Arquivar este roster e todas as equipas?")) e.preventDefault(); }}
                         >
                           Arquivar
-                        </button>
+                        </ConfirmButton>
                       </form>
                     )}
                   </td>
