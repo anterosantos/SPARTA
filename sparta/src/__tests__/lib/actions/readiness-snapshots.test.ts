@@ -18,11 +18,36 @@ vi.mock('@/lib/data/audited', () => ({
   auditedRead: vi.fn((opts, fn) => fn()),
 }));
 
+vi.mock('@/lib/actions/auth', () => ({
+  requireStaffRole: vi.fn(),
+  getPlayerIdsForTeams: vi.fn(),
+}));
+
 // Import after mocking
 import { createServerClient } from '@/lib/supabase/server';
 import { getServiceRoleClient } from '@/lib/supabase/service-role';
+import { requireStaffRole, getPlayerIdsForTeams } from '@/lib/actions/auth';
 import { refreshSnapshotForSession } from '@/lib/readiness/snapshot';
 import { auditedRead } from '@/lib/data/audited';
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
+const mockGetPlayerIdsForTeams = getPlayerIdsForTeams as ReturnType<typeof vi.fn>;
+
+function setupAuthOk(role = 'coach', clubId = 'club-123') {
+  mockRequireStaffRole.mockResolvedValue({
+    ok: true,
+    data: { userId: 'user-123', clubId, role, teamIds: ['team-1'] },
+  });
+  // Return player IDs so functions don't short-circuit on empty team scope
+  mockGetPlayerIdsForTeams.mockResolvedValue(['p1', 'p2', 'p3', 'p4', 'p5']);
+}
+
+function setupAuthFail(code: 'unauthorized' | 'forbidden' = 'unauthorized') {
+  mockRequireStaffRole.mockResolvedValue({
+    ok: false,
+    error: { code, message: 'Não autorizado' },
+  });
+}
 
 describe('refreshUpcomingReadiness', () => {
   beforeEach(() => {
@@ -30,12 +55,7 @@ describe('refreshUpcomingReadiness', () => {
   });
 
   it('returns unauthorized error for unauthenticated users', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-      },
-    } as any);
+    setupAuthFail('unauthorized');
 
     const result = await refreshUpcomingReadiness();
 
@@ -47,23 +67,7 @@ describe('refreshUpcomingReadiness', () => {
   });
 
   it('returns unauthorized error for players (non-staff)', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'player', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthFail('unauthorized');
 
     const result = await refreshUpcomingReadiness();
 
@@ -74,23 +78,7 @@ describe('refreshUpcomingReadiness', () => {
   });
 
   it('refreshes specific session when sessionId provided', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'coach', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthOk();
 
     // Patch 11: Mock serviceRole.from() for session authorization check
     const mockServiceRole = {
@@ -122,23 +110,7 @@ describe('refreshUpcomingReadiness', () => {
   });
 
   it('refreshes all scheduled sessions for next 7 days when no sessionId', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'analyst', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthOk('analyst');
 
     const mockServiceRole = {
       from: vi.fn().mockReturnValue({
@@ -183,12 +155,7 @@ describe('getClubReadinessSnapshots', () => {
   });
 
   it('returns unauthorized error for unauthenticated users', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-      },
-    } as any);
+    setupAuthFail();
 
     const result = await getClubReadinessSnapshots('session-123');
 
@@ -199,23 +166,7 @@ describe('getClubReadinessSnapshots', () => {
   });
 
   it('returns unauthorized error for players', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'player', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthFail();
 
     const result = await getClubReadinessSnapshots('session-123');
 
@@ -226,23 +177,7 @@ describe('getClubReadinessSnapshots', () => {
   });
 
   it('returns snapshots sorted by state priority', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'coach', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthOk();
 
     const mockAuditedRead = vi.mocked(auditedRead);
     mockAuditedRead.mockImplementation(async (opts, fn) => {
@@ -274,23 +209,7 @@ describe('getClubReadinessSnapshots', () => {
   });
 
   it('handles empty snapshots list', async () => {
-    const mockCreateServerClient = vi.mocked(createServerClient);
-    mockCreateServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-123' } },
-        }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { role: 'coach', club_id: 'club-123' },
-            }),
-          }),
-        }),
-      }),
-    } as any);
+    setupAuthOk();
 
     const mockAuditedRead = vi.mocked(auditedRead);
     mockAuditedRead.mockResolvedValue({ data: [] });
@@ -312,21 +231,12 @@ function makeStaffClient(opts: {
   sessionData?: { id: string; scheduled_at: string } | null;
   sessionError?: boolean;
 }) {
-  const role    = opts.role    ?? 'coach';
-  const clubId  = opts.clubId  ?? 'club-123';
+  // role/clubId now controlled by mockRequireStaffRole — kept for compat but unused for auth
+  void opts.role; void opts.clubId;
 
   return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }),
-    },
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }) },
     from: vi.fn((table: string) => {
-      if (table === 'profiles') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { role, club_id: clubId }, error: null }),
-        };
-      }
       if (table === 'sessions') {
         return {
           select: vi.fn().mockReturnThis(),
@@ -359,13 +269,15 @@ describe('getUpcomingSession (Story 5.4)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('retorna unauthorized para player', async () => {
-    vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({ role: 'player' }));
+    setupAuthFail();
+    vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({}));
     const result = await getUpcomingSession();
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('unauthorized');
   });
 
   it('retorna null quando não há sessão nas próximas 7 dias', async () => {
+    setupAuthOk();
     vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({ sessionData: null }));
     const result = await getUpcomingSession();
     expect(result.ok).toBe(true);
@@ -373,6 +285,7 @@ describe('getUpcomingSession (Story 5.4)', () => {
   });
 
   it('retorna sessionId quando há sessão agendada', async () => {
+    setupAuthOk();
     const futureAt = new Date(Date.now() + 86400000).toISOString();
     vi.mocked(createServerClient).mockResolvedValue(
       makeStaffClient({ sessionData: { id: 'session-abc', scheduled_at: futureAt } })
@@ -386,6 +299,7 @@ describe('getUpcomingSession (Story 5.4)', () => {
   });
 
   it('retorna db_error quando query falha', async () => {
+    setupAuthOk();
     vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({ sessionError: true }));
     const result = await getUpcomingSession();
     expect(result.ok).toBe(false);
@@ -397,13 +311,15 @@ describe('getReadinessPanelData (Story 5.4)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('retorna unauthorized para player', async () => {
-    vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({ role: 'player' }));
+    setupAuthFail();
+    vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({}));
     const result = await getReadinessPanelData('session-123');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('unauthorized');
   });
 
   it('retorna not_found para sessionId vazio', async () => {
+    setupAuthOk();
     vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({}));
     const result = await getReadinessPanelData('');
     expect(result.ok).toBe(false);
@@ -411,6 +327,7 @@ describe('getReadinessPanelData (Story 5.4)', () => {
   });
 
   it('retorna lista vazia quando não há snapshots', async () => {
+    setupAuthOk();
     vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({}));
     // auditedRead returns no snapshots
     vi.mocked(auditedRead).mockImplementation(async (_opts, _fn) => ({ data: [], error: null }));
@@ -420,6 +337,7 @@ describe('getReadinessPanelData (Story 5.4)', () => {
   });
 
   it('ordena jogadores: alert → caution → ready → neutral', async () => {
+    setupAuthOk();
     vi.mocked(createServerClient).mockResolvedValue(makeStaffClient({}));
     vi.mocked(auditedRead).mockImplementation(async (_opts, _fn) => ({
       data: [
@@ -443,22 +361,16 @@ describe('getReadinessPanelData (Story 5.4)', () => {
     } as any);
 
     // players + positions return empty (fallback names used)
-    const client = makeStaffClient({});
-    // Override to return empty arrays for players/positions/session_metrics
     vi.mocked(createServerClient).mockResolvedValue({
-      ...client,
-      from: vi.fn((table: string) => {
-        if (table === 'profiles') return client.from('profiles');
-        if (table === 'readiness_snapshots') return client.from('readiness_snapshots');
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          in: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          gte: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-        };
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       }),
     } as any);
 

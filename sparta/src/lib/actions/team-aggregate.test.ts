@@ -17,9 +17,18 @@ vi.mock("@/lib/actions/seasons", () => ({
   getCurrentSeason: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+  getPlayerIdsForTeams: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { getCurrentSeason } from "@/lib/actions/seasons";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
+const mockGetPlayerIdsForTeams = getPlayerIdsForTeams as ReturnType<typeof vi.fn>;
 
 const MOCK_SEASON = { id: "season-1", name: "2025/2026", is_current: true };
 const CLUB_A = "club-a";
@@ -60,21 +69,14 @@ function createMockQuery(): MockQuery {
 function setupAuth(
   role: string = "coach",
   clubId: string = CLUB_A,
-  userId: string = "user-1"
-): MockQuery {
-  const profileQuery = createMockQuery();
-  profileQuery.single.mockResolvedValue({
-    data: { role, club_id: clubId },
-    error: null,
+  userId: string = "user-1",
+  playerIds: string[] = [PLAYER_1, PLAYER_2, PLAYER_3]
+): void {
+  mockRequireStaffRole.mockResolvedValue({
+    ok: true,
+    data: { userId, clubId, role, teamIds: ["team-1"] },
   });
-  const authClient = {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId } } }),
-    },
-    from: vi.fn().mockReturnValue(profileQuery),
-  };
-  (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue(authClient);
-  return profileQuery;
+  mockGetPlayerIdsForTeams.mockResolvedValue(playerIds);
 }
 
 function makeAttendanceQuery(rows: object[]): MockQuery {
@@ -158,8 +160,9 @@ describe("getTeamAggregateData", () => {
   });
 
   it("retorna unauthorized quando utilizador não está autenticado", async () => {
-    (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Autenticação necessária." },
     });
 
     const result = await getTeamAggregateData();
@@ -169,7 +172,10 @@ describe("getTeamAggregateData", () => {
   });
 
   it("retorna unauthorized quando utilizador é jogador", async () => {
-    setupAuth("player", CLUB_A);
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "forbidden", message: "Acesso restrito a staff." },
+    });
     setupServiceRole();
 
     const result = await getTeamAggregateData();
@@ -179,14 +185,9 @@ describe("getTeamAggregateData", () => {
   });
 
   it("retorna unauthorized quando coach não tem club_id", async () => {
-    const profileQuery: MockQuery = createMockQuery();
-    profileQuery.single.mockResolvedValue({
-      data: { role: "coach", club_id: null },
-      error: null,
-    });
-    (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
-      from: vi.fn().mockReturnValue(profileQuery),
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "forbidden", message: "Clube não atribuído." },
     });
 
     const result = await getTeamAggregateData();

@@ -26,11 +26,22 @@ vi.mock("@/lib/storage", () => ({
   getPlayerPhotoUrl: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/service-role", () => ({
+  getServiceRoleClient: vi.fn(),
+}));
+
+vi.mock("@/lib/actions/auth", () => ({
+  getPlayerIdsForTeams: vi.fn().mockResolvedValue([]),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { redirect } from "next/navigation";
 import { createPlayer, updatePlayer, archivePlayer, uploadPlayerPhoto } from "@/lib/actions/players";
 import { logAccess } from "@/lib/actions/audit";
 import { uploadPlayerPhotoFile } from "@/lib/storage";
+
+const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 // ─── Zod Schema Tests ────────────────────────────────────────────────────────
 
@@ -309,6 +320,19 @@ describe("createPlayer", () => {
 
   it("redirects on success", async () => {
     (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockSupabase);
+    // createPlayer calls getServiceRoleClient for team assignment (as any)
+    // Return a minimal mock that resolves all queries without hanging
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
 
     await createPlayer(validInput).catch(() => {
       // redirect() throws in Next.js — catch expected

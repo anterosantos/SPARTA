@@ -8,6 +8,10 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/service-role", () => ({
+  getServiceRoleClient: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
@@ -16,10 +20,19 @@ vi.mock("@/lib/actions/audit", () => ({
   logAccess: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
 }));
 
+vi.mock("@/lib/actions/auth", () => ({
+  getPlayerIdsForTeams: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { redirect } from "next/navigation";
 import { markPlayerInactive, reactivatePlayer, getPlayers } from "@/lib/actions/players";
 import { logAccess } from "@/lib/actions/audit";
+import { getPlayerIdsForTeams } from "@/lib/actions/auth";
+
+const mockGetPlayerIdsForTeams = getPlayerIdsForTeams as ReturnType<typeof vi.fn>;
+const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 // ─── Zod Schema Tests ────────────────────────────────────────────────────────
 
@@ -291,24 +304,46 @@ describe("getPlayers com showInactive", () => {
     vi.clearAllMocks();
   });
 
-  it("filtra is_active=false quando showInactive=true", async () => {
-    const isActiveEqCalls: Array<[string, unknown]> = [];
+  function setupGetPlayersEnv(isActiveEqCalls: Array<[string, unknown]>) {
+    // getPlayerIdsForTeams returns one player so getPlayers proceeds to the players query
+    mockGetPlayerIdsForTeams.mockResolvedValue([VALID_UUID]);
+
+    // service role handles team_coaches, team_players, roster_players enrichment
+    // All chains end in a thenable (then) so await works without .single()/.maybeSingle()
+    function makeResolvingChain(data: unknown[] = []) {
+      type Resolve = (v: { data: unknown; error: null }) => void;
+      const chain: Record<string, unknown> = {};
+      chain["select"] = vi.fn().mockReturnValue(chain);
+      chain["eq"] = vi.fn().mockReturnValue(chain);
+      chain["in"] = vi.fn().mockReturnValue(chain);
+      chain["maybeSingle"] = vi.fn().mockResolvedValue({ data: null, error: null });
+      chain["then"] = vi.fn().mockImplementation((resolve: Resolve) => resolve({ data, error: null }));
+      return chain;
+    }
+
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((_table: string) => makeResolvingChain()),
+    });
+
+    // players query runs on createServerClient (supabase); track eq calls for is_active
     const eqMock = vi.fn().mockImplementation(function (col: string, val: unknown) {
       isActiveEqCalls.push([col, val]);
       return { eq: eqMock, order: vi.fn().mockResolvedValue({ data: [], error: null }) };
     });
 
     vi.mocked(createServerClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
-      },
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
       from: vi.fn().mockImplementation((table: string) => {
         if (table === "profiles") return buildProfilesFrom();
-        return {
-          select: vi.fn().mockReturnValue({ eq: eqMock }),
-        };
+        // players table: select → in → eq chain
+        return { select: vi.fn().mockReturnValue({ in: vi.fn().mockReturnValue({ eq: eqMock }) }) };
       }),
     } as unknown as Awaited<ReturnType<typeof createServerClient>>);
+  }
+
+  it("filtra is_active=false quando showInactive=true", async () => {
+    const isActiveEqCalls: Array<[string, unknown]> = [];
+    setupGetPlayersEnv(isActiveEqCalls);
 
     const result = await getPlayers({ showInactive: true });
     expect(result.ok).toBe(true);
@@ -318,22 +353,7 @@ describe("getPlayers com showInactive", () => {
 
   it("filtra is_active=true por defeito (sem options)", async () => {
     const isActiveEqCalls: Array<[string, unknown]> = [];
-    const eqMock = vi.fn().mockImplementation(function (col: string, val: unknown) {
-      isActiveEqCalls.push([col, val]);
-      return { eq: eqMock, order: vi.fn().mockResolvedValue({ data: [], error: null }) };
-    });
-
-    vi.mocked(createServerClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
-      },
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === "profiles") return buildProfilesFrom();
-        return {
-          select: vi.fn().mockReturnValue({ eq: eqMock }),
-        };
-      }),
-    } as unknown as Awaited<ReturnType<typeof createServerClient>>);
+    setupGetPlayersEnv(isActiveEqCalls);
 
     const result = await getPlayers();
     expect(result.ok).toBe(true);

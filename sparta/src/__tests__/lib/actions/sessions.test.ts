@@ -16,9 +16,16 @@ vi.mock("@/lib/actions/seasons", () => ({
   getCurrentSeason: vi.fn(),
 }));
 
+// requireStaffRole is used by getSessionsForClub; mock directly to avoid
+// internal getServiceRoleClient chain for team_coaches
+vi.mock("@/lib/actions/auth", () => ({
+  requireStaffRole: vi.fn(),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { getCurrentSeason } from "@/lib/actions/seasons";
+import { requireStaffRole } from "@/lib/actions/auth";
 import {
   getSessionsForClub,
   getSessionById,
@@ -26,6 +33,9 @@ import {
   updateSession,
   cancelSession,
 } from "@/lib/actions/sessions";
+
+const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
+const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 
 const SESSION_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const CLUB_UUID = "650e8400-e29b-41d4-a716-446655440002";
@@ -111,12 +121,39 @@ function makeSupabaseMock({
 
 // ─── getSessionsForClub ───────────────────────────────────────────────────────
 
+// Helpers for getSessionsForClub (now uses requireStaffRole + getServiceRoleClient)
+function setupSessionsForClub(sessionsList: typeof mockSession[] = [mockSession]) {
+  mockRequireStaffRole.mockResolvedValue({
+    ok: true,
+    data: { userId: USER_UUID, clubId: CLUB_UUID, role: "coach", teamIds: [] },
+  });
+  // getServiceRoleClient is used for both sessions query and session_teams query
+  // session_teams returns empty → all sessions visible (no team restriction)
+  mockGetServiceRoleClient.mockReturnValue({
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === "session_teams") {
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }
+      // sessions query
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: sessionsList, error: null }),
+      };
+    }),
+  });
+}
+
 describe("getSessionsForClub", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("devolve lista de sessões para utilizador autenticado", async () => {
-    const mock = makeSupabaseMock();
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    setupSessionsForClub([mockSession]);
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(true);
@@ -127,8 +164,10 @@ describe("getSessionsForClub", () => {
   });
 
   it("devolve erro unauthorized quando não autenticado", async () => {
-    const mock = makeSupabaseMock({ user: null });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Autenticação necessária." },
+    });
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(false);
@@ -136,18 +175,10 @@ describe("getSessionsForClub", () => {
   });
 
   it("devolve erro forbidden quando perfil não encontrado", async () => {
-    const mock = makeSupabaseMock({ profile: null });
-    mock.from = vi.fn((table: string) => {
-      if (table === "profiles") {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        };
-      }
-      return {} as never;
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "forbidden", message: "Perfil não encontrado." },
     });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(false);
@@ -156,8 +187,7 @@ describe("getSessionsForClub", () => {
 
   it("filtra por type=training quando passado", async () => {
     const trainingSession = { ...mockSession, type: "training" };
-    const mock = makeSupabaseMock({ sessionsList: [trainingSession] });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    setupSessionsForClub([trainingSession]);
 
     const result = await getSessionsForClub({ type: "training" });
     expect(result.ok).toBe(true);
@@ -168,8 +198,7 @@ describe("getSessionsForClub", () => {
 
   it("filtra por type=match quando passado", async () => {
     const matchSession = { ...mockSession, type: "match" };
-    const mock = makeSupabaseMock({ sessionsList: [matchSession] });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    setupSessionsForClub([matchSession]);
 
     const result = await getSessionsForClub({ type: "match" });
     expect(result.ok).toBe(true);
@@ -183,8 +212,7 @@ describe("getSessionsForClub", () => {
       { ...mockSession, type: "training" },
       { ...mockSession, id: "id2", type: "match" },
     ];
-    const mock = makeSupabaseMock({ sessionsList: mixed });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    setupSessionsForClub(mixed);
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(true);
@@ -194,33 +222,7 @@ describe("getSessionsForClub", () => {
   });
 
   it("aceita filtros opcionais (season_id, status)", async () => {
-    // The query chain must be chainable AND awaitable (like the real Supabase client)
-    const resolvedData = { data: [], error: null };
-    const sessionsMock: Record<string, unknown> = {};
-    const chainMethods = ["select", "eq", "gte", "lte", "order"];
-    chainMethods.forEach((m) => {
-      sessionsMock[m] = vi.fn(() => {
-        // Return a thenable + chainable object
-        const chain = { ...sessionsMock, then: (resolve: (v: typeof resolvedData) => void) => resolve(resolvedData) };
-        return chain;
-      });
-    });
-
-    const mock = makeSupabaseMock();
-    mock.from = vi.fn((table: string) => {
-      if (table === "profiles") {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({
-            data: { club_id: CLUB_UUID, id: USER_UUID },
-            error: null,
-          }),
-        };
-      }
-      return sessionsMock;
-    });
-    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    setupSessionsForClub([]);
 
     const result = await getSessionsForClub({
       season_id: SEASON_UUID,
