@@ -97,37 +97,42 @@ export async function requireStaffRole(): Promise<
 export async function requireAdminRole(): Promise<
   Result<{ userId: string; clubId: string; role: string }, AppError>
 > {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return err({ code: "unauthorized", message: "Autenticação necessária." });
+    if (authError || !user) {
+      return err({ code: "unauthorized", message: "Autenticação necessária." });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, club_id")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return err({ code: "unauthorized", message: "Perfil não encontrado." });
+    }
+
+    if (profile.role !== "admin") {
+      return err({ code: "forbidden", message: "Acesso restrito a administradores." });
+    }
+
+    if (!profile.club_id) {
+      return err({ code: "forbidden", message: "Clube não atribuído." });
+    }
+
+    return ok({
+      userId: user.id,
+      clubId: profile.club_id,
+      role: profile.role as string,
+    });
+  } catch (e) {
+    console.error("[requireAdminRole] Unexpected error:", e);
+    return err({ code: "unauthorized", message: "Erro de autenticação." });
   }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role, club_id")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return err({ code: "unauthorized", message: "Perfil não encontrado." });
-  }
-
-  if (profile.role !== "admin") {
-    return err({ code: "forbidden", message: "Acesso restrito a administradores." });
-  }
-
-  if (!profile.club_id) {
-    return err({ code: "forbidden", message: "Clube não atribuído." });
-  }
-
-  return ok({
-    userId: user.id,
-    clubId: profile.club_id,
-    role: profile.role as string,
-  });
 }

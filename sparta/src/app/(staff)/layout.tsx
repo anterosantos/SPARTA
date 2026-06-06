@@ -1,4 +1,3 @@
-import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { StaffSidebar } from "@/components/patterns/StaffSidebar";
 import { BottomTabNav } from "@/components/patterns/BottomTabNav";
 import { createServerClient } from "@/lib/supabase/server";
@@ -34,6 +33,11 @@ export default async function StaffLayout({
 
     if (!role || role === "player") {
       redirect("/hoje");
+    }
+
+    // Admin has its own layout — skip the staff sidebar/nav wrapper
+    if (role === "admin") {
+      return <>{children}</>;
     }
 
     staffRole = role as "coach" | "analyst";
