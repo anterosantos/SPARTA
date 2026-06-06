@@ -144,7 +144,7 @@ export async function getPlayerReadinessSnapshot(
     });
   }
 
-  return ok({ playerId, snapshot: queryResult.data ?? null });
+  return ok({ playerId, snapshot: (queryResult.data ?? null) as ReadinessSnapshot | null });
 }
 
 /**

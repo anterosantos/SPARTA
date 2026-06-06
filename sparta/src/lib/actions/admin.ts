@@ -27,6 +27,11 @@
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffRole } from "@/lib/actions/auth";
+
+// Supabase does not infer types for nested joins or for insert payloads that
+// use snake_case field names not yet reflected in generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getAdminClient(): any { return getServiceRoleClient(); }
 import {
   TeamPlayerAssignmentSchema,
   validateTeamPlayerAssignment,
@@ -92,7 +97,7 @@ export async function addPlayerToTeam(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Step 3: Fetch player age_group
     const { data: player, error: playerError } = await serviceRole
@@ -220,7 +225,7 @@ export async function addPlayerToTeam(
           action: "team_players.add_attempt_blocked",
           target_kind: "team_players",
           target_id: null,
-          payload_json: {
+          payload: {
             playerId,
             teamId,
             reason: validationResult.code,
@@ -271,7 +276,7 @@ export async function addPlayerToTeam(
         action: "team_players.added",
         target_kind: "team_players",
         target_id: teamPlayer.id,
-        payload_json: {
+        payload: {
           playerId,
           teamId,
           position,
@@ -316,7 +321,7 @@ export async function removePlayerFromTeam(
   const { clubId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership (via team → roster → club_id)
     const { data: teamPlayer } = await serviceRole
@@ -413,7 +418,7 @@ export async function updatePlayerStatus(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: teamPlayer } = await serviceRole
@@ -478,7 +483,7 @@ export async function updatePlayerStatus(
       action: "team_players.status_changed",
       target_kind: "team_players",
       target_id: teamPlayerId,
-      payload_json: { status },
+      payload: { status },
     });
 
     return { ok: true, data: { id: teamPlayerId } };
@@ -544,7 +549,7 @@ export async function createRoster(
 
   while (retryCount < maxRetries) {
     try {
-      const serviceRole = getServiceRoleClient();
+      const serviceRole = getAdminClient();
 
       // Validate season exists and belongs to this club (L-4 fix)
       const { data: season, error: seasonError } = await serviceRole
@@ -627,7 +632,7 @@ export async function createRoster(
         action: "rosters.created",
         target_kind: "rosters",
         target_id: roster.id,
-        payload_json: { name: trimmedName, season_id: seasonId },
+        payload: { name: trimmedName, season_id: seasonId },
       });
 
       return { ok: true, data: { id: roster.id } };
@@ -670,7 +675,7 @@ export async function updateRoster(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: roster, error: rosterError } = await serviceRole
@@ -727,7 +732,7 @@ export async function updateRoster(
       action: "rosters.updated",
       target_kind: "rosters",
       target_id: rosterId,
-      payload_json: updates,
+      payload: updates,
     });
 
     return { ok: true, data: { id: rosterId } };
@@ -757,7 +762,7 @@ export async function archiveRoster(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: roster, error: rosterError } = await serviceRole
@@ -810,7 +815,7 @@ export async function archiveRoster(
       action: "rosters.archived",
       target_kind: "rosters",
       target_id: rosterId,
-      payload_json: { cascaded_to_teams: true },
+      payload: { cascaded_to_teams: true },
     });
 
     return { ok: true, data: { id: rosterId } };
@@ -859,7 +864,7 @@ export async function createTeam(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify roster ownership and not archived
     const { data: roster, error: rosterError } = await serviceRole
@@ -920,7 +925,7 @@ export async function createTeam(
       action: "teams.created",
       target_kind: "teams",
       target_id: team.id,
-      payload_json: {
+      payload: {
         roster_id: rosterId,
         name,
         escalao,
@@ -965,7 +970,7 @@ export async function updateTeam(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: team } = await serviceRole
@@ -1015,7 +1020,7 @@ export async function updateTeam(
       action: "teams.updated",
       target_kind: "teams",
       target_id: teamId,
-      payload_json: updates,
+      payload: updates,
     });
 
     return { ok: true, data: { id: teamId } };
@@ -1043,7 +1048,7 @@ export async function archiveTeam(teamId: string): Promise<CreateRosterResult> {
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: team } = await serviceRole
@@ -1127,7 +1132,7 @@ export async function assignCoachToTeam(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify team ownership
     const { data: team } = await serviceRole
@@ -1239,7 +1244,7 @@ export async function assignCoachToTeam(
       action: "team_coaches.assigned",
       target_kind: "team_coaches",
       target_id: teamCoach.id,
-      payload_json: { profile_id: profileId, team_id: teamId, role },
+      payload: { profile_id: profileId, team_id: teamId, role },
     });
 
     return { ok: true, data: { id: teamCoach.id } };
@@ -1269,7 +1274,7 @@ export async function removeCoachFromTeam(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: teamCoach } = await serviceRole
@@ -1370,7 +1375,7 @@ export async function changeCoachRole(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify ownership
     const { data: teamCoach } = await serviceRole
@@ -1431,7 +1436,7 @@ export async function changeCoachRole(
       action: "team_coaches.role_changed",
       target_kind: "team_coaches",
       target_id: teamCoachId,
-      payload_json: { new_role: newRole },
+      payload: { new_role: newRole },
     });
 
     return { ok: true, data: { id: teamCoachId } };
@@ -1468,7 +1473,7 @@ export async function requestPlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify both teams are in same club
     const { data: fromTeam } = await serviceRole
@@ -1557,7 +1562,7 @@ export async function requestPlayerLoan(
       action: "player_loans.requested",
       target_kind: "player_loans",
       target_id: loan.id,
-      payload_json: {
+      payload: {
         player_id: playerId,
         from_team_id: fromTeamId,
         to_team_id: toTeamId,
@@ -1593,7 +1598,7 @@ export async function approvePlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify loan ownership and is pending
     const { data: loan } = await serviceRole
@@ -1730,7 +1735,7 @@ export async function approvePlayerLoan(
       action: "player_loans.approved",
       target_kind: "player_loans",
       target_id: loanId,
-      payload_json: {
+      payload: {
         approved_by: userId,
         to_team_id: (loan as any).to_team_id,
         player_id: (loan as any).player_id,
@@ -1773,7 +1778,7 @@ export async function rejectPlayerLoan(
   }
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify loan ownership and is pending
     const { data: loan } = await serviceRole
@@ -1827,7 +1832,7 @@ export async function rejectPlayerLoan(
       action: "player_loans.rejected",
       target_kind: "player_loans",
       target_id: loanId,
-      payload_json: { note },
+      payload: { note },
     });
 
     return { ok: true, data: { id: loanId } };
@@ -1857,7 +1862,7 @@ export async function returnPlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Verify loan ownership and is approved
     const { data: loan } = await serviceRole
@@ -1921,7 +1926,7 @@ export async function returnPlayerLoan(
       action: "player_loans.returned",
       target_kind: "player_loans",
       target_id: loanId,
-      payload_json: {
+      payload: {
         to_team_id: (loan as any).to_team_id,
         player_id: (loan as any).player_id,
       },
@@ -1995,7 +2000,7 @@ export async function getAuditLogsForAdmin(filters: {
   const offset = (page - 1) * per_page;
 
   try {
-    const serviceRole = getServiceRoleClient();
+    const serviceRole = getAdminClient();
 
     // Build query
     let query = serviceRole
