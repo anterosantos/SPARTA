@@ -18,10 +18,11 @@ CREATE TABLE rosters (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Unique constraint: max 1 active roster per (club, season)
-ALTER TABLE rosters
-  ADD CONSTRAINT rosters_unique_active_per_season
-  UNIQUE (club_id, season_id) WHERE status = 'active';
+-- Partial unique index: max 1 active roster per (club, season)
+-- Note: WHERE clause requires CREATE UNIQUE INDEX, not ALTER TABLE ADD CONSTRAINT
+CREATE UNIQUE INDEX rosters_unique_active_per_season
+  ON rosters(club_id, season_id)
+  WHERE status = 'active';
 
 -- Indexes
 CREATE INDEX idx_rosters_club_season ON rosters(club_id, season_id, status);
