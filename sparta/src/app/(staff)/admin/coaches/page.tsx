@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { listTeamCoaches, listTeams, listClubProfiles, assignCoachToTeam, removeCoachFromTeam } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 export default async function CoachesPage({
@@ -8,7 +8,7 @@ export default async function CoachesPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const params = await searchParams;

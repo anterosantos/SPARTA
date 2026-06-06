@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { listTeamPlayers, listTeams, listClubPlayers, addPlayerToTeam, removePlayerFromTeam } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 const POSITIONS = ["GR", "DD", "DC", "DE", "MD", "MC", "ME", "AV"];
@@ -10,7 +10,7 @@ export default async function PlayersPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const params = await searchParams;

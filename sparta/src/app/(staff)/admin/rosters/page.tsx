@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { listRosters, listSeasons, createRoster, archiveRoster } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 import ConfirmButton from "../ConfirmButton";
 
 export default async function RostersPage() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const { clubId } = authResult.data;

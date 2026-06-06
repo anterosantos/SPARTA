@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { listPlayerLoans, listTeams, listClubPlayers, requestPlayerLoan, approvePlayerLoan, rejectPlayerLoan, returnPlayerLoan } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 export default async function LoansPage() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const [loans, teams, allPlayers] = await Promise.all([

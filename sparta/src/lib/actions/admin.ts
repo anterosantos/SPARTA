@@ -26,7 +26,7 @@
 "use server";
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 
 // Supabase does not infer types for nested joins or for insert payloads that
 // use snake_case field names not yet reflected in generated types.
@@ -66,7 +66,7 @@ export async function addPlayerToTeam(
   position?: string
 ): Promise<AddPlayerToTeamResult> {
   // Step 1: Authenticate
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -291,7 +291,7 @@ export async function addPlayerToTeam(
 export async function removePlayerFromTeam(
   teamPlayerId: string
 ): Promise<AddPlayerToTeamResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -378,7 +378,7 @@ export async function updatePlayerStatus(
   teamPlayerId: string,
   status: "active" | "loaned" | "reserve"
 ): Promise<AddPlayerToTeamResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -501,7 +501,7 @@ export async function createRoster(
   seasonId: string,
   name: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -648,7 +648,7 @@ export async function updateRoster(
   rosterId: string,
   updates: { name?: string; status?: "active" | "archived" }
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -735,7 +735,7 @@ export async function updateRoster(
 export async function archiveRoster(
   rosterId: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -828,7 +828,7 @@ export async function createTeam(
   colorHex?: string | null,
   description?: string | null
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -943,7 +943,7 @@ export async function updateTeam(
     is_archived?: boolean;
   }
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1021,7 +1021,7 @@ export async function updateTeam(
  * Archive team (soft-delete)
  */
 export async function archiveTeam(teamId: string): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1098,7 +1098,7 @@ export async function assignCoachToTeam(
   teamId: string,
   role: "principal" | "assistant" | "analyst" = "assistant"
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1231,7 +1231,7 @@ export async function assignCoachToTeam(
 export async function removeCoachFromTeam(
   teamCoachId: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1325,7 +1325,7 @@ export async function changeCoachRole(
   teamCoachId: string,
   newRole: "principal" | "assistant" | "analyst"
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1430,7 +1430,7 @@ export async function requestPlayerLoan(
   toTeamId: string,
   note?: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1555,7 +1555,7 @@ export async function approvePlayerLoan(
   loanId: string,
   note?: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1728,7 +1728,7 @@ export async function rejectPlayerLoan(
   loanId: string,
   note: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1819,7 +1819,7 @@ export async function rejectPlayerLoan(
 export async function returnPlayerLoan(
   loanId: string
 ): Promise<CreateRosterResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -1954,7 +1954,7 @@ export async function getAuditLogsForAdmin(filters: {
   page?: number;
   per_page?: number;
 }): Promise<GetAuditLogsResult> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) {
     return {
       ok: false,
@@ -2045,7 +2045,7 @@ export interface AdminDashboardStats {
 }
 
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return { rosters: 0, teams: 0, players: 0, loans: 0 };
 
   const { clubId } = authResult.data;
@@ -2112,7 +2112,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 // ============================================================================
 
 export async function listSeasons() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2127,7 +2127,7 @@ export async function listSeasons() {
 }
 
 export async function listClubPlayers() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2143,7 +2143,7 @@ export async function listClubPlayers() {
 }
 
 export async function listClubProfiles() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2163,7 +2163,7 @@ export async function listClubProfiles() {
 // ============================================================================
 
 export async function listRosters() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2179,7 +2179,7 @@ export async function listRosters() {
 }
 
 export async function listTeams() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2199,7 +2199,7 @@ export async function listTeams() {
 }
 
 export async function listTeamPlayers() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2222,7 +2222,7 @@ export async function listTeamPlayers() {
 }
 
 export async function listTeamCoaches() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {
@@ -2245,7 +2245,7 @@ export async function listTeamCoaches() {
 }
 
 export async function listPlayerLoans() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) return [];
   const { clubId } = authResult.data;
   try {

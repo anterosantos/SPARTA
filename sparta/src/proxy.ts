@@ -13,12 +13,14 @@ const ROLE_DEFAULT_ROUTES: Record<string, string> = {
   player: "/hoje",
   coach: "/prontidao",
   analyst: "/sessoes",
+  admin: "/admin",
 };
 
 const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
   player: ["/hoje", "/historico", "/configuracoes", "/aguardar-consentimento", "/questionario"],
   coach: ["/prontidao", "/calendario", "/plantel", "/tendencias", "/configuracoes", "/equipa"],
   analyst: ["/sessoes", "/plantel", "/tendencias", "/configuracoes", "/equipa"],
+  admin: ["/admin"],
 };
 
 /**

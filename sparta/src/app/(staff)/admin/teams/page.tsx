@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { listTeams, listRosters, createTeam, archiveTeam } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 const ESCALOES = ["u13", "u14", "u15", "u16", "u17", "u19", "senior"];
 
 export default async function TeamsPage() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const [teams, rosters] = await Promise.all([listTeams(), listRosters()]);

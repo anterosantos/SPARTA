@@ -1,9 +1,9 @@
 import { getAuditLogsForAdmin } from "@/lib/actions/admin";
-import { requireStaffRole } from "@/lib/actions/auth";
+import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 export default async function AuditTrailPage() {
-  const authResult = await requireStaffRole();
+  const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const result = await getAuditLogsForAdmin({ per_page: 50 });
