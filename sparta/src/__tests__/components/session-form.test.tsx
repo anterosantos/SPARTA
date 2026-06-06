@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 vi.mock("@/lib/actions/sessions", () => ({
   createSession: vi.fn(),
   updateSession: vi.fn(),
+  getSessionTeams: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 vi.mock("next/navigation", () => ({

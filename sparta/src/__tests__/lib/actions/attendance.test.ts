@@ -298,6 +298,11 @@ describe("getPlayersForAttendance", () => {
 
     mockGetServiceRoleClient.mockReturnValue({
       from: vi.fn().mockImplementation((table: string) => {
+        if (table === "session_teams") return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
         if (table === "players") return { select: vi.fn().mockReturnValue(playersSelectChain) };
         return { select: vi.fn().mockReturnValue(posSelectChain) };
       }),

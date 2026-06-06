@@ -412,6 +412,11 @@ describe('getSessionSrpeData', () => {
             }),
           }
         }
+        if (table === 'session_teams') return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }
         if (table === 'positions') return { select: vi.fn().mockReturnValue(posSelectChain) }
         return {}
       }),
@@ -497,6 +502,11 @@ describe('getSessionSrpeData', () => {
               }),
             }),
           }
+        }
+        if (table === 'session_teams') return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
         }
         if (table === 'positions') return { select: vi.fn().mockReturnValue(posSelectChain) }
         return {}
