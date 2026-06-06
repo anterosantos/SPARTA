@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Admin Server Actions (Story 8.2 - 8.5)
  *
