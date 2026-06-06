@@ -32,9 +32,9 @@ function isValidState(state: unknown): state is keyof typeof STATE_COLORS {
 // Our goal is at the bottom; attack direction is upward.
 const POSITION_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
   GR:  { xPct: 50, yPct: 89, halfSpan:  7 },
-  DC:  { xPct: 50, yPct: 76, halfSpan:  8 },
-  DD:  { xPct: 78, yPct: 76, halfSpan:  7 },
-  DE:  { xPct: 22, yPct: 76, halfSpan:  7 },
+  DC:  { xPct: 50, yPct: 76, halfSpan: 10 },
+  DD:  { xPct: 72, yPct: 76, halfSpan:  7 },
+  DE:  { xPct: 28, yPct: 76, halfSpan:  7 },
   LIB: { xPct: 50, yPct: 69, halfSpan:  7 },
   MDC: { xPct: 50, yPct: 57, halfSpan:  7 },
   MC:  { xPct: 50, yPct: 45, halfSpan:  8 },
