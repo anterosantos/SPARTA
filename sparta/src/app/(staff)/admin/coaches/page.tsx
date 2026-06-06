@@ -39,7 +39,7 @@ export default async function CoachesPage() {
         <form action={handleAssign} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Treinador / Analista</label>
-            <select name="profile_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="profile_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Selecionar pessoa...</option>
               {profiles.map((p: any) => (
                 <option key={p.id} value={p.id}>
@@ -50,7 +50,7 @@ export default async function CoachesPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Equipa</label>
-            <select name="team_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="team_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Selecionar equipa...</option>
               {teams.map((t: any) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -59,7 +59,7 @@ export default async function CoachesPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Papel</label>
-            <select name="role" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="role" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="assistant">Assistente</option>
               <option value="principal">Principal</option>
               <option value="analyst">Analista</option>

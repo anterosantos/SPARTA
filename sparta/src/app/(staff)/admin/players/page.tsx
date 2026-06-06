@@ -41,7 +41,7 @@ export default async function PlayersPage() {
         <form action={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Jogador</label>
-            <select name="player_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="player_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Selecionar jogador...</option>
               {allPlayers.map((p: any) => (
                 <option key={p.id} value={p.id}>
@@ -52,7 +52,7 @@ export default async function PlayersPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Equipa</label>
-            <select name="team_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="team_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Selecionar equipa...</option>
               {teams.map((t: any) => (
                 <option key={t.id} value={t.id}>{t.name}{t.escalao ? ` (${t.escalao})` : ""}</option>
@@ -61,7 +61,7 @@ export default async function PlayersPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Posição (opcional)</label>
-            <select name="position" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select name="position" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Sem posição</option>
               {POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
             </select>
