@@ -137,9 +137,25 @@ export default async function PlantelPage({
                             <p className="text-sm font-medium text-foreground truncate">
                               {player.full_name}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {primaryPos?.position ?? "—"}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="text-xs text-muted-foreground">
+                                {primaryPos?.position ?? "—"}
+                              </span>
+                              {player.teams.length > 0 ? (
+                                player.teams.map((t) => (
+                                  <span
+                                    key={t.id}
+                                    className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary"
+                                  >
+                                    {t.name}
+                                  </span>
+                                ))
+                              ) : player.roster ? (
+                                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                                  {player.roster.name}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                           {showInactive ? (
                             <span className="text-xs text-muted-foreground rounded bg-muted px-2 py-0.5">

@@ -30,6 +30,17 @@ export interface PlayerPosition {
   sort_order: number;
 }
 
+export interface PlayerTeamInfo {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export interface PlayerRosterInfo {
+  id: string;
+  name: string;
+}
+
 export interface PlayerWithPositions {
   id: string;
   club_id: string;
@@ -48,6 +59,15 @@ export interface PlayerWithPositions {
   created_at: string;
   updated_at: string;
   positions: PlayerPosition[];
+  teams: PlayerTeamInfo[];
+  roster: PlayerRosterInfo | null;
+}
+
+export interface StaffTeam {
+  id: string;
+  name: string;
+  rosterId: string;
+  rosterName: string;
 }
 
 export type GroupedPlayers = Record<AgeGroup, PlayerWithPositions[]>;
@@ -108,7 +128,47 @@ export async function getPlayers(
     return err({ code: "unknown", message: error.message });
   }
 
-  const players = (data ?? []) as PlayerWithPositions[];
+  // Enrich with team and roster info (scoped to staff's teams)
+  const [teamAssignmentsRes, rosterAssignmentsRes] = await Promise.all([
+    serviceRole
+      .from("team_players")
+      .select("player_id, status, teams(id, name)")
+      .in("player_id", playerIds)
+      .in("team_id", teamIds)
+      .eq("is_archived", false),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (serviceRole as any)
+      .from("roster_players")
+      .select("player_id, rosters(id, name)")
+      .in("player_id", playerIds)
+      .eq("is_archived", false),
+  ]);
+
+  const teamsByPlayer = new Map<string, PlayerTeamInfo[]>();
+  for (const row of teamAssignmentsRes.data ?? []) {
+    const pid = row.player_id as string;
+    const team = row.teams as { id: string; name: string } | null;
+    if (!team) continue;
+    const list = teamsByPlayer.get(pid) ?? [];
+    list.push({ id: team.id, name: team.name, status: row.status as string });
+    teamsByPlayer.set(pid, list);
+  }
+
+  const rosterByPlayer = new Map<string, PlayerRosterInfo>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (rosterAssignmentsRes as any).data ?? []) {
+    const pid = row.player_id as string;
+    const roster = row.rosters as { id: string; name: string } | null;
+    if (!roster || rosterByPlayer.has(pid)) continue;
+    rosterByPlayer.set(pid, { id: roster.id, name: roster.name });
+  }
+
+  const rawPlayers = (data ?? []) as Omit<PlayerWithPositions, "teams" | "roster">[];
+  const players: PlayerWithPositions[] = rawPlayers.map((p) => ({
+    ...p,
+    teams: teamsByPlayer.get(p.id) ?? [],
+    roster: rosterByPlayer.get(p.id) ?? null,
+  }));
 
   const sorted = [...players].sort((a, b) =>
     lastNameOf(a.full_name).localeCompare(lastNameOf(b.full_name), "pt")
@@ -129,6 +189,38 @@ export async function getPlayers(
   }
 
   return ok(grouped);
+}
+
+/**
+ * Returns the teams assigned to the current staff member (with roster info).
+ * Used by the "novo jogador" form to show a team picker when staff has multiple teams.
+ */
+export async function getStaffTeamsForPlayerCreation(): Promise<StaffTeam[]> {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const serviceRole = getServiceRoleClient();
+  const { data: teamCoaches } = await serviceRole
+    .from("team_coaches")
+    .select("team_id, teams(id, name, roster_id, rosters(id, name))")
+    .eq("profile_id", user.id)
+    .eq("is_archived", false);
+
+  return (teamCoaches ?? []).flatMap((tc: {
+    team_id: string;
+    teams: { id: string; name: string; roster_id: string; rosters: { id: string; name: string } | null } | null;
+  }) => {
+    const team = tc.teams;
+    const roster = team?.rosters;
+    if (!team || !roster) return [];
+    return [{
+      id: team.id,
+      name: team.name,
+      rosterId: roster.id,
+      rosterName: roster.name,
+    }];
+  });
 }
 
 export async function getPlayer(
@@ -175,7 +267,8 @@ export async function getPlayer(
 }
 
 export async function createPlayer(
-  input: PlayerCreate
+  input: PlayerCreate,
+  teamId?: string
 ): Promise<Result<{ id: string }, AppError>> {
   const validated = PlayerCreateSchema.safeParse(input);
   if (!validated.success) {
@@ -261,6 +354,50 @@ export async function createPlayer(
       return err({
         code: "unknown",
         message: `Não foi possível iniciar consentimento parental: ${consentResult.error.message}`,
+      });
+    }
+  }
+
+  // Assign player to roster and optionally to a specific team (via service role)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serviceRole = getServiceRoleClient() as any;
+
+  if (teamId) {
+    // Get the roster from this team (to register in roster_players)
+    const { data: team } = await serviceRole
+      .from("teams")
+      .select("roster_id")
+      .eq("id", teamId)
+      .single();
+
+    if (team?.roster_id) {
+      await serviceRole.from("roster_players").insert({
+        roster_id: team.roster_id,
+        player_id: playerId,
+      });
+    }
+
+    // Create team_players record
+    await serviceRole.from("team_players").insert({
+      team_id: teamId,
+      player_id: playerId,
+      status: "active",
+      joined_at: new Date().toISOString(),
+    });
+  } else {
+    // No team selected: assign to the club's active roster only
+    const { data: activeRoster } = await serviceRole
+      .from("rosters")
+      .select("id")
+      .eq("club_id", profile.club_id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    if (activeRoster) {
+      await serviceRole.from("roster_players").insert({
+        roster_id: activeRoster.id,
+        player_id: playerId,
       });
     }
   }
