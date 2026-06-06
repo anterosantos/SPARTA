@@ -127,8 +127,10 @@ export async function signInWithPassword(email: string, password: string) {
 
 export function getRoleHomePath(
   role: string | null | undefined
-): "/prontidao" | "/sessoes" | "/hoje" | "/login" {
+): "/admin" | "/prontidao" | "/sessoes" | "/hoje" | "/login" {
   switch (role) {
+    case "admin":
+      return "/admin";
     case "coach":
       return "/prontidao";
     case "analyst":
