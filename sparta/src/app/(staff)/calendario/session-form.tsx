@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { DrillDownSheet } from "@/components/ui/drill-down-sheet";
 import { Button } from "@/components/ui/button";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
-import { createSession, updateSession } from "@/lib/actions/sessions";
+import { createSession, updateSession, getSessionTeams, updateSessionTeams } from "@/lib/actions/sessions";
 import type { StaffTeam } from "@/lib/actions/players";
 import {
   SessionCreateSchema,
@@ -58,14 +58,6 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
     staffTeams.length === 1 && staffTeams[0] ? new Set([staffTeams[0].id]) : new Set()
   );
 
-  function toggleTeam(id: string) {
-    setSelectedTeamIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
   const form = useForm<SessionCreateInput>({
     resolver: zodResolver(SessionCreateSchema),
     defaultValues: {
@@ -76,6 +68,20 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
       notes: "",
     },
   });
+
+  const watchedType = form.watch("type");
+  const isSingleTeamType = watchedType === "match" || watchedType === "friendly";
+
+  function toggleTeam(id: string) {
+    setSelectedTeamIds((prev) => {
+      if (isSingleTeamType) {
+        return prev.has(id) ? new Set() : new Set([id]);
+      }
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   function handleClose() {
     setOpen(false);
@@ -229,16 +235,20 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
             <div className="space-y-1">
               <p className="text-sm font-medium">
                 Equipa(s) <span aria-hidden>*</span>
+                {isSingleTeamType && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">(máx. 1 para jogo/amigável)</span>
+                )}
               </p>
               <div className="space-y-2">
                 {staffTeams.map((team) => (
                   <label key={team.id} className="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
-                      type="checkbox"
+                      type={isSingleTeamType ? "radio" : "checkbox"}
+                      name={isSingleTeamType ? "session-team" : undefined}
                       checked={selectedTeamIds.has(team.id)}
                       onChange={() => toggleTeam(team.id)}
                       disabled={isPending || !hasSeason}
-                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      className="h-4 w-4 border-border text-primary focus:ring-primary"
                     />
                     <span className="text-sm">
                       {team.name}
@@ -279,16 +289,30 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
 interface SessionFormEditProps {
   mode: "edit";
   session: Session;
+  staffTeams?: StaffTeam[];
 }
 
-function SessionEditForm({ session }: SessionFormEditProps) {
+function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+  const [loadingTeams, setLoadingTeams] = useState(true);
 
   const isLocked =
     session.status === "cancelled" || session.status === "completed";
+
+  // Load assigned teams on mount
+  useEffect(() => {
+    (async () => {
+      const result = await getSessionTeams(session.id);
+      if (result.ok) {
+        setSelectedTeamIds(new Set(result.data));
+      }
+      setLoadingTeams(false);
+    })();
+  }, [session.id]);
 
   const form = useForm<SessionUpdateInput>({
     resolver: zodResolver(SessionUpdateSchema),
@@ -302,6 +326,20 @@ function SessionEditForm({ session }: SessionFormEditProps) {
     },
   });
 
+  const watchedType = form.watch("type");
+  const isSingleTeamType = watchedType === "match" || watchedType === "friendly";
+
+  function toggleTeam(id: string) {
+    setSelectedTeamIds((prev) => {
+      if (isSingleTeamType) {
+        return prev.has(id) ? new Set() : new Set([id]);
+      }
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleClose() {
     setOpen(false);
     router.push("/calendario");
@@ -310,6 +348,7 @@ function SessionEditForm({ session }: SessionFormEditProps) {
   function onSubmit(data: SessionUpdateInput) {
     startTransition(async () => {
       try {
+        // Update session basic info
         const result = await updateSession({
           id: data.id,
           type: data.type,
@@ -322,6 +361,18 @@ function SessionEditForm({ session }: SessionFormEditProps) {
           form.setError("root", { message: result.error.message });
           return;
         }
+
+        // Update teams
+        const teamIds = [...selectedTeamIds];
+        const teamsResult = await updateSessionTeams(
+          data.id,
+          teamIds.length > 0 ? teamIds : undefined
+        );
+        if (!teamsResult.ok) {
+          form.setError("root", { message: teamsResult.error.message });
+          return;
+        }
+
         setShowConfirmation(true);
       } catch {
         form.setError("root", { message: "Erro ao comunicar com servidor" });
@@ -435,6 +486,36 @@ function SessionEditForm({ session }: SessionFormEditProps) {
               {...form.register("notes")}
             />
           </div>
+
+          {/* Equipas — se staff tiver equipas */}
+          {staffTeams.length > 0 && !loadingTeams && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Equipa(s)
+                {isSingleTeamType && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">(máx. 1 para jogo/amigável)</span>
+                )}
+              </p>
+              <div className="space-y-2">
+                {staffTeams.map((team) => (
+                  <label key={team.id} className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type={isSingleTeamType ? "radio" : "checkbox"}
+                      name={isSingleTeamType ? "session-team" : undefined}
+                      checked={selectedTeamIds.has(team.id)}
+                      onChange={() => toggleTeam(team.id)}
+                      disabled={isPending || isLocked}
+                      className="h-4 w-4 border-border text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">
+                      {team.name}
+                      <span className="text-xs text-muted-foreground ml-1">— {team.rosterName}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {form.formState.errors.root && (
             <p className="text-xs text-destructive">

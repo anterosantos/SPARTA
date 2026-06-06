@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
+import { getStaffTeamsForPlayerCreation } from "@/lib/actions/players";
 import { SessionForm } from "@/app/(staff)/calendario/session-form";
 
 export const metadata = { title: "Editar sessão" };
@@ -28,18 +29,22 @@ export default async function EditarSessionPage({
     redirect("/calendario");
   }
 
-  const result = await getSessionById(id);
-  if (!result.ok) {
-    if (result.error.code === "not_found") notFound();
-    throw new Error(result.error.message);
+  const [sessionResult, staffTeams] = await Promise.all([
+    getSessionById(id),
+    getStaffTeamsForPlayerCreation(),
+  ]);
+
+  if (!sessionResult.ok) {
+    if (sessionResult.error.code === "not_found") notFound();
+    throw new Error(sessionResult.error.message);
   }
 
-  const session = result.data;
+  const session = sessionResult.data;
 
   return (
     <main id="main-content">
       <div className="px-4 py-6 sm:px-6">
-        <SessionForm mode="edit" session={session} />
+        <SessionForm mode="edit" session={session} staffTeams={staffTeams} />
       </div>
     </main>
   );

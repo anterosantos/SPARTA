@@ -118,10 +118,35 @@ export async function getSessionById(
   return ok(data as Session);
 }
 
+export async function getSessionTeams(
+  sessionId: string
+): Promise<Result<string[], AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId } = authResult.data;
+
+  const serviceRole = getServiceRoleClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stRows } = await (serviceRole as any)
+    .from("session_teams")
+    .select("team_id")
+    .eq("session_id", sessionId);
+
+  return ok((stRows ?? []).map((r: { team_id: string }) => r.team_id));
+}
+
 export async function createSession(
   input: SessionCreate,
   teamIds?: string[]
 ): Promise<Result<Session, AppError>> {
+  // Jogo e amigável: apenas 1 equipa permitida
+  if (
+    (input.type === "match" || input.type === "friendly") &&
+    teamIds && teamIds.length > 1
+  ) {
+    return err({ code: "validation", message: "Jogo e amigável só podem ter uma equipa." });
+  }
   const validated = SessionCreateSchema.safeParse(input);
   if (!validated.success) {
     const messages = validated.error.issues
@@ -249,6 +274,55 @@ export async function updateSession(
   });
 
   return ok(session);
+}
+
+export async function updateSessionTeams(
+  sessionId: string,
+  teamIds?: string[]
+): Promise<Result<void, AppError>> {
+  // Jogo e amigável: apenas 1 equipa permitida
+  const existingResult = await getSessionById(sessionId);
+  if (!existingResult.ok) return existingResult;
+
+  const session = existingResult.data;
+  if (
+    (session.type === "match" || session.type === "friendly") &&
+    teamIds && teamIds.length > 1
+  ) {
+    return err({ code: "validation", message: "Jogo e amigável só podem ter uma equipa." });
+  }
+
+  const { supabase, user, profile } = await getAuthContext();
+  if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
+  if (!profile?.club_id)
+    return err({ code: "forbidden", message: "Perfil não encontrado" });
+
+  const serviceRole = getServiceRoleClient();
+
+  // Delete existing session_teams
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (serviceRole as any)
+    .from("session_teams")
+    .delete()
+    .eq("session_id", sessionId);
+
+  // Insert new session_teams
+  if (teamIds && teamIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertResult = await (serviceRole as any)
+      .from("session_teams")
+      .insert(teamIds.map((tid) => ({ session_id: sessionId, team_id: tid })));
+
+    if (insertResult.error) {
+      return err({ code: "unknown", message: "Erro ao atualizar equipas da sessão" });
+    }
+  }
+
+  logAccess("session.teams_updated", "session", sessionId).catch((e) => {
+    console.error("audit log failed (non-blocking)", e);
+  });
+
+  return ok(undefined);
 }
 
 export async function cancelSession(

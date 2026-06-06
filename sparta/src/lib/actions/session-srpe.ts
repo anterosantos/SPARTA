@@ -17,7 +17,8 @@ export async function getSessionSrpeData(
     if (!authResult.ok) return authResult
 
     const { userId, clubId } = authResult.data
-    const serviceRole = getServiceRoleClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serviceRole = getServiceRoleClient() as any
 
     // Fetch session
     const { data: session, error: sessionError } = await serviceRole
@@ -31,6 +32,22 @@ export async function getSessionSrpeData(
       return err({ code: 'not_found', message: 'Sessão não encontrada' })
     }
 
+    // Resolve player scope: session_teams → team_players → players
+    const { data: sessionTeamRows } = await serviceRole
+      .from('session_teams')
+      .select('team_id')
+      .eq('session_id', sessionId)
+    const sessionTeamIds: string[] = (sessionTeamRows ?? []).map((r: { team_id: string }) => r.team_id)
+    let scopedPlayerIds: string[] | null = null
+    if (sessionTeamIds.length > 0) {
+      const { data: tpRows } = await serviceRole
+        .from('team_players')
+        .select('player_id')
+        .in('team_id', sessionTeamIds)
+        .eq('is_archived', false)
+      scopedPlayerIds = [...new Set<string>((tpRows ?? []).map((r: { player_id: string }) => r.player_id))]
+    }
+
     // Parallel fetch of all required data
     const [
       { data: players = [], error: playersError },
@@ -38,13 +55,17 @@ export async function getSessionSrpeData(
       { data: metrics = [], error: metricsError },
       { data: fatigueResponses = [], error: fatigueError },
     ] = await Promise.all([
-      // 1) Active players
-      serviceRole
-        .from('players')
-        .select('id, full_name, jersey_num, is_active')
-        .eq('club_id', clubId)
-        .eq('is_archived', false)
-        .order('full_name'),
+      // 1) Active players scoped to session's teams
+      (() => {
+        let q = serviceRole
+          .from('players')
+          .select('id, full_name, jersey_num, is_active')
+          .eq('club_id', clubId)
+          .eq('is_archived', false)
+          .order('full_name')
+        if (scopedPlayerIds !== null) q = q.in('id', scopedPlayerIds)
+        return q
+      })(),
       // 2) Attendance records for this session
       serviceRole
         .from('attendances')
@@ -75,7 +96,7 @@ export async function getSessionSrpeData(
     const fatigueList = fatigueResponses ?? []
 
     // Fetch primary positions (two-step)
-    const playerIds = playerList.map((p) => p.id)
+    const playerIds = playerList.map((p: { id: string }) => p.id)
     let positionsMap: Record<string, string | null> = {}
 
     if (playerIds.length > 0) {
@@ -85,16 +106,16 @@ export async function getSessionSrpeData(
         .in('player_id', playerIds)
         .eq('is_primary', true)
 
-      positionsMap = Object.fromEntries((positions ?? []).map((p) => [p.player_id, p.position]))
+      positionsMap = Object.fromEntries((positions ?? []).map((p: { player_id: string; position: string }) => [p.player_id, p.position]))
     }
 
     // Build maps for lookups
-    const attendanceMap = new Map(attendanceList.map((a) => [a.player_id, a.status]))
-    const metricsMap = new Map(metricsList.map((m) => [m.player_id, m.srpe_value]))
-    const fatigueMap = new Map(fatigueList.map((f) => [f.player_id, f.srpe_value]))
+    const attendanceMap = new Map(attendanceList.map((a: { player_id: string; status: string }) => [a.player_id, a.status]))
+    const metricsMap = new Map(metricsList.map((m: { player_id: string; srpe_value: number }) => [m.player_id, m.srpe_value]))
+    const fatigueMap = new Map(fatigueList.map((f: { player_id: string; srpe_value: number }) => [f.player_id, f.srpe_value]))
 
     // Map players to entries
-    const entries: PlayerSrpeEntry[] = playerList.map((player) => ({
+    const entries: PlayerSrpeEntry[] = playerList.map((player: { id: string; full_name: string; jersey_num: number | null; is_active: boolean | null }) => ({
       player_id: player.id,
       full_name: player.full_name,
       jersey_num: player.jersey_num ?? null,

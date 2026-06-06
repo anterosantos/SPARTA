@@ -377,8 +377,29 @@ export async function sendConvocatoria(
     return { ok: false, error: "Convocatória apenas para jogos e amigáveis" };
   }
 
-  // Verify all players belong to the club and get their profile_ids
+  // Verify all players belong to the session's assigned teams
   const playerIds = players.map((p) => p.playerId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serviceRole = (await import("@/lib/supabase/service-role")).getServiceRoleClient() as any;
+  const { data: sessionTeamRows } = await serviceRole
+    .from("session_teams")
+    .select("team_id")
+    .eq("session_id", sessionId);
+  const sessionTeamIds: string[] = (sessionTeamRows ?? []).map((r: { team_id: string }) => r.team_id);
+
+  if (sessionTeamIds.length > 0) {
+    const { data: tpRows } = await serviceRole
+      .from("team_players")
+      .select("player_id")
+      .in("team_id", sessionTeamIds)
+      .eq("is_archived", false);
+    const allowedIds = new Set((tpRows ?? []).map((r: { player_id: string }) => r.player_id));
+    const invalid = playerIds.filter((id) => !allowedIds.has(id));
+    if (invalid.length > 0) {
+      return { ok: false, error: "Alguns jogadores não pertencem às equipas desta sessão" };
+    }
+  }
+
   const { data: clubPlayers, error: playersError } = await supabase
     .from("players")
     .select("id, profile_id")

@@ -231,13 +231,13 @@ development_status:
   epic-7-retrospective: optional
 
   # Epic 8: Administração de Clube — Clube/Plantel/Equipas/Treinadores
-  epic-8: in-progress
-  8-1-database-schema-rosters-teams-team-players-team-coaches-player-loans: review
-  8-2-core-business-rules-age-constraints-senior-team-limits: review
-  8-3-server-actions-roster-crud-team-crud: review
-  8-4-server-actions-team-player-management-add-remove-change-status: review
-  8-5-server-actions-coach-assignment-team-coach-management: review
-  8-6-player-loan-workflow-request-approve-reject-return: review
-  8-7-ui-admin-module-dashboard-roster-team-management-interface: review
-  8-8-audit-trail-reporting-admin-actions-logged-queryable: review
+  epic-8: done
+  8-1-database-schema-rosters-teams-team-players-team-coaches-player-loans: done
+  8-2-core-business-rules-age-constraints-senior-team-limits: done
+  8-3-server-actions-roster-crud-team-crud: done
+  8-4-server-actions-team-player-management-add-remove-change-status: done
+  8-5-server-actions-coach-assignment-team-coach-management: done
+  8-6-player-loan-workflow-request-approve-reject-return: done
+  8-7-ui-admin-module-dashboard-roster-team-management-interface: done
+  8-8-audit-trail-reporting-admin-actions-logged-queryable: done
   epic-8-retrospective: optional

@@ -22,14 +22,42 @@ export async function getPlayersForAttendance(
   if (!authResult.ok) return authResult;
   const { clubId } = authResult.data;
 
-  const serviceRole = getServiceRoleClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serviceRole = getServiceRoleClient() as any;
 
-  const { data: players, error: playersError } = await serviceRole
+  // Resolve players scoped to the session's assigned teams
+  // Sessions without session_teams → all club players (backward compat)
+  const { data: sessionTeamRows } = await serviceRole
+    .from("session_teams")
+    .select("team_id")
+    .eq("session_id", sessionId);
+
+  const sessionTeamIds: string[] = (sessionTeamRows ?? []).map((r: { team_id: string }) => r.team_id);
+
+  let playerIds: string[] | null = null;
+  if (sessionTeamIds.length > 0) {
+    const { data: teamPlayerRows } = await serviceRole
+      .from("team_players")
+      .select("player_id")
+      .in("team_id", sessionTeamIds)
+      .eq("is_archived", false);
+    playerIds = [...new Set<string>((teamPlayerRows ?? []).map((r: { player_id: string }) => r.player_id))];
+  }
+
+  let playersQuery = serviceRole
     .from("players")
     .select("id, full_name, jersey_num, is_active")
     .eq("club_id", clubId)
     .eq("is_archived", false)
     .order("full_name");
+
+  if (playerIds !== null && playerIds.length > 0) {
+    playersQuery = playersQuery.in("id", playerIds);
+  } else if (playerIds !== null && playerIds.length === 0) {
+    return ok([]);
+  }
+
+  const { data: players, error: playersError } = await playersQuery;
 
   if (playersError) {
     return err({ code: "db_error", message: playersError.message });
@@ -41,12 +69,12 @@ export async function getPlayersForAttendance(
     return ok([]);
   }
 
-  const playerIds = playerList.map((p) => p.id);
+  const allPlayerIds = playerList.map((p: { id: string }) => p.id);
 
   const { data: positions, error: posError } = await serviceRole
     .from("positions")
     .select("player_id, position")
-    .in("player_id", playerIds)
+    .in("player_id", allPlayerIds)
     .eq("is_primary", true);
 
   if (posError) {
@@ -62,11 +90,11 @@ export async function getPlayersForAttendance(
   }
 
   const posMap = new Map(
-    (positions ?? []).map((p) => [p.player_id, p.position])
+    (positions ?? []).map((p: { player_id: string; position: string }) => [p.player_id, p.position])
   );
 
   return ok(
-    playerList.map((p) => ({
+    playerList.map((p: { id: string; full_name: string; jersey_num: number | null; is_active: boolean | null }) => ({
       id: p.id,
       full_name: p.full_name,
       jersey_num: p.jersey_num ?? 0,
