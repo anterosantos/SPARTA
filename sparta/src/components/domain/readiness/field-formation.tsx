@@ -110,13 +110,40 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   }
 
   const result: PlayerWithCoords[] = [];
+  const ROW_Y_OFFSET = 3; // % of container height; creates two staggered rows for large groups
+
   for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
-    const xPositions = spreadHorizontal(group.length, xPct, halfSpan);
-    for (let i = 0; i < group.length; i++) {
-      const player = group[i];
-      const x = xPositions[i];
-      if (player !== undefined && x !== undefined) {
-        result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct, positionKey: posKey });
+    if (group.length < 3) {
+      const xPositions = spreadHorizontal(group.length, xPct, halfSpan);
+      for (let i = 0; i < group.length; i++) {
+        const player = group[i];
+        const x = xPositions[i];
+        if (player !== undefined && x !== undefined) {
+          result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct, positionKey: posKey });
+        }
+      }
+    } else {
+      const row1Count = Math.ceil(group.length / 2);
+      const row2Count = group.length - row1Count;
+      const row1 = group.slice(0, row1Count);
+      const row2 = group.slice(row1Count);
+
+      const xPos1 = spreadHorizontal(row1Count, xPct, halfSpan);
+      for (let i = 0; i < row1.length; i++) {
+        const player = row1[i];
+        const x = xPos1[i];
+        if (player !== undefined && x !== undefined) {
+          result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct: yPct - ROW_Y_OFFSET, positionKey: posKey });
+        }
+      }
+
+      const xPos2 = spreadHorizontal(row2Count, xPct, halfSpan);
+      for (let i = 0; i < row2.length; i++) {
+        const player = row2[i];
+        const x = xPos2[i];
+        if (player !== undefined && x !== undefined) {
+          result.push({ player, xPct: Math.max(8, Math.min(92, x)), yPct: yPct + ROW_Y_OFFSET, positionKey: posKey });
+        }
       }
     }
   }
@@ -230,12 +257,12 @@ export function FieldFormation({ players, onSelectPlayer, onSelectPosition, flas
               aria-label={`Estado: ${stateLabel}, ${player.playerName}, ${player.primaryPosition ?? 'posição desconhecida'}, ACWR ${acwrLabel}`}
             >
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold border-2 border-white shadow-md"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white shadow-md"
                 style={{ backgroundColor: stateColor }}
               >
                 {player.jerseyNum != null ? player.jerseyNum : '?'}
               </div>
-              <span className="text-white text-[9px] font-medium drop-shadow-sm max-w-[44px] truncate">
+              <span className="text-white text-[9px] font-medium drop-shadow-sm max-w-[40px] truncate">
                 {firstName}
               </span>
             </button>
