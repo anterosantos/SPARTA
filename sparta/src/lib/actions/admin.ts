@@ -2138,3 +2138,111 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
     return { rosters: 0, teams: 0, players: 0, loans: 0 };
   }
 }
+
+// ============================================================================
+// List actions for admin pages
+// ============================================================================
+
+export async function listRosters() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data, error } = await db
+      .from("rosters")
+      .select("id, name, status, is_archived, season_id, seasons(name)")
+      .eq("club_id", clubId)
+      .order("created_at", { ascending: false });
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listTeams() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data: rosters } = await db.from("rosters").select("id").eq("club_id", clubId);
+    const rosterIds = (rosters ?? []).map((r: { id: string }) => r.id);
+    if (rosterIds.length === 0) return [];
+    const { data, error } = await db
+      .from("teams")
+      .select("id, name, escalao, level, is_b_team, is_archived, roster_id, rosters(name)")
+      .in("roster_id", rosterIds)
+      .eq("is_archived", false)
+      .order("name", { ascending: true });
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listTeamPlayers() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data: rosters } = await db.from("rosters").select("id").eq("club_id", clubId);
+    const rosterIds = (rosters ?? []).map((r: { id: string }) => r.id);
+    if (rosterIds.length === 0) return [];
+    const { data: teams } = await db.from("teams").select("id").in("roster_id", rosterIds);
+    const teamIds = (teams ?? []).map((t: { id: string }) => t.id);
+    if (teamIds.length === 0) return [];
+    const { data, error } = await db
+      .from("team_players")
+      .select("id, status, position, player_id, team_id, players(full_name, jersey_num, age_group), teams(name)")
+      .in("team_id", teamIds)
+      .eq("is_archived", false)
+      .order("status", { ascending: true });
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listTeamCoaches() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data: rosters } = await db.from("rosters").select("id").eq("club_id", clubId);
+    const rosterIds = (rosters ?? []).map((r: { id: string }) => r.id);
+    if (rosterIds.length === 0) return [];
+    const { data: teams } = await db.from("teams").select("id").in("roster_id", rosterIds);
+    const teamIds = (teams ?? []).map((t: { id: string }) => t.id);
+    if (teamIds.length === 0) return [];
+    const { data, error } = await db
+      .from("team_coaches")
+      .select("id, role, profile_id, team_id, profiles(full_name), teams(name)")
+      .in("team_id", teamIds)
+      .eq("is_archived", false)
+      .order("role", { ascending: true });
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
+
+export async function listPlayerLoans() {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient();
+    const { data: rosters } = await db.from("rosters").select("id").eq("club_id", clubId);
+    const rosterIds = (rosters ?? []).map((r: { id: string }) => r.id);
+    if (rosterIds.length === 0) return [];
+    const { data: teams } = await db.from("teams").select("id").in("roster_id", rosterIds);
+    const teamIds = (teams ?? []).map((t: { id: string }) => t.id);
+    if (teamIds.length === 0) return [];
+    const { data, error } = await db
+      .from("player_loans")
+      .select("id, status, note, player_id, from_team_id, to_team_id, players(full_name)")
+      .in("from_team_id", teamIds)
+      .order("status", { ascending: true });
+    if (error) return [];
+    return data ?? [];
+  } catch { return []; }
+}
