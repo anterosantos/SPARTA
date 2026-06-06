@@ -287,7 +287,8 @@ export async function getClubReadinessSnapshots(
   }
 
   // P-4: usar READINESS_STATE_PRIORITY partilhado (DRY) + ?? -Infinity para NULLs last (AC #5)
-  const snapshots = (result.data ?? []).sort((a, b) => {
+  // Cast needed: DB returns state as string but ReadinessSnapshot expects literal union
+  const snapshots = ((result.data ?? []) as ReadinessSnapshot[]).sort((a, b) => {
     const pa = READINESS_STATE_PRIORITY[a.state] ?? 5;
     const pb = READINESS_STATE_PRIORITY[b.state] ?? 5;
     if (pa !== pb) return pa - pb;
@@ -388,7 +389,7 @@ export async function getReadinessPanelData(
     return err({ code: 'db_error', message: 'Erro ao carregar dados de prontidão' });
   }
 
-  const snapshots: ReadinessSnapshot[] = snapshotResult.data ?? [];
+  const snapshots = (snapshotResult.data ?? []) as ReadinessSnapshot[];
 
   if (snapshots.length === 0) {
     return ok({ players: [], history: {} });
