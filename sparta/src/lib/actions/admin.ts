@@ -24,7 +24,7 @@
 "use server";
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
-import { requireStaffRole } from "@/lib/supabase/auth-helpers";
+import { requireStaffRole } from "@/lib/actions/auth";
 import {
   TeamPlayerAssignmentSchema,
   validateTeamPlayerAssignment,
@@ -186,8 +186,8 @@ export async function addPlayerToTeam(
       };
     }
 
-    const teamIds = rosterTeams.map(t => t.id);
-    const hasBTeam = rosterTeams.some(t => (t as any).is_b_team === true);
+    const teamIds = rosterTeams.map((t: { id: string }) => t.id);
+    const hasBTeam = rosterTeams.some((t: { is_b_team?: boolean }) => t.is_b_team === true);
 
     // Step 6: Count active teams for this player in this roster
     const { data: activeTeams } = teamIds.length > 0
