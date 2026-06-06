@@ -80,9 +80,20 @@ describe("Admin Schema (Story 8.1)", () => {
     }
     testPlayerId = player.id;
 
-    // Create test profile (coach) — profiles.id must be provided (links to auth.users)
-    // Use a deterministic UUID for tests
-    const testProfileUuid = "00000000-0000-0000-0000-000000000001";
+    // Create test auth user first (profiles.id FK references auth.users.id)
+    const { data: authData, error: authUserError } = await serviceRole.auth.admin.createUser({
+      email: "test-coach-admin-schema@test.test",
+      password: "Test1234!",
+      email_confirm: true,
+    });
+
+    if (authUserError || !authData?.user) {
+      throw new Error(`Failed to create auth user: ${authUserError?.message}`);
+    }
+
+    const testProfileUuid = authData.user.id;
+
+    // Create test profile (coach)
     const { data: profile, error: profileError } = await serviceRole
       .from("profiles")
       .upsert({
@@ -95,19 +106,24 @@ describe("Admin Schema (Story 8.1)", () => {
       .single();
 
     if (profileError || !profile) {
+      // Cleanup auth user if profile fails
+      await serviceRole.auth.admin.deleteUser(testProfileUuid);
       throw new Error(`Failed to create test profile: ${profileError?.message}`);
     }
     testProfileId = profile.id;
   });
 
   afterAll(async () => {
-    // Cleanup: cascade deletes should handle this
-    // But if needed, explicitly delete in reverse order of FK dependencies
+    // Cleanup in reverse FK dependency order
     if (testRosterId) {
       await serviceRole.from("rosters").delete().eq("id", testRosterId);
     }
     if (testPlayerId) {
       await serviceRole.from("players").delete().eq("id", testPlayerId);
+    }
+    // Delete auth user (cascades to profile)
+    if (testProfileId) {
+      await serviceRole.auth.admin.deleteUser(testProfileId);
     }
     if (testClubId) {
       await serviceRole.from("clubs").delete().eq("id", testClubId);
