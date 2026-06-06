@@ -51,10 +51,20 @@ function setupAuth(opts: {
   clubId?: string | null;
 } = {}) {
   const { noUser, role = "analyst", clubId = CLUB_UUID } = opts;
-  if (noUser || (role !== "coach" && role !== "analyst") || !clubId) {
+  if (noUser) {
     mockRequireStaffRole.mockResolvedValue({
       ok: false,
-      error: { code: "unauthorized", message: "Não autorizado" },
+      error: { code: "unauthorized", message: "Autenticação necessária." },
+    });
+  } else if (role !== "coach" && role !== "analyst") {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "forbidden", message: "Acesso restrito a staff." },
+    });
+  } else if (!clubId) {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "forbidden", message: "Clube não atribuído." },
     });
   } else {
     mockRequireStaffRole.mockResolvedValue({

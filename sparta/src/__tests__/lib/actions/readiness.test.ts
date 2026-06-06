@@ -28,8 +28,19 @@ import { createServerClient } from "@/lib/supabase/server";
 import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { getPlayerReadinessSnapshot, getPlayerAcwrTrend } from "@/lib/actions/readiness";
 
+const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
 const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
 const mockGetPlayerIdsForTeams = getPlayerIdsForTeams as ReturnType<typeof vi.fn>;
+
+function buildNullSnapshotClient() {
+  const chain: Record<string, unknown> = {};
+  chain["select"] = vi.fn().mockReturnValue(chain);
+  chain["eq"] = vi.fn().mockReturnValue(chain);
+  chain["order"] = vi.fn().mockReturnValue(chain);
+  chain["limit"] = vi.fn().mockReturnValue(chain);
+  chain["maybeSingle"] = vi.fn().mockResolvedValue({ data: null, error: null });
+  return { from: vi.fn().mockReturnValue(chain) };
+}
 
 const PLAYER_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const COACH_UUID  = "950e8400-e29b-41d4-a716-446655440005";
@@ -53,6 +64,7 @@ function setupAuth(opts: {
       error: { code: "unauthorized", message: "Não autorizado" },
     });
     mockGetPlayerIdsForTeams.mockResolvedValue([]);
+    mockCreateServerClient.mockResolvedValue(buildNullSnapshotClient());
   } else {
     mockRequireStaffRole.mockResolvedValue({
       ok: true,
@@ -60,6 +72,8 @@ function setupAuth(opts: {
     });
     // Return the player UUID so team membership check passes in happy path tests
     mockGetPlayerIdsForTeams.mockResolvedValue([PLAYER_UUID]);
+    // createServerClient is still used by the action for the readiness_snapshots query
+    mockCreateServerClient.mockResolvedValue(buildNullSnapshotClient());
   }
 }
 
