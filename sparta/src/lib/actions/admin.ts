@@ -2265,3 +2265,57 @@ export async function listPlayerLoans() {
     return data ?? [];
   } catch { return []; }
 }
+
+/**
+ * Lists all players registered in any roster of the club,
+ * enriched with their team assignments (if any).
+ */
+export async function listRosterPlayers() {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) return [];
+  const { clubId } = authResult.data;
+  try {
+    const db = getAdminClient() as any;
+
+    // Get all rosters for this club
+    const { data: rosters } = await db
+      .from("rosters")
+      .select("id, name")
+      .eq("club_id", clubId);
+    const rosterIds = (rosters ?? []).map((r: any) => r.id);
+    const rosterNameById = new Map((rosters ?? []).map((r: any) => [r.id, r.name]));
+    if (rosterIds.length === 0) return [];
+
+    // Get all roster_players
+    const { data: rosterPlayers } = await db
+      .from("roster_players")
+      .select("id, roster_id, player_id, players(id, full_name, jersey_num, age_group)")
+      .in("roster_id", rosterIds)
+      .eq("is_archived", false);
+
+    if (!rosterPlayers || rosterPlayers.length === 0) return [];
+
+    const playerIds = rosterPlayers.map((rp: any) => rp.player_id);
+
+    // Get team assignments for these players
+    const { data: teamPlayers } = await (db as any)
+      .from("team_players")
+      .select("player_id, team_id, status, position, teams(id, name)")
+      .in("player_id", playerIds)
+      .eq("is_archived", false);
+
+    const teamsByPlayer = new Map<string, any[]>();
+    for (const tp of teamPlayers ?? []) {
+      const list = teamsByPlayer.get(tp.player_id) ?? [];
+      list.push(tp);
+      teamsByPlayer.set(tp.player_id, list);
+    }
+
+    return rosterPlayers.map((rp: any) => ({
+      rosterId: rp.roster_id,
+      rosterName: rosterNameById.get(rp.roster_id) ?? "—",
+      player: rp.players,
+      teams: teamsByPlayer.get(rp.player_id) ?? [],
+    }));
+  } catch { return []; }
+}
