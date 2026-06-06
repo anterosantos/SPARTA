@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Admin Server Actions (Story 8.2 - 8.5)
  *
@@ -31,14 +30,6 @@ import {
   validateTeamPlayerAssignment,
   type TeamPlayerValidationContext,
 } from "@/lib/validators/admin";
-
-// Admin module uses tables from migrations 000381-000385 (rosters, teams, team_players,
-// team_coaches, player_loans) which are not yet in database.types.ts.
-// Run `supabase gen types typescript` after applying migrations to remove this cast.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getAdminClient(): any {
-  return getServiceRoleClient();
-}
 
 interface AddPlayerToTeamResult {
   ok: boolean;
@@ -99,7 +90,7 @@ export async function addPlayerToTeam(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Step 3: Fetch player age_group
     const { data: player, error: playerError } = await serviceRole
@@ -323,7 +314,7 @@ export async function removePlayerFromTeam(
   const { clubId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership (via team → roster → club_id)
     const { data: teamPlayer } = await serviceRole
@@ -420,7 +411,7 @@ export async function updatePlayerStatus(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: teamPlayer } = await serviceRole
@@ -551,7 +542,7 @@ export async function createRoster(
 
   while (retryCount < maxRetries) {
     try {
-      const serviceRole = getAdminClient();
+      const serviceRole = getServiceRoleClient();
 
       // Validate season exists and belongs to this club (L-4 fix)
       const { data: season, error: seasonError } = await serviceRole
@@ -677,7 +668,7 @@ export async function updateRoster(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: roster, error: rosterError } = await serviceRole
@@ -764,7 +755,7 @@ export async function archiveRoster(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: roster, error: rosterError } = await serviceRole
@@ -866,7 +857,7 @@ export async function createTeam(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify roster ownership and not archived
     const { data: roster, error: rosterError } = await serviceRole
@@ -972,7 +963,7 @@ export async function updateTeam(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: team } = await serviceRole
@@ -1050,7 +1041,7 @@ export async function archiveTeam(teamId: string): Promise<CreateRosterResult> {
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: team } = await serviceRole
@@ -1134,7 +1125,7 @@ export async function assignCoachToTeam(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify team ownership
     const { data: team } = await serviceRole
@@ -1276,7 +1267,7 @@ export async function removeCoachFromTeam(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: teamCoach } = await serviceRole
@@ -1377,7 +1368,7 @@ export async function changeCoachRole(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify ownership
     const { data: teamCoach } = await serviceRole
@@ -1475,7 +1466,7 @@ export async function requestPlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify both teams are in same club
     const { data: fromTeam } = await serviceRole
@@ -1600,7 +1591,7 @@ export async function approvePlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify loan ownership and is pending
     const { data: loan } = await serviceRole
@@ -1780,7 +1771,7 @@ export async function rejectPlayerLoan(
   }
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify loan ownership and is pending
     const { data: loan } = await serviceRole
@@ -1864,7 +1855,7 @@ export async function returnPlayerLoan(
   const { clubId, userId } = authResult.data;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Verify loan ownership and is approved
     const { data: loan } = await serviceRole
@@ -1953,9 +1944,9 @@ export interface AuditLogEntry {
   action: string;
   target_kind: string;
   target_id: string | null;
-  actor_id: string;
+  actor_id: string | null;
   occurred_at: string;
-  payload_json: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
 }
 
 interface GetAuditLogsResult {
@@ -2002,12 +1993,12 @@ export async function getAuditLogsForAdmin(filters: {
   const offset = (page - 1) * per_page;
 
   try {
-    const serviceRole = getAdminClient();
+    const serviceRole = getServiceRoleClient();
 
     // Build query
     let query = serviceRole
       .from("audit_logs")
-      .select("id, action, target_kind, target_id, actor_id, occurred_at, payload_json", {
+      .select("id, action, target_kind, target_id, actor_id, occurred_at, payload", {
         count: "exact",
       })
       .eq("club_id", clubId)
@@ -2052,7 +2043,7 @@ export async function getAuditLogsForAdmin(filters: {
     return {
       ok: true,
       data: {
-        logs: (logs || []) as unknown as AuditLogEntry[],
+        logs: (logs || []) as AuditLogEntry[],
         total: count || 0,
         page,
         per_page,
