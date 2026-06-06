@@ -1,8 +1,10 @@
 ﻿---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
-lastStep: 8
-status: 'complete'
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+lastStep: 9
+status: 'extended'
 completedAt: '2026-05-07'
+lastExtensionAt: '2026-06-05'
+extension: 'Admin Module Architecture added from brainstorming session 2026-06-05'
 inputDocuments:
   - "_bmad-output/planning-artifacts/prd.md"
   - "_bmad-output/planning-artifacts/product-brief-sparta.md"
@@ -1231,6 +1233,259 @@ toast.success('🎉 Sucesso!');  // viola tom calmo
 // vez
 <CalmConfirmation message="Registado, bom treino" />  // ✅
 ```
+
+## Admin Module Architecture — Clube/Plantel/Equipas/Treinadores
+
+**Context:** Brainstorming session 2026-06-05 formalized the organizational structure and admin operations required to manage multiple teams, age groups, and staff roles within a single club's squad management system.
+
+### Data Model
+
+#### Core Tables (Expansion to existing schema)
+
+```sql
+-- Existing (reused):
+clubs (id, name, country, created_at)
+profiles (id, club_id, role: 'coach'|'analyst'|'player', full_name, ...)
+players (id, club_id, profile_id?, jersey_num, full_name, birthdate, age_group: 'u14'|'u15'|'u17'|'u19'|'senior', is_archived, ...)
+positions (id, player_id, position: 'GK'|'LB'|'CB'|'RB'|'DM'|'CM'|'OM'|'LW'|'RW', is_primary, sort_order)
+
+-- New for admin module:
+rosters/plantels (id, club_id, season_id, name, description, created_at)
+  -- Represents the squad for a specific season per club
+  -- One active roster per club per season; rosters change annually
+
+teams (id, roster_id, name, age_group?: 'u14'|'u15'|'u17'|'u19'|'senior', level?: 'A'|'B'|'C', description, created_at)
+  -- Multiple teams per roster (e.g., u14A, u14B, u15, u15A, etc.)
+  -- Flexible organization: by age_group + level OR by competitive level only
+  -- No guard rails — coaches decide structure freely
+
+team_players (id, team_id, player_id, added_at, status: 'active'|'loaned'|'reserve')
+  -- Junction table: Player membership in teams
+  -- A player can be in multiple teams (loans between escalões + same escalão)
+  -- Constraints: see "Mobilidade de Jogadores" below
+
+team_coaches (id, team_id, coach_id, role: 'principal'|'assistant'|'analyst', added_at)
+  -- Multiple coaches per team with differentiated roles
+  -- All coaches can participate in team management (collaborative model)
+
+player_loans (id, player_id, from_team_id, to_team_id, approval_status: 'pending'|'approved'|'rejected', requested_by, approved_by, created_at, expires_at?)
+  -- Tracks loan requests and their state
+  -- Audit trail of who requested + who approved
+```
+
+### Business Rules
+
+#### Organizational Hierarchy
+
+1. **Club** — Container for multiple sports/modalities (in MVP: football only)
+2. **Roster (Plantel)** — Squad for a given club + sport + season
+   - One active roster per club per season
+   - Rosters change at season boundary (e.g., July–June academic year)
+3. **Teams** — Multiple teams within a roster
+   - Organization flexible: by age group, competitive level, or mix
+   - No enforcement of naming or structure — coaches decide
+4. **Players** — Members of roster; can belong to multiple teams within that roster
+5. **Coaches** — Staff with collaborative management of team(s)
+
+#### Player Mobility Rules
+
+**Across Escalões (age groups):**
+- ✅ u14 player CAN play in u15 or higher (upward mobility)
+- ❌ u14 player CANNOT play in u13 (no downward mobility)
+- 📋 Requires: loan request from originating coach → target coach approval → coach action
+- Result: Player appears in both team rosters
+
+**Within Same Escalão (A, B, C teams):**
+- ✅ Player can be loaned between A, B, C teams without age restriction
+- 📋 Requires: same approval flow
+- Result: Player in multiple teams (e.g., u14A + u14B)
+
+**Senior (>18) Special Case:**
+- ❌ Senior can only be in **2 teams maximum** IF club has a senior B team
+- ❌ Senior can only be in **1 team** IF club does NOT have a senior B team
+- 📋 Validation: CHECK in `team_players` or RLS policy
+
+#### Action Validation & Audit
+
+**Permanent Actions Require Validation:**
+- ❌ Delete player → requires explicit confirmation + audit reason (FR47)
+- ❌ Delete team → cascades to team_players (soft delete player from team via status)
+- ❌ Delete roster → cascades to teams + team_players
+- ❌ Delete coach → handle pending approvals (escalation or auto-reject)
+
+**Reversible Actions (no validation required):**
+- ✏️ Create player / team / coach
+- ✏️ Edit player data / team configuration
+- ✏️ Loan request (pending state allows rejection)
+- ✏️ Soft-archive player (is_archived=true, removable)
+
+**Audit Trail:**
+- Every loan approval/rejection logged in `player_loans` + `audit_logs`
+- Every coach assignment/removal tracked in `team_coaches` + `audit_logs`
+- Admin actions visible in `audit_logs(club_id, actor_id, action, target_kind, target_id, ...)`
+
+### RLS Policies
+
+**Multi-tenant scoping:** All admin tables include `club_id` (direct or via FK) and are scoped by `auth.club_id()` via `club_id` foreign key inheritance.
+
+```sql
+-- teams RLS (staff of club can read/write their own club's teams)
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "staff_team_read_write" ON teams
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM rosters r
+      JOIN profiles p ON r.club_id = p.club_id
+      WHERE r.id = teams.roster_id
+        AND p.id = auth.uid()
+        AND p.role IN ('coach', 'analyst')
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM rosters r
+      JOIN profiles p ON r.club_id = p.club_id
+      WHERE r.id = teams.roster_id
+        AND p.id = auth.uid()
+        AND p.role IN ('coach', 'analyst')
+    )
+  );
+
+-- team_players RLS (staff can manage; players see only their own memberships)
+ALTER TABLE team_players ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "staff_team_players_manage" ON team_players
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM teams t
+      JOIN rosters r ON t.roster_id = r.id
+      JOIN profiles p ON r.club_id = p.club_id
+      WHERE t.id = team_players.team_id
+        AND p.id = auth.uid()
+        AND p.role IN ('coach', 'analyst')
+    )
+  );
+
+CREATE POLICY "player_sees_own_teams" ON team_players
+  FOR SELECT TO authenticated
+  USING (
+    player_id IN (
+      SELECT id FROM players WHERE profile_id = auth.uid()
+    )
+  );
+
+-- team_coaches RLS (only coaches of the club can read; admin creates/removes)
+ALTER TABLE team_coaches ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "staff_team_coaches_manage" ON team_coaches
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM teams t
+      JOIN rosters r ON t.roster_id = r.id
+      JOIN profiles p ON r.club_id = p.club_id
+      WHERE t.id = team_coaches.team_id
+        AND p.id = auth.uid()
+        AND p.role IN ('coach', 'analyst')
+    )
+  );
+
+-- player_loans RLS (coaches of both teams + club admin can manage)
+ALTER TABLE player_loans ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "coach_manage_own_loans" ON player_loans
+  FOR ALL TO authenticated
+  USING (
+    -- Coach of from_team OR to_team OR club staff (analyst)
+    EXISTS (
+      SELECT 1 FROM team_coaches tc
+      JOIN teams t ON tc.team_id = t.id
+      WHERE (t.id = player_loans.from_team_id OR t.id = player_loans.to_team_id)
+        AND tc.coach_id = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+        AND p.role = 'analyst'
+    )
+  );
+```
+
+### Server Actions
+
+**Admin module actions** (`src/lib/actions/admin.ts`):
+
+```ts
+-- Rosters
+createRoster(input: { clubId, seasonId, name, description }) → Result<Roster>
+updateRoster(rosterId, input) → Result<Roster>
+archiveRoster(rosterId) → Result<{ success: true }>  // soft delete
+
+-- Teams
+createTeam(input: { rosterId, name, ageGroup?, level?, description }) → Result<Team>
+updateTeam(teamId, input) → Result<Team>
+deleteTeam(teamId) → Result<{ success: true }>  // validation required; cascades to team_players
+
+-- Team Players
+addPlayerToTeam(playerId, teamId) → Result<TeamPlayer>  // checks age constraints + senior B rule
+removePlayerFromTeam(playerId, teamId) → Result<{ success: true }>  // soft: status='removed'
+listTeamPlayers(teamId, { status?: 'active'|'loaned'|'reserve' }) → Result<TeamPlayer[]>
+
+-- Team Coaches
+assignCoachToTeam(input: { teamId, coachId, role: 'principal'|'assistant'|'analyst' }) → Result<TeamCoach>
+removeCoachFromTeam(teamCoachId) → Result<{ success: true }>
+
+-- Player Loans
+requestPlayerLoan(input: { playerId, fromTeamId, toTeamId, reason? }) → Result<PlayerLoan>
+approvePlayerLoan(loanId, approvedBy) → Result<PlayerLoan>  // creates team_players entry on approval
+rejectPlayerLoan(loanId, rejectedBy, reason?) → Result<PlayerLoan>
+cancelPlayerLoan(loanId, cancelledBy, reason?) → Result<{ success: true }>  // reverses team_players if active
+```
+
+**Validation rules (Zod schemas):**
+
+```ts
+// Prevent u14 playing in u13
+function validateLoanAgeConstraint(fromTeam: Team, toTeam: Team): Result<null, ValidationError>
+
+// Prevent senior in 2+ teams without B team
+function validateSeniorTeamCount(playerId, rosterId, newTeamId): Result<null, ValidationError>
+
+// Prevent delete without approval confirmation
+function validateDeleteWithReason(action: 'deleteTeam'|'deleteRoster', resourceId, reason: string): Result<null, ValidationError>
+```
+
+### Edge Cases & Handling
+
+| Edge Case | Handling |
+| --- | --- |
+| Coach reassigned while loan pending | Auto-reject loan; send notification to new coach + original requester |
+| Player promoted mid-season (u14 → u15) | Age-based constraint re-evaluated; existing u14A membership remains; can loan to u15+ via new request |
+| Delete team with active players | Error + prompt. Option: archive team instead (status='archived'; hides from selection but keeps history) |
+| Senior player loses B team (club decision) | Check if senior in 2 teams; if yes → error; requires manual removal before B team deletion |
+| Duplicate loan request (same player/teams) | Uniqueness constraint or check existing pending; return existing if already pending |
+| Coach attempt loan outside their team | RLS blocks write; error response with clear message |
+
+### Implementation Notes
+
+1. **No Guard Rails on Organization:** The system does NOT enforce a specific team structure. Coaches/admins can create arbitrary team names, hierarchies, and compositions. The only constraints are:
+   - Age-based (u14 cannot play u13)
+   - Senior B-team rule (max 2 teams if B exists; else 1 team)
+   - Multi-tenant scoping (club_id)
+
+2. **Loan Approval Flow is Collaborative:** Both coaches (originating + target) participate. This enables:
+   - Originating coach signals willingness to loan
+   - Target coach decides if useful
+   - Audit trail of who approved what
+
+3. **Soft Deletes Preferred:** Where possible, use status or is_archived rather than hard delete to preserve audit trail.
+
+4. **Service Role Not Required:** Unlike player health data, admin operations DO NOT require service role. Regular RLS policies suffice because:
+   - Coaches are staff (role='coach')
+   - Operations are within team context
+   - No cross-tenant data access needed
+
+---
 
 ## Project Structure & Boundaries
 

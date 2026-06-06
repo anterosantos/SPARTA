@@ -1,3 +1,5 @@
+# 2026-06-05 (Epic 8 → review: dev-story complete; 8-1 a 8-8 todas implementadas; 5 migrações SQL (000381-000385) rosters/teams/team_players/team_coaches/player_loans; lib/validators/admin.ts validadores idade+senior; lib/actions/admin.ts 18 Server Actions (CRUD rosters/teams + manage players/coaches/loans); 27 testes validadores ✅; src/app/(staff)/admin layout+pages (dashboard, rosters, teams, players, coaches, loans, audit-trail); admin.ts tipos+schemas; getAuditLogsForAdmin query; Epic 8 admin module structure completa e pronta para code-review + UI detalha implementation)
+# 2026-06-05 (8-1 → review: dev-story complete; 5 migrações SQL criadas (000381-000385): rosters, teams, team_players, team_coaches, player_loans; RLS policies com isolamento multi-tenant; constraints e indexes conforme spec; admin.ts tipos+Zod schemas; admin-schema.integration.test.ts 16 testes; ADMIN_SCHEMA_VALIDATION.md guia SQL; AC #1-#5 verificados; AC #6 placeholder para Story 8.2+; pronto para code-review)
 # last_updated: 2026-06-01 (7-4 → done: code-review complete; 8 patches aplicados: requireStaffRole import, auditedRead rejected status check, unsafe type casting removed, sessionStorage useEffect cleanup, match_events limit(500→10), currentSeason fallback fix, attendance date validation, isActive() verification; 14+ novos testes ✅; 1915+/1915+ testes ✅; lint ✅; typecheck ✅)
 # last_updated: 2026-06-01 (7-3 → done: code-review complete; 3 patches aplicados: recovery.test.ts test comment explaining conservative threshold, recovery.ts explicit error handling for Supabase queries, component imports verified in @/components/ui/; 1902/1902 testes ✅; lint ✅; typecheck ✅)
 # 2026-05-25 (5-4 → review: dev-story complete; Painel de Prontidão lista-por-posição implementado; /prontidao Server Component, ReadinessPanel+Header+List+PositionGroup+PlayerRow+EmptyState, getReadinessPanelData+getUpcomingSession server actions, PlayerReadinessData type, SemaforoBadge, InsufficientDataIndicator aria-hidden, sessionStorage view toggle, axe zero violations; 24 prontidao testes + 8 readiness-snapshots testes; 1411/1411 testes ✅; lint ✅; typecheck ✅)
@@ -144,7 +146,7 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Plantel, Calendário & Sessões (gestão operacional do staff)
-  epic-2: in-progress
+  epic-2: done
   2-1-player-records-plantel-list: done
   2-2-player-photo-upload: done
   2-3-player-metrics-time-series-weight-height: done
@@ -156,6 +158,8 @@ development_status:
   2-9-retention-policy-preserve-history-5-seasons-anonymization-hook: done
   2-10-player-invite-email-account-linking: done
   2-11-calendar-visual-alignment-session-colors-week-month-toggle-proximos-7-dias: done
+  2-12-player-calendar-read-only-view-jogador: done
+  2-13-player-session-detail-page-absence-declaration: done
   epic-2-retrospective: optional
 
   # Epic 3: Consentimento Parental & Direitos GDPR
@@ -189,7 +193,7 @@ development_status:
   epic-4-retrospective: optional
 
   # Epic 5: Painel de Prontidão & Inteligência (defining experience do José)
-  epic-5: in-progress
+  epic-5: done
   5-1-srpe-calculation-persistence-per-session: done
   5-2-acwr-calculation-engine-with-age-group-thresholds: done
   5-3-readiness-snapshots-materialized-source-for-the-painel: done
@@ -200,10 +204,11 @@ development_status:
   5-8-analista-dashboard-individual-4-week-fatigue-trends-multi-player-overview: done
   5-9-analista-dashboard-cumulative-load-per-player-per-season: done
   5-10-data-driven-decision-input-audit-fr52: done
+  5-11-absence-indicator-in-readiness-panel-vai-faltar-badge: done
   epic-5-retrospective: optional
 
   # Epic 6: Recolha de Performance — Touchscreen 3-ecrãs (jornada da Ana)
-  epic-6: in-progress
+  epic-6: done
   6-1-match-events-schema-idempotent-server-action: done
   6-2-touchscreen-b-sticky-player-stack-with-action-and-zone: done
   6-3-recent-events-ring-last-6-for-audit-on-the-go: done
@@ -212,6 +217,7 @@ development_status:
   6-6-edit-delete-events-within-configurable-post-session-window: done
   6-7-attendance-recording-for-training-sessions: done
   6-8-session-rpe-entry-per-player-at-end-of-session: done
+  6-9-sem-questionario-attendance-state-auto-transition-refresh-button: done
   epic-6-retrospective: optional
 
   # Epic 7: Análise Avançada & Operacionalização "Dados Mediados" (Phase 2 / Growth)
@@ -223,3 +229,15 @@ development_status:
   7-5-fatigue-performance-correlation-detection: done
   7-6-mediated-pdf-report-generation-storage-sharing: done
   epic-7-retrospective: optional
+
+  # Epic 8: Administração de Clube — Clube/Plantel/Equipas/Treinadores
+  epic-8: in-progress
+  8-1-database-schema-rosters-teams-team-players-team-coaches-player-loans: review
+  8-2-core-business-rules-age-constraints-senior-team-limits: review
+  8-3-server-actions-roster-crud-team-crud: review
+  8-4-server-actions-team-player-management-add-remove-change-status: review
+  8-5-server-actions-coach-assignment-team-coach-management: review
+  8-6-player-loan-workflow-request-approve-reject-return: review
+  8-7-ui-admin-module-dashboard-roster-team-management-interface: review
+  8-8-audit-trail-reporting-admin-actions-logged-queryable: review
+  epic-8-retrospective: optional

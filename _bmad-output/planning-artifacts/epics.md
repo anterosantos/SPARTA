@@ -3540,3 +3540,446 @@ So that the staff curates what is conveyed (filosofia "dados mediados") without 
 **Given** test coverage (NFR54)
 **When** tests run
 **Then** generation, sharing, audit logging, player-self-access denial, and revocation are covered ≥80%
+
+---
+
+## Epic 8: Administração de Clube — Clube/Plantel/Equipas/Treinadores (NEW from Brainstorming 2026-06-05)
+
+### Overview
+
+Managing organizational structure within a club: create/manage rosters (plantels) per season, organize teams within rosters with flexible structure (by age group or competitive level), add/remove players across teams, assign coaches, and handle player loans with audit trails. This epic formalized from brainstorming session 2026-06-05 and extends the core MVP with operational admin capabilities.
+
+**FRs covered:** FR-ADMIN-1 through FR-ADMIN-8
+
+### FR-ADMIN Requirements
+
+- **FR-ADMIN-1:** Create/manage rosters (plantels) per club per season (1 active roster per club per season; rosters change annually)
+- **FR-ADMIN-2:** Create/manage teams within roster (flexible organization: by age_group + level, no guard rails)
+- **FR-ADMIN-3:** Add/remove players from teams with status tracking (active/loaned/reserve)
+- **FR-ADMIN-4:** Assign coaches to teams with roles (principal/assistant/analyst); multiple coaches per team allowed
+- **FR-ADMIN-5:** Request/approve/reject player loans between teams (audit trail of requester + approver)
+- **FR-ADMIN-6:** Enforce age-based constraints (u14 cannot play u13; upward mobility allowed; same-escalão unrestricted)
+- **FR-ADMIN-7:** Validate senior team constraints (max 2 teams if B exists; else 1 team)
+- **FR-ADMIN-8:** Soft-archive teams/rosters instead of hard-delete (preserves history and audit trail)
+
+### Story 8.1: Database Schema — Rosters, Teams, Team-Players, Team-Coaches, Player Loans
+
+As a solo developer,
+I want the database schema for organizational structure (rosters, teams, team_players, team_coaches, player_loans) with RLS and constraints,
+So that the admin module can operate with multi-tenant isolation and audit trails from day one.
+
+**Acceptance Criteria:**
+
+**Given** migration `000080_admin_rosters.sql`
+**When** applied
+**Then** table `rosters` exists (id uuid PK uuidv7, club_id uuid FK, season_id uuid FK, status text CHECK ('active','archived'), created_at, updated_at, is_archived boolean default false)
+**And** RLS enabled with club isolation
+**And** index on `(club_id, season_id, status)` for queries like "active roster for club X in season Y"
+**And** exactly one `active` roster per `(club_id, season_id)` enforced by partial unique constraint (FR-ADMIN-1)
+
+**Given** migration `000081_admin_teams.sql`
+**When** applied
+**Then** table `teams` exists (id uuid PK uuidv7, roster_id uuid FK, name text, escalao text, level text, color_hex text, description text, is_archived boolean, created_at, updated_at)
+**And** RLS enabled with `roster_id → club_id` via EXISTS join
+**And** index on `(roster_id, is_archived)` (FR-ADMIN-2, FR-ADMIN-8)
+
+**Given** migration `000082_admin_team_players.sql`
+**When** applied
+**Then** table `team_players` exists (id uuid PK uuidv7, team_id uuid FK, player_id uuid FK, status text CHECK ('active','loaned','reserve'), position text, joined_at timestamptz, left_at timestamptz nullable, is_archived boolean)
+**And** RLS enabled via `team_id → roster_id → club_id`
+**And** index on `(team_id, status)` and `(player_id, status)` (FR-ADMIN-3)
+**And** constraint: player can only be in one team as 'active' per roster (uniqueness on `(roster_id, player_id)` where status='active')
+
+**Given** migration `000083_admin_team_coaches.sql`
+**When** applied
+**Then** table `team_coaches` exists (id uuid PK uuidv7, team_id uuid FK, profile_id uuid FK, role text CHECK ('principal','assistant','analyst'), joined_at timestamptz, left_at timestamptz nullable)
+**And** RLS enabled via `team_id → roster_id → club_id`
+**And** index on `(team_id, role)` (FR-ADMIN-4)
+**And** multiple coaches per team allowed (no uniqueness constraint)
+
+**Given** migration `000084_admin_player_loans.sql`
+**When** applied
+**Then** table `player_loans` exists (id uuid PK uuidv7, player_id uuid FK, from_team_id uuid FK, to_team_id uuid FK, requested_by uuid FK (profile_id), approved_by uuid FK nullable (profile_id), status text CHECK ('pending','approved','rejected','returned'), requested_at timestamptz, approved_at nullable, returned_at nullable)
+**And** RLS enabled via `from_team_id/to_team_id → roster_id → club_id`
+**And** index on `(player_id, status)` and `(from_team_id, status)` and `(to_team_id, status)` (FR-ADMIN-5)
+
+**Given** audit trail requirements
+**When** any mutation occurs in the above tables
+**Then** triggers auto-insert into `audit_logs` with action like 'team.created', 'team_players.added', 'loan.requested', 'loan.approved' (FR-ADMIN-5, AR21)
+
+**Given** CI integration
+**When** the migration is applied in tests
+**Then** all constraints and indexes are validated without error
+
+### Story 8.2: Core Business Rules — Age Constraints & Senior Team Limits
+
+As the system,
+I want age-based mobility and senior team restrictions enforced at the database and API layer,
+So that invalid team assignments are blocked before they create inconsistency.
+
+**Acceptance Criteria:**
+
+**Given** Zod schema `TeamPlayerValidator` in `lib/validators/admin.ts`
+**When** invoked to add player to team
+**Then** it validates:
+  - Player u14 cannot join team with escalao='u13' (FR-ADMIN-6)
+  - Player u14 CAN join u15, u16, u17, u19, senior
+  - Players in u13 and above can freely join same-escalao or upward (no-restr
+
+iction same escalao)
+  - Senior players already on a team with escalao containing 'B' cannot join a 3rd team (max 2 if B exists) (FR-ADMIN-7)
+  - Senior players on a team without 'B' in the system can only be on 1 team (FR-ADMIN-7)
+
+**Given** a Server Action `addPlayerToTeam(playerId, teamId)`
+**When** invoked
+**Then** it validates via the Zod schema
+**And** checks total active teams for senior player (query `team_players` where status='active' and player_id=X)
+**And** rejects with clear message if constraint violated: "Sénior já está em 2 equipas (máximo atingido)" or "Escalão u14 não pode jogar u13"
+**And** logs the attempt in `audit_logs` with action 'team_players.add_attempt_blocked' (FR-ADMIN-6)
+
+**Given** edge case: player aged 17 in u19 team tries to join u18 team (same escalao, no constraint)
+**When** the validation runs
+**Then** it allows (same escalao is unrestricted)
+
+**Given** edge case: senior player on [u19, senior-A] tries to join [senior-B]
+**When** the validation runs
+**Then** it allows (only 2 teams, all with 'B' is 1 team interpretation)
+
+Actually, clarification on FR-ADMIN-7: "max 2 teams if B exists; else 1 team" means:
+- If the club has a team with escalao='senior' or position 'B' (B-team indicator), seniors can be on up to 2 teams
+- Otherwise, seniors can only be on 1 team total
+
+**Implementation:** Check for existence of any `is_archived=false` team in the roster with a flag `is_b_team boolean` on the `teams` table, default false. Query: "Does this roster have a B-team?" → if yes, max 2; if no, max 1.
+
+**Given** the migration update
+**When** `000082_admin_teams.sql` is re-run or a new migration adds `is_b_team`
+**Then** the column `teams.is_b_team` (default false) is created
+**And** staff can set it when creating a team
+
+**Given** test coverage (NFR54)
+**When** tests run with fixtures
+**Then** all constraint branches (age upward allowed, age downward blocked, senior single vs. dual, same escalao unrestricted) are covered ≥80%
+
+### Story 8.3: Server Actions — Roster CRUD & Team CRUD
+
+As an admin (Treinador with ownership permissions),
+I want to create, edit, and archive rosters and teams without manual DB intervention,
+So that the UI can drive roster/team organization via simple forms.
+
+**Acceptance Criteria:**
+
+**Given** Server Action `createRoster(clubId, seasonId, name?)`
+**When** invoked by staff in the club
+**Then** it creates a `rosters` row with status='active' and `is_archived=false`
+**And** returns `Result<Roster, { code: string; message: string }>`
+**And** logs `audit_logs` entry with action 'roster.created' (FR-ADMIN-1)
+
+**Given** Server Action `updateRoster(rosterId, updates: { name? })`
+**When** invoked
+**Then** it updates the row and returns the updated roster
+**And** logs audit entry with action 'roster.updated'
+
+**Given** Server Action `archiveRoster(rosterId)`
+**When** invoked
+**Then** it sets `is_archived=true` (soft-delete) on the roster and cascades to child teams (also soft-archived) (FR-ADMIN-8)
+**And** logs audit entry with action 'roster.archived'
+
+**Given** Server Action `createTeam(rosterId, name, escalao, level, colorHex, isBTeam=false)`
+**When** invoked
+**Then** it validates that the roster is not archived
+**And** creates a `teams` row
+**And** returns `Result<Team, ...>`
+**And** logs audit entry with action 'team.created' (FR-ADMIN-2)
+
+**Given** Server Action `updateTeam(teamId, updates: { name?, escalao?, level?, colorHex?, isBTeam? })`
+**When** invoked
+**Then** it updates and logs 'team.updated'
+
+**Given** Server Action `archiveTeam(teamId)`
+**When** invoked
+**Then** it sets `is_archived=true` on the team only (not its players)
+**And** logs audit entry with action 'team.archived' (FR-ADMIN-8)
+**When** players in an archived team are queried
+**Then** they are NOT auto-removed; the team is hidden from UI but data is preserved
+
+**Given** RLS in all actions
+**When** an action is invoked
+**Then** it checks `EXISTS(SELECT 1 FROM profiles WHERE club_id = <claimed club> AND id = auth.uid())`
+**And** rejects with 403 if not in the club
+
+**Given** error handling
+**When** constraints or RLS is violated
+**Then** Result.Err is returned with human-readable message in PT-PT, B1 level
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** happy path, RLS rejection, and constraint violation paths are covered ≥80%
+
+### Story 8.4: Server Actions — Team-Player Management (Add, Remove, Change Status)
+
+As a coach,
+I want to add players to my team, move them to reserve/loaned, and remove them without complex UIs,
+So that roster changes are fast and auditable.
+
+**Acceptance Criteria:**
+
+**Given** Server Action `addPlayerToTeam(teamId, playerId, status='active', position?)`
+**When** invoked
+**Then** it validates age constraints via Story 8.2's Zod schema
+**And** validates max-teams constraint for seniors via Story 8.2's logic
+**And** creates a `team_players` row with `joined_at=now()`
+**And** returns `Result<TeamPlayer, ...>`
+**And** logs audit entry with action 'team_players.added' (FR-ADMIN-3)
+
+**Given** Server Action `updatePlayerTeamStatus(teamPlayerId, newStatus: 'active'|'loaned'|'reserve')`
+**When** invoked
+**Then** it updates the status (no date changes unless transitioning to 'loaned' via loan approval)
+**And** logs audit entry with action 'team_players.status_changed'
+
+**Given** Server Action `removePlayerFromTeam(teamPlayerId)`
+**When** invoked
+**Then** it sets `left_at=now()` and `is_archived=true` (soft-delete)
+**And** logs audit entry with action 'team_players.removed' (FR-ADMIN-3)
+**When** queried afterward
+**Then** the player is hidden from the team's active roster but preserved in audit trail
+
+**Given** the link between teams and coaches
+**When** a coach invokes addPlayerToTeam
+**Then** the action checks: `EXISTS(SELECT 1 FROM team_coaches WHERE team_id = <team> AND profile_id = auth.uid())`
+**And** rejects with 403 if the coach is not assigned to the team (FR-ADMIN-4)
+
+**Given** error messages
+**When** constraints are violated (e.g., age mismatch)
+**Then** messages like "Jogador u14 não pode jogar em escalão u13" are returned (B1 PT-PT)
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** happy path, constraint violations, authorization failures, and soft-delete scenarios are covered ≥80%
+
+### Story 8.5: Server Actions — Coach Assignment & Team-Coach Management
+
+As a Treinador principal,
+I want to assign coaches to teams with roles (principal, assistant, analyst) and change/remove them,
+So that team responsibilities are clear and auditable.
+
+**Acceptance Criteria:**
+
+**Given** Server Action `assignCoachToTeam(teamId, profileId, role: 'principal'|'assistant'|'analyst')`
+**When** invoked
+**Then** it creates a `team_coaches` row with `joined_at=now()`
+**And** returns `Result<TeamCoach, ...>`
+**And** logs audit entry with action 'team_coaches.assigned' (FR-ADMIN-4)
+
+**Given** Server Action `updateCoachTeamRole(teamCoachId, newRole)`
+**When** invoked
+**Then** it updates the `role` column
+**And** logs audit entry with action 'team_coaches.role_changed'
+
+**Given** Server Action `removeCoachFromTeam(teamCoachId)`
+**When** invoked
+**Then** it sets `left_at=now()`
+**And** logs audit entry with action 'team_coaches.removed' (FR-ADMIN-4)
+**When** the coach had pending loan requests as requester
+**Then** those loans remain in `pending` or `approved` states (removal does not auto-reject) — coach reassignment is a soft operation (Edge case: coach removed, existing loan requests stay pending, approver can still act)
+
+**Given** authorization (FR-ADMIN-4)
+**When** a profile invokes these actions
+**Then** it checks: `EXISTS(SELECT 1 FROM team_coaches WHERE team_id = <team> AND profile_id = auth.uid() AND role = 'principal')`
+**And** only the principal coach can assign/remove other coaches
+**And** rejects with 403 if not principal
+
+**Given** duplicate prevention
+**When** trying to assign a coach already on a team
+**Then** the action returns `Result.Err` with message "Treinador já está na equipa"
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** happy path, duplicate prevention, authorization (non-principal rejected), and soft-delete are covered ≥80%
+
+### Story 8.6: Player Loan Workflow — Request, Approve, Reject, Return
+
+As a coach,
+I want to request loans of players from other teams, and as an admin or the destination coach, approve/reject them with full audit,
+So that temporary player movements are transparent and reversible.
+
+**Acceptance Criteria:**
+
+**Given** Server Action `requestPlayerLoan(playerId, fromTeamId, toTeamId)`
+**When** invoked
+**Then** it creates a `player_loans` row with `status='pending'`, `requested_by=auth.uid()`, `requested_at=now()`
+**And** returns `Result<PlayerLoan, ...>`
+**And** logs audit entry with action 'player_loan.requested' with payload { requested_by, from_team, to_team } (FR-ADMIN-5)
+
+**Given** Server Action `approvePlayerLoan(loanId)`
+**When** invoked
+**Then** it validates:
+  - The loan is in `status='pending'`
+  - The approver is either: the principal coach of `from_team` OR the principal coach of `to_team` OR the club admin
+**And** sets `status='approved'`, `approved_by=auth.uid()`, `approved_at=now()`
+**And** updates the `team_players` row for that player on the `to_team` to `status='loaned'`
+**And** logs audit entry with action 'player_loan.approved' with payload { approved_by } (FR-ADMIN-5)
+**And** returns the updated loan
+
+**Given** Server Action `rejectPlayerLoan(loanId, reason?)`
+**When** invoked
+**Then** it sets `status='rejected'`
+**And** logs audit entry with action 'player_loan.rejected' with payload { reason } (FR-ADMIN-5)
+
+**Given** Server Action `returnPlayerFromLoan(loanId)`
+**When** invoked (after approval, at any time)
+**Then** it sets `status='returned'`, `returned_at=now()`
+**And** updates the `team_players` row for that player on `to_team` to `status='reserve'` or `is_archived=true` (decision: soft-archive the player from the destination team)
+**And** logs audit entry with action 'player_loan.returned' (FR-ADMIN-5)
+
+**Given** RLS constraints
+**When** a coach invokes approve/reject
+**Then** it checks authorization via team_coaches membership
+**And** rejects 403 if the coach is not principal of either team
+
+**Given** error cases
+**When** trying to loan an already-loaned player (status='loaned' on `team_players`)
+**Then** reject with message "Jogador já está emprestado"
+**When** trying to loan a player from team A to team A (same team)
+**Then** reject with message "Não é possível emprestar para a mesma equipa"
+
+**Given** test coverage (NFR54)
+**When** integration tests run
+**Then** request, approve, reject, return paths and authorization scenarios are covered ≥80%
+
+### Story 8.7: UI — Admin Module Dashboard & Roster/Team Management Interface
+
+As an admin or coach,
+I want a dashboard and forms to manage rosters, teams, players, coaches, and loans without needing database tools,
+So that roster changes are self-service and visible to the whole organization.
+
+**Acceptance Criteria:**
+
+**Given** the route `/admin` (staff only)
+**When** the page loads
+**Then** it displays: "Gestão de Clube" with tabs: "Plantéis" | "Equipas" | "Jogadores" | "Treinadores" | "Empréstimos"
+
+**Given** the "Plantéis" tab
+**When** rendered
+**Then** it lists all rosters (active + archived) for the club with columns: name, season, status (active/archived)
+**And** has buttons "Novo Plantel" (creates roster for current season) and "Arquivar" per row
+**And** click on a roster row navigates to `/admin/planteles/[id]` detail page
+
+**Given** the "Equipas" tab
+**When** rendered
+**Then** it lists all teams in the active roster with columns: name, escalão, level, principal coach, player count
+**And** has buttons "Nova Equipa" and "Arquivar" per row
+**And** click on a team row navigates to `/admin/equipas/[id]` detail page
+
+**Given** `/admin/planteles/[id]` detail page
+**When** rendered
+**Then** it shows roster name + season
+**And** below, all teams in that roster with player roster view (sidebar list)
+**And** button to edit roster name or archive
+
+**Given** `/admin/equipas/[id]` detail page
+**When** rendered
+**Then** it shows team name, escalão, level, color indicator
+**And** has 2 sections:
+  1. **Jogadores**: list of `team_players` with name, position, status (active/loaned/reserve), joined_at
+     - Button per row "Remover" (soft-delete) or "Status:" dropdown to change status
+     - Search + filter by status
+     - Button "Adicionar Jogador" opens a `<Sheet>` with searchable player list from the plantel
+  2. **Treinadores**: list of `team_coaches` with name, role, joined_at
+     - Button per row "Remover" (soft-delete) or "Editar Role"
+     - Button "Adicionar Treinador" opens a `<Sheet>` with staff list
+**And** button to edit team (name, escalão, level, color, is_b_team toggle) or archive
+
+**Given** the "Jogadores" tab
+**When** rendered
+**Then** it shows a unified list of all players in the club (from `players` table)
+**And** columns: name, position(s), age group, status (active/inactive), current team(s)
+**And** click on a player navigates to `/admin/jogadores/[id]` detail page
+
+**Given** `/admin/jogadores/[id]` detail page
+**When** rendered
+**Then** it shows player profile (Story 2.2) + a "Equipas" section listing all teams the player is in
+**And** ability to add to another team (calls Server Action, validates constraints via Story 8.2)
+**And** a "Empréstimos" section listing all loans (pending, approved, returned) for this player
+
+**Given** the "Treinadores" tab
+**When** rendered
+**Then** it lists all staff profiles in the club with role and team assignments
+**And** click navigates to `/admin/treinadores/[id]` detail page showing their team(s) + role
+
+**Given** the "Empréstimos" tab
+**When** rendered
+**Then** it lists all player loans in the club with columns: player, from_team, to_team, status, requested_by, requested_at
+**And** filters "Pendentes" (default), "Aprovados", "Devolvidos"
+**And** per pending loan, buttons "Aprovar" (opens quick confirm) + "Rejeitar" (opens textarea for reason)
+**And** per approved loan, button "Devolver" (soft-delete from destination team)
+
+**Given** navigation
+**When** `/admin` is accessed by a player
+**Then** the middleware returns 404
+
+**Given** performance
+**When** the page renders lists of 40+ players or 10+ teams
+**Then** it loads in <2s (NFR4, using React Query pagination/filtering)
+
+**Given** accessibility (NFR37)
+**When** `axe-core` runs against all admin screens
+**Then** zero violations
+**And** all lists are keyboard-navigable with semantic `<table>` or `<ul>` (not divs)
+
+### Story 8.8: Audit Trail & Reporting — Admin Actions Logged & Queryable
+
+As a club administrator,
+I want a queryable log of all admin actions (roster, team, player, coach, loan changes) with who, what, when,
+So that we can audit organizational changes and trace decisions.
+
+**Acceptance Criteria:**
+
+**Given** all Server Actions in Stories 8.3–8.6
+**When** any action mutates data
+**Then** an `audit_logs` entry is automatically inserted with:
+  - `action`: e.g., 'team.created', 'team_players.added', 'player_loan.approved'
+  - `target_kind`: 'roster', 'team', 'team_players', 'team_coaches', 'player_loans'
+  - `target_id`: the PK of the affected row
+  - `payload`: JSON with relevant context (from_team, to_team, requested_by, approved_by, reason, etc.)
+  - `actor_id`: auth.uid() of the person who invoked the action
+  - `occurred_at`: server timestamp (FR-ADMIN-5)
+
+**Given** the route `/admin/auditoria`
+**When** rendered
+**Then** it shows a filterable, sortable table of all admin actions for the club
+**And** filters: action type (dropdown: 'team.created', 'team_players.added', etc.), date range, actor
+**And** columns: occurred_at, action, target (human-readable name), actor (profile name), payload (JSON viewer on click)
+**And** export as CSV (all columns + JSON payload as text)
+
+**Given** search
+**When** user types a player name or team name in search box
+**Then** the table filters to matching actions (searches `target` name column)
+
+**Given** performance
+**When** loading audit log for a club with 1000+ entries
+**Then** pagination with 50 rows per page, fast sort by `occurred_at`
+
+**Given** access control
+**When** a coach tries to access `/admin/auditoria`
+**Then** they see only actions they performed (filtered to `actor_id = auth.uid()`)
+**When** a club admin tries to access
+**Then** they see all actions in the club (via RLS policy that checks club_id)
+
+**Given** the audit retention requirement (NFR20)
+**When** 12 months pass
+**Then** pg_cron job `purge_admin_audit_logs_older_than_12_months` deletes old entries
+
+**Given** test coverage (NFR54)
+**When** tests run
+**Then** audit insertion on all action types and RLS filtering are covered ≥80%
+
+---
+
+## Sprint Allocation Recommendation (Based on MVP 4-week timeline)
+
+**Sprint 1:** Epic 1 (Foundation, Auth, CI/CD, Design System)  
+**Sprint 2:** Epic 2 (Plantel, Calendário) + Epic 3 (Consentimento)  
+**Sprint 3:** Epic 4 (Fadiga) + Epic 5 (Prontidão) + **Epic 8 (Admin Module)** — Prioritize 8.1–8.5 for core roster/team/loan ops  
+**Sprint 4:** Epic 6 (Touchscreen) + Epic 5 completion (Readiness Panel) + **Epic 8.7–8.8** (UI + audit) — Finalize admin screens
+
+**Note on Admin Module:** FR-ADMIN-1 through FR-ADMIN-8 are NEW and extend the MVP scope. Recommend phasing into Sprint 3 as a parallel workstream given that organizational structure (rosters, teams) is foundational to team-based features. Early implementation unblocks team-scoped views and coaching workflows in Sprint 4.
