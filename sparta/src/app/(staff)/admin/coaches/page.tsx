@@ -3,10 +3,15 @@ import { listTeamCoaches, listTeams, listClubProfiles, assignCoachToTeam, remove
 import { requireStaffRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
-export default async function CoachesPage() {
+export default async function CoachesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const authResult = await requireStaffRole();
   if (!authResult.ok) redirect("/login");
 
+  const params = await searchParams;
   const [coaches, teams, profiles] = await Promise.all([
     listTeamCoaches(),
     listTeams(),
@@ -18,8 +23,12 @@ export default async function CoachesPage() {
     const profileId = formData.get("profile_id") as string;
     const teamId = formData.get("team_id") as string;
     const role = (formData.get("role") as "principal" | "assistant" | "analyst") || "assistant";
-    if (!profileId || !teamId) return;
-    await assignCoachToTeam(profileId, teamId, role);
+    if (!profileId || !teamId) return redirect("/admin/coaches?error=Preenche+todos+os+campos");
+    const result = await assignCoachToTeam(profileId, teamId, role);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao atribuir treinador");
+      return redirect(`/admin/coaches?error=${msg}`);
+    }
     redirect("/admin/coaches");
   }
 
@@ -33,7 +42,12 @@ export default async function CoachesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Assign form */}
+      {params.error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+          ⚠️ {decodeURIComponent(params.error)}
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Atribuir Treinador a Equipa</h2>
         <form action={handleAssign} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
@@ -76,7 +90,6 @@ export default async function CoachesPage() {
         )}
       </div>
 
-      {/* List */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Treinadores em Equipas ({coaches.length})</h2>

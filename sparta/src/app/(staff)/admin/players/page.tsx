@@ -5,10 +5,15 @@ import { redirect } from "next/navigation";
 
 const POSITIONS = ["GR", "DD", "DC", "DE", "MD", "MC", "ME", "AV"];
 
-export default async function PlayersPage() {
+export default async function PlayersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const authResult = await requireStaffRole();
   if (!authResult.ok) redirect("/login");
 
+  const params = await searchParams;
   const [teamPlayers, teams, allPlayers] = await Promise.all([
     listTeamPlayers(),
     listTeams(),
@@ -20,8 +25,12 @@ export default async function PlayersPage() {
     const playerId = formData.get("player_id") as string;
     const teamId = formData.get("team_id") as string;
     const position = (formData.get("position") as string) || undefined;
-    if (!playerId || !teamId) return;
-    await addPlayerToTeam(playerId, teamId, position);
+    if (!playerId || !teamId) return redirect("/admin/players?error=Preenche+todos+os+campos");
+    const result = await addPlayerToTeam(playerId, teamId, position);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao adicionar jogador");
+      return redirect(`/admin/players?error=${msg}`);
+    }
     redirect("/admin/players");
   }
 
@@ -35,7 +44,12 @@ export default async function PlayersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Add player form */}
+      {params.error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+          ⚠️ {decodeURIComponent(params.error)}
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Adicionar Jogador a Equipa</h2>
         <form action={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
@@ -77,7 +91,6 @@ export default async function PlayersPage() {
         )}
       </div>
 
-      {/* List */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Jogadores em Equipas ({teamPlayers.length})</h2>
