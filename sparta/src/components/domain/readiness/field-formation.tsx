@@ -59,6 +59,40 @@ const DEFAULT_COORDS = { xPct: 50, yPct: 44, halfSpan: 14 };
 // Positions that always render in a single horizontal line regardless of player count.
 const SINGLE_ROW_POSITIONS = new Set(['GR']);
 
+// SVG zone rectangles for each position (viewBox 300×400, field x=[15,285] y=[10,390]).
+// Horizontal boundaries = midpoints between adjacent position edges.
+// Vertical boundaries   = midpoints between adjacent Y levels.
+//
+// Position centers in SVG units (xPct*3, yPct*4):
+//   DE(60) halfSpan=18 → [42,78]   DC(150) halfSpan=42 → [108,192]   DD(240) halfSpan=18 → [222,258]
+//   ME(84) halfSpan=21 → [63,105]  MC(150) halfSpan=24 → [126,174]   MD(216) halfSpan=21 → [195,237]
+//   EXE(72) halfSpan=21→ [51,93]   EXD(228) halfSpan=21→ [207,249]
+//
+// Horizontal split points: DE|DC=93  DC|DD=207  ME|MC=116  MC|MD=185  EXE|EXD=150
+// Vertical split points (Y midpoints between position rows):
+//   top=10  PL(60)→70  SC(80)→96  EXD(112)→122  MO(132)→156  MC(180)→204
+//   MDC(228)→252  LIB(276)→290  DC(304)→330  GR(356)→390=bottom
+const POSITION_ZONE_RECTS: Record<string, { x1: number; y1: number; x2: number; y2: number }> = {
+  PL:  { x1:  15, y1:  10, x2: 285, y2:  70 },
+  SC:  { x1:  15, y1:  70, x2: 285, y2:  96 },
+  EXE: { x1:  15, y1:  96, x2: 150, y2: 122 },
+  EXD: { x1: 150, y1:  96, x2: 285, y2: 122 },
+  MO:  { x1:  15, y1: 122, x2: 285, y2: 156 },
+  ME:  { x1:  15, y1: 156, x2: 116, y2: 204 },
+  MC:  { x1: 116, y1: 156, x2: 185, y2: 204 },
+  MD:  { x1: 185, y1: 156, x2: 285, y2: 204 },
+  MDC: { x1:  15, y1: 204, x2: 285, y2: 252 },
+  LIB: { x1:  15, y1: 252, x2: 285, y2: 290 },
+  DE:  { x1:  15, y1: 290, x2:  93, y2: 330 },
+  DC:  { x1:  93, y1: 290, x2: 207, y2: 330 },
+  DD:  { x1: 207, y1: 290, x2: 285, y2: 330 },
+  GR:  { x1:  15, y1: 330, x2: 285, y2: 390 },
+  // Fallback groups
+  AVA: { x1:  15, y1:  10, x2: 285, y2: 156 },
+  MED: { x1:  15, y1: 156, x2: 285, y2: 252 },
+  DEF: { x1:  15, y1: 252, x2: 285, y2: 330 },
+};
+
 function getCoords(position: string | null): { xPct: number; yPct: number; halfSpan: number } {
   if (!position) return DEFAULT_COORDS;
   const trimmed = position.trim();
@@ -229,13 +263,31 @@ export function FieldFormation({ players, onSelectPlayer, onSelectPosition, flas
           <path d="M 15 382 A 8 8 0 0 0 23 390" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
           <path d="M 285 382 A 8 8 0 0 1 277 390" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
 
-          {/* Limites de sectores táticos — midpoints between adjacent position rows */}
-          {/* y=96:  between SC(80) and EXD/EXE(112) — strikers / wide-attack */}
-          {/* y=156: between MO(132) and MC(180)      — AM / CM */}
-          {/* y=252: between MDC(228) and LIB/DC(276) — def-mid / backline */}
-          <line x1="15" y1="96"  x2="285" y2="96"  stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
-          <line x1="15" y1="156" x2="285" y2="156" stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
-          <line x1="15" y1="252" x2="285" y2="252" stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
+          {/* Zonas de posição — rectângulo por cada posição com jogadores */}
+          {Array.from(positionGroups.entries()).map(([posKey, groupPlayers]) => {
+            const zone = POSITION_ZONE_RECTS[posKey];
+            if (!zone) return null;
+            const handleZoneClick = onSelectPosition
+              ? () => onSelectPosition(posKey, groupPlayers)
+              : undefined;
+            return (
+              <rect
+                key={`zone-${posKey}`}
+                x={zone.x1} y={zone.y1}
+                width={zone.x2 - zone.x1}
+                height={zone.y2 - zone.y1}
+                fill="none"
+                stroke="#1b4d1b"
+                strokeWidth="1"
+                strokeOpacity="0.9"
+                rx="2"
+                aria-hidden="true"
+                pointerEvents={handleZoneClick ? "all" : "none"}
+                onClick={handleZoneClick}
+                style={handleZoneClick ? { cursor: 'pointer' } : undefined}
+              />
+            );
+          })}
         </svg>
 
         {positioned.map(({ player, xPct, yPct, positionKey }) => {
