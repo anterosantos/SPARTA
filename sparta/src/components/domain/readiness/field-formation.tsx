@@ -113,7 +113,7 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   }
 
   const result: PlayerWithCoords[] = [];
-  const ROW_Y_OFFSET = 5; // % of container height; creates two staggered rows for large groups
+  const ROW_Y_OFFSET = 2.5; // % of container height; creates two staggered rows for large groups
 
   for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
     if (group.length < 3 || SINGLE_ROW_POSITIONS.has(posKey)) {
@@ -228,6 +228,14 @@ export function FieldFormation({ players, onSelectPlayer, onSelectPosition, flas
           <path d="M 277 10 A 8 8 0 0 0 285 18" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
           <path d="M 15 382 A 8 8 0 0 0 23 390" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
           <path d="M 285 382 A 8 8 0 0 1 277 390" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.9" />
+
+          {/* Limites de sectores táticos — midpoints between adjacent position rows */}
+          {/* y=96:  between SC(80) and EXD/EXE(112) — strikers / wide-attack */}
+          {/* y=156: between MO(132) and MC(180)      — AM / CM */}
+          {/* y=252: between MDC(228) and LIB/DC(276) — def-mid / backline */}
+          <line x1="15" y1="96"  x2="285" y2="96"  stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
+          <line x1="15" y1="156" x2="285" y2="156" stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
+          <line x1="15" y1="252" x2="285" y2="252" stroke="#1b4d1b" strokeWidth="1" strokeOpacity="0.9" />
         </svg>
 
         {positioned.map(({ player, xPct, yPct, positionKey }) => {
