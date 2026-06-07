@@ -31,7 +31,7 @@ function isValidState(state: unknown): state is keyof typeof STATE_COLORS {
 // Coordinates per sub-position (% of SVG viewBox 300×400, origin top-left).
 // Our goal is at the bottom; attack direction is upward.
 const POSITION_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: number }> = {
-  GR:  { xPct: 50, yPct: 89, halfSpan:  7 },
+  GR:  { xPct: 50, yPct: 89, halfSpan: 12 },
   DC:  { xPct: 50, yPct: 76, halfSpan: 14 },
   DD:  { xPct: 80, yPct: 76, halfSpan:  6 },
   DE:  { xPct: 20, yPct: 76, halfSpan:  6 },
@@ -55,6 +55,9 @@ const FALLBACK_COORDS: Record<string, { xPct: number; yPct: number; halfSpan: nu
 };
 
 const DEFAULT_COORDS = { xPct: 50, yPct: 44, halfSpan: 14 };
+
+// Positions that always render in a single horizontal line regardless of player count.
+const SINGLE_ROW_POSITIONS = new Set(['GR']);
 
 function getCoords(position: string | null): { xPct: number; yPct: number; halfSpan: number } {
   if (!position) return DEFAULT_COORDS;
@@ -113,7 +116,7 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   const ROW_Y_OFFSET = 5; // % of container height; creates two staggered rows for large groups
 
   for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
-    if (group.length < 3) {
+    if (group.length < 3 || SINGLE_ROW_POSITIONS.has(posKey)) {
       const xPositions = spreadHorizontal(group.length, xPct, halfSpan);
       for (let i = 0; i < group.length; i++) {
         const player = group[i];
