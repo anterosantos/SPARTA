@@ -113,7 +113,7 @@ export function layoutPlayers(players: PlayerReadinessData[]): PlayerWithCoords[
   }
 
   const result: PlayerWithCoords[] = [];
-  const ROW_Y_OFFSET = 2.5; // % of container height; creates two staggered rows for large groups
+  const ROW_Y_OFFSET = 4; // % of container height; creates two staggered rows for large groups
 
   for (const [posKey, { players: group, xPct, yPct, halfSpan }] of grouped.entries()) {
     if (group.length < 3 || SINGLE_ROW_POSITIONS.has(posKey)) {
