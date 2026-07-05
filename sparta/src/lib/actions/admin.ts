@@ -27,6 +27,9 @@
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireAdminRole } from "@/lib/actions/auth";
+import { newId } from "@/lib/uuid";
+import { AGE_GROUPS } from "@/lib/schemas/players";
+import { differenceInYears } from "date-fns";
 
 // Supabase does not infer types for nested joins or for insert payloads that
 // use snake_case field names not yet reflected in generated types.
@@ -45,6 +48,138 @@ interface AddPlayerToTeamResult {
     code: string;
     message: string;
   };
+}
+
+/**
+ * Create a new player and register them directly in a roster (no team
+ * assignment yet — matches the "player can be in a roster without a team"
+ * model). Mirrors createPlayer() in lib/actions/players.ts but scoped for
+ * the admin module: no internal redirect, and the roster is explicit
+ * rather than inferred from team selection or an ambiguous "active roster".
+ */
+export async function createPlayerForRoster(
+  rosterId: string,
+  fullName: string,
+  birthdate: string,
+  jerseyNum: number,
+  ageGroup: string,
+  position: string
+): Promise<CreateRosterResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED", message: "Staff access required" },
+    };
+  }
+
+  const { clubId, userId } = authResult.data;
+  const serviceRole = getAdminClient();
+
+  const { data: roster, error: rosterError } = await serviceRole
+    .from("rosters")
+    .select("id")
+    .eq("id", rosterId)
+    .eq("club_id", clubId)
+    .single();
+
+  if (rosterError || !roster) {
+    return {
+      ok: false,
+      error: { code: "ROSTER_NOT_FOUND", message: "Roster not found in your club" },
+    };
+  }
+
+  const trimmedName = fullName?.trim() || "";
+  if (trimmedName.length < 2 || trimmedName.length > 100) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Name must be 2-100 characters" },
+    };
+  }
+
+  if (!(AGE_GROUPS as readonly string[]).includes(ageGroup)) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Invalid age group" },
+    };
+  }
+
+  if (!Number.isInteger(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Jersey number must be between 1 and 99" },
+    };
+  }
+
+  const trimmedPosition = position?.trim() || "";
+  if (!trimmedPosition) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Position is required" },
+    };
+  }
+
+  const age = differenceInYears(new Date(), new Date(birthdate));
+  if (Number.isNaN(age) || age < 4 || age > 100) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Invalid birthdate" },
+    };
+  }
+
+  const playerId = newId();
+
+  const { error: insertError } = await serviceRole.from("players").insert({
+    id: playerId,
+    club_id: clubId,
+    full_name: trimmedName,
+    birthdate,
+    jersey_num: jerseyNum,
+    age_group: ageGroup,
+  });
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return {
+        ok: false,
+        error: { code: "JERSEY_CONFLICT", message: "Jersey number already used in this club" },
+      };
+    }
+    return { ok: false, error: { code: "DATABASE_ERROR", message: insertError.message } };
+  }
+
+  const { error: rpcError } = await serviceRole.rpc("upsert_player_positions", {
+    p_player_id: playerId,
+    p_positions: [{ position: trimmedPosition, is_primary: true, sort_order: 0 }],
+  });
+
+  if (rpcError) {
+    await serviceRole.from("players").delete().eq("id", playerId);
+    return { ok: false, error: { code: "DATABASE_ERROR", message: rpcError.message } };
+  }
+
+  const { error: rosterPlayerError } = await serviceRole.from("roster_players").insert({
+    roster_id: rosterId,
+    player_id: playerId,
+  });
+
+  if (rosterPlayerError) {
+    // Compensate: keep players/roster_players consistent if linking fails
+    await serviceRole.from("players").delete().eq("id", playerId);
+    return { ok: false, error: { code: "DATABASE_ERROR", message: rosterPlayerError.message } };
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: clubId,
+    actor_id: userId,
+    action: "players.created",
+    target_kind: "players",
+    target_id: playerId,
+    payload: { full_name: trimmedName, roster_id: rosterId },
+  });
+
+  return { ok: true, data: { id: playerId } };
 }
 
 /**
