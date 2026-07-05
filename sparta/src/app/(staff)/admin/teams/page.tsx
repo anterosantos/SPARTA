@@ -2,15 +2,24 @@
 import { listTeams, listRosters, createTeam, archiveTeam } from "@/lib/actions/admin";
 import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
+import { RosterFilter } from "./RosterFilter";
 
 const ESCALOES = ["u13", "u14", "u15", "u16", "u17", "u19", "senior"];
 
-export default async function TeamsPage() {
+export default async function TeamsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ roster_id?: string }>;
+}) {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
-  const [teams = [], rosters = []] = await Promise.all([listTeams(), listRosters()]);
+  const params = await searchParams;
+  const [allTeams = [], rosters = []] = await Promise.all([listTeams(), listRosters()]);
   const activeRosters = rosters.filter((r: any) => r.status === "active");
+  const teams = params.roster_id
+    ? allTeams.filter((t: any) => t.roster_id === params.roster_id)
+    : allTeams;
 
   async function handleCreate(formData: FormData) {
     "use server";
@@ -79,8 +88,9 @@ export default async function TeamsPage() {
 
       {/* List */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold">Equipas ({teams.length})</h2>
+          <RosterFilter rosters={rosters} activeRosterId={params.roster_id} />
         </div>
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -95,7 +105,9 @@ export default async function TeamsPage() {
           </thead>
           <tbody className="divide-y">
             {teams.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-400">Nenhuma equipa criada ainda.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-400">
+                {params.roster_id ? "Nenhuma equipa neste roster." : "Nenhuma equipa criada ainda."}
+              </td></tr>
             ) : (
               teams.map((t: any) => (
                 <tr key={t.id} className="hover:bg-gray-50">
