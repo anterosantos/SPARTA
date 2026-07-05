@@ -8,6 +8,7 @@ interface Team {
   id: string;
   name: string;
   escalao?: string | null;
+  roster_id: string;
 }
 
 interface Assignment {
@@ -68,7 +69,7 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
                   {rp.player && (
                     <TeamSelector
                       playerId={rp.player.id}
-                      allTeams={allTeams}
+                      allTeams={allTeams.filter((t) => t.roster_id === rp.rosterId)}
                       assignments={rp.teams}
                     />
                   )}
@@ -112,7 +113,7 @@ function TeamSelector({
   }
 
   if (allTeams.length === 0) {
-    return <span className="text-xs text-gray-400">Sem equipas criadas</span>;
+    return <span className="text-xs text-gray-400">Sem equipas neste roster</span>;
   }
 
   return (

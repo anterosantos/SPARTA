@@ -151,6 +151,28 @@ export async function addPlayerToTeam(
       };
     }
 
+    // Step 4.5: A player already registered in a roster cannot be added to a
+    // team belonging to a different roster (rosters are mutually exclusive squads).
+    const { data: playerRosters } = await serviceRole
+      .from("roster_players")
+      .select("roster_id")
+      .eq("player_id", playerId)
+      .eq("is_archived", false);
+
+    const playerHasOtherRoster = (playerRosters ?? []).some(
+      (rp: { roster_id: string }) => rp.roster_id !== team.roster_id
+    );
+
+    if (playerHasOtherRoster) {
+      return {
+        ok: false,
+        error: {
+          code: "ROSTER_MISMATCH",
+          message: "Player belongs to a different roster and cannot be added to this team",
+        },
+      };
+    }
+
     // Step 5: Fetch all team IDs in this roster (to avoid SQL injection)
     // Note: team coach assignment check (H-2) is intentionally skipped here —
     // this action is used by club-level admin staff who have authority over all teams.
