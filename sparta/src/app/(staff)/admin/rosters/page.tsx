@@ -4,19 +4,28 @@ import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 import ConfirmButton from "../ConfirmButton";
 
-export default async function RostersPage() {
+export default async function RostersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
 
   const { clubId } = authResult.data;
+  const params = await searchParams;
   const [rosters = [], seasons = []] = await Promise.all([listRosters(), listSeasons()]);
 
   async function handleCreate(formData: FormData) {
     "use server";
     const seasonId = formData.get("season_id") as string;
     const name = formData.get("name") as string;
-    if (!seasonId || !name) return;
-    await createRoster(clubId, seasonId, name);
+    if (!seasonId || !name) return redirect("/admin/rosters?error=Preenche+todos+os+campos");
+    const result = await createRoster(clubId, seasonId, name);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao criar roster");
+      return redirect(`/admin/rosters?error=${msg}`);
+    }
     redirect("/admin/rosters");
   }
 
@@ -24,12 +33,22 @@ export default async function RostersPage() {
     "use server";
     const id = formData.get("id") as string;
     if (!id) return;
-    await archiveRoster(id);
+    const result = await archiveRoster(id);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao arquivar roster");
+      return redirect(`/admin/rosters?error=${msg}`);
+    }
     redirect("/admin/rosters");
   }
 
   return (
     <div className="space-y-6">
+      {params.error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+          ⚠️ {decodeURIComponent(params.error)}
+        </div>
+      )}
+
       {/* Create form */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Criar Roster</h2>
