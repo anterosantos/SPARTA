@@ -150,14 +150,29 @@ describe("Admin Schema (Story 8.1)", () => {
       testRosterId = data!.id;
     });
 
-    it("enforces unique constraint: max 1 active roster per (club, season)", async () => {
-      // Try to create second active roster for same (club, season)
+    it("allows multiple active rosters per (club, season) with different names", async () => {
+      const { data, error } = await serviceRole
+        .from("rosters")
+        .insert({
+          club_id: testClubId,
+          season_id: testSeasonId,
+          name: "Plantel 2026 B",
+          status: "active",
+        })
+        .select("id")
+        .single();
+
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+    });
+
+    it("enforces unique constraint: no two active rosters with the same name (case-insensitive) per (club, season)", async () => {
       const { error } = await serviceRole
         .from("rosters")
         .insert({
           club_id: testClubId,
           season_id: testSeasonId,
-          name: "Plantel 2026 Duplicate",
+          name: "plantel 2026", // case-insensitive duplicate of "Plantel 2026"
           status: "active",
         })
         .select("id")

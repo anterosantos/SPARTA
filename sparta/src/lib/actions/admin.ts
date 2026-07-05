@@ -550,21 +550,22 @@ export async function createRoster(
         };
       }
 
-      // Check no active roster already exists for this (club, season)
+      // Check no active roster with the same name (case-insensitive) already exists for this (club, season)
       const { data: existing } = await serviceRole
         .from("rosters")
         .select("id")
         .eq("club_id", clubId)
         .eq("season_id", seasonId)
         .eq("status", "active")
-        .single();
+        .ilike("name", trimmedName)
+        .maybeSingle();
 
       if (existing) {
         return {
           ok: false,
           error: {
-            code: "ROSTER_EXISTS",
-            message: "Active roster already exists for this season",
+            code: "ROSTER_NAME_EXISTS",
+            message: "A roster with this name already exists for this season",
           },
         };
       }
@@ -593,8 +594,8 @@ export async function createRoster(
         return {
           ok: false,
           error: {
-            code: "DATABASE_ERROR",
-            message: "Active roster already exists (constraint violation)",
+            code: "ROSTER_NAME_EXISTS",
+            message: "A roster with this name already exists for this season (constraint violation)",
           },
         };
       }
@@ -637,7 +638,7 @@ export async function createRoster(
 
   return {
     ok: false,
-    error: { code: "ROSTER_EXISTS", message: "Failed to create roster after retries" },
+    error: { code: "ROSTER_NAME_EXISTS", message: "Failed to create roster after retries" },
   };
 }
 

@@ -1,6 +1,6 @@
 # Admin Schema Validation Guide (Story 8.1)
 
-This guide documents how to manually validate the admin schema migrations (000381-000385) in the Supabase PostgreSQL environment.
+This guide documents how to manually validate the admin schema migrations (000381-000385, 000389) in the Supabase PostgreSQL environment.
 
 ## Migrations
 
@@ -11,6 +11,7 @@ The following migrations create the admin schema:
 3. `000383_admin_team_players.sql` — Team-players junction with status lifecycle
 4. `000384_admin_team_coaches.sql` — Team-coaches junction with role assignment
 5. `000385_admin_player_loans.sql` — Player loans with approval workflow
+6. `000389_rosters_unique_name_per_season.sql` — Replaces "1 active roster per season" with "unique active roster name per season"
 
 ## Manual Validation (SQL)
 
@@ -27,13 +28,12 @@ Expected result: 5 rows (all admin tables present).
 ### 2. Verify Rosters Constraints
 
 ```sql
--- Check unique constraint on (club_id, season_id) WHERE status='active'
-SELECT constraint_name, constraint_type
-FROM information_schema.table_constraints
-WHERE table_name = 'rosters' AND constraint_type = 'UNIQUE';
+-- Check unique index on (club_id, season_id, lower(name)) WHERE status='active'
+SELECT indexname FROM pg_indexes
+WHERE tablename = 'rosters' AND indexname LIKE 'rosters_unique%';
 ```
 
-Expected: `rosters_unique_active_per_season` constraint exists.
+Expected: `rosters_unique_active_name_per_season` index exists (a club can have multiple active rosters per season, but not two with the same name, case-insensitive).
 
 ```sql
 -- Check indexes
