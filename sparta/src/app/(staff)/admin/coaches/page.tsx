@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { listTeamCoaches, listTeams, listClubProfiles, assignCoachToTeam, removeCoachFromTeam } from "@/lib/actions/admin";
+import { listTeamCoaches, listTeams, listClubProfiles, assignCoachToTeam, removeCoachFromTeam, inviteCoach } from "@/lib/actions/admin";
 import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 export default async function CoachesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string }>;
 }) {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
@@ -17,6 +17,20 @@ export default async function CoachesPage({
     listTeams(),
     listClubProfiles(),
   ]);
+
+  async function handleInvite(formData: FormData) {
+    "use server";
+    const fullName = formData.get("full_name") as string;
+    const email = formData.get("email") as string;
+    const role = (formData.get("invite_role") as "coach" | "analyst") || "coach";
+    if (!fullName || !email) return redirect("/admin/coaches?error=Preenche+todos+os+campos");
+    const result = await inviteCoach(fullName, email, role);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao convidar treinador");
+      return redirect(`/admin/coaches?error=${msg}`);
+    }
+    redirect("/admin/coaches?invited=1");
+  }
 
   async function handleAssign(formData: FormData) {
     "use server";
@@ -47,6 +61,51 @@ export default async function CoachesPage({
           ⚠️ {decodeURIComponent(params.error)}
         </div>
       )}
+      {params.invited && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
+          ✓ Convite enviado. A pessoa aparecerá na lista para atribuição assim que aceitar o convite.
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-4">Criar Treinador / Analista</h2>
+        <form action={handleInvite} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+            <input
+              name="full_name"
+              required
+              placeholder="Ex: Maria Silva"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="maria@exemplo.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Papel</label>
+            <select name="invite_role" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="coach">Treinador</option>
+              <option value="analyst">Analista</option>
+            </select>
+          </div>
+          <div>
+            <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+              Convidar
+            </button>
+          </div>
+        </form>
+        <p className="text-xs text-gray-500 mt-3">
+          A pessoa recebe um email para definir a password. Só depois de aceitar o convite fica disponível para ser atribuída a equipas.
+        </p>
+      </div>
 
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Atribuir Treinador a Equipa</h2>

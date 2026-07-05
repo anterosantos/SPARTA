@@ -1114,6 +1114,123 @@ export async function archiveTeam(teamId: string): Promise<CreateRosterResult> {
 // ============================================================================
 
 /**
+ * Invite a new coach/analyst — sends an email invite (Supabase Auth) that
+ * creates the auth user on acceptance, then links a profile row so the
+ * person can immediately be assigned to teams.
+ */
+export async function inviteCoach(
+  fullName: string,
+  email: string,
+  role: "coach" | "analyst"
+): Promise<CreateRosterResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED", message: "Staff access required" },
+    };
+  }
+
+  const { clubId } = authResult.data;
+
+  const trimmedName = fullName?.trim() || "";
+  if (!trimmedName || trimmedName.length > 255) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Name must be 1-255 characters" },
+    };
+  }
+
+  if (!["coach", "analyst"].includes(role)) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Invalid role" },
+    };
+  }
+
+  const trimmedEmail = email?.trim().toLowerCase() || "";
+  if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "Invalid email" },
+    };
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  let inviteData: Awaited<ReturnType<typeof serviceRole.auth.admin.inviteUserByEmail>>["data"];
+  let inviteError: Awaited<ReturnType<typeof serviceRole.auth.admin.inviteUserByEmail>>["error"];
+  try {
+    ({ data: inviteData, error: inviteError } = await serviceRole.auth.admin.inviteUserByEmail(
+      trimmedEmail,
+      { data: { club_id: clubId, role } }
+    ));
+  } catch (e) {
+    return {
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: `Failed to send invite: ${e instanceof Error ? e.message : String(e)}`,
+      },
+    };
+  }
+
+  if (inviteError) {
+    const msg = inviteError.message.toLowerCase();
+    const isConflict =
+      msg.includes("already registered") ||
+      msg.includes("already been registered") ||
+      msg.includes("user already exists");
+    if (isConflict) {
+      return {
+        ok: false,
+        error: { code: "EMAIL_CONFLICT", message: "This email already has an account in the system" },
+      };
+    }
+    return { ok: false, error: { code: "INTERNAL_ERROR", message: inviteError.message } };
+  }
+
+  if (!inviteData?.user) {
+    return { ok: false, error: { code: "INTERNAL_ERROR", message: "Failed to create user" } };
+  }
+
+  const { error: profileError } = await serviceRole
+    .from("profiles")
+    .insert({
+      id: inviteData.user.id,
+      club_id: clubId,
+      role,
+      full_name: trimmedName,
+    });
+
+  if (profileError) {
+    // Compensate: delete the orphaned auth user so retrying with the same email works
+    const deleteResult = await serviceRole.auth.admin.deleteUser(inviteData.user.id);
+    if (deleteResult.error) {
+      console.error("[inviteCoach] Critical: orphaned auth user", {
+        userId: inviteData.user.id,
+        deleteError: deleteResult.error.message,
+      });
+    }
+    return {
+      ok: false,
+      error: { code: "PROFILE_CREATION_FAILED", message: "Failed to create profile. Please try again." },
+    };
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: clubId,
+    actor_id: authResult.data.userId,
+    action: "profiles.invited",
+    target_kind: "profiles",
+    target_id: inviteData.user.id,
+    payload: { role, full_name: trimmedName },
+  });
+
+  return { ok: true, data: { id: inviteData.user.id } };
+}
+
+/**
  * Assign coach to team with role
  */
 export async function assignCoachToTeam(
