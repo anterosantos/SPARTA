@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addPlayerToTeam, removePlayerFromTeam, deletePlayer } from "@/lib/actions/admin";
+import { addPlayerToTeam, removePlayerFromTeam, deletePlayer, deletePlayers } from "@/lib/actions/admin";
 
 interface Team {
   id: string;
@@ -31,14 +31,90 @@ interface Props {
 }
 
 export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
+  const router = useRouter();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isPending, startTransition] = useTransition();
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  const selectablePlayers = rosterPlayers.filter((rp) => rp.player);
+  const allSelected =
+    selectablePlayers.length > 0 && selectablePlayers.every((rp) => selectedIds.has(rp.player!.id));
+
+  function toggleOne(playerId: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(playerId);
+      else next.delete(playerId);
+      return next;
+    });
+  }
+
+  function toggleAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(new Set(selectablePlayers.map((rp) => rp.player!.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }
+
+  function handleBulkDelete() {
+    const count = selectedIds.size;
+    const confirmed = window.confirm(
+      `Apagar ${count} jogador${count === 1 ? "" : "es"} permanentemente?\n\nEsta ação é irreversível e apaga TODOS os dados associados a cada jogador (fadiga, eventos, presenças, métricas, consentimentos, equipas, empréstimos, etc.).`
+    );
+    if (!confirmed) return;
+
+    setBulkError(null);
+    startTransition(async () => {
+      const result = await deletePlayers([...selectedIds]);
+      if (!result.ok) {
+        setBulkError(result.error?.message ?? "Erro ao apagar jogadores");
+        return;
+      }
+      if (result.data && result.data.failed.length > 0) {
+        setBulkError(
+          `${result.data.deletedCount} apagado(s); ${result.data.failed.length} falharam.`
+        );
+      }
+      setSelectedIds(new Set());
+      router.refresh();
+    });
+  }
+
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b">
+      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-semibold">Jogadores no Roster ({rosterPlayers.length})</h2>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">{selectedIds.size} selecionado(s)</span>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={isPending}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              Apagar Selecionados
+            </button>
+          </div>
+        )}
       </div>
+      {bulkError && (
+        <div className="px-6 py-3 bg-red-50 border-b border-red-200 text-red-700 text-sm">{bulkError}</div>
+      )}
       <table className="w-full">
         <thead className="bg-gray-50">
           <tr>
+            <th className="px-6 py-3 text-left">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => toggleAll(e.target.checked)}
+                disabled={selectablePlayers.length === 0}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                aria-label="Selecionar todos os jogadores"
+              />
+            </th>
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Jogador</th>
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Escalão</th>
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Roster</th>
@@ -49,13 +125,24 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
         <tbody className="divide-y">
           {rosterPlayers.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-400">
+              <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-400">
                 Nenhum jogador no roster ainda.
               </td>
             </tr>
           ) : (
             rosterPlayers.map((rp, idx) => (
               <tr key={`${rp.rosterId}-${rp.player?.id ?? idx}`} className="hover:bg-gray-50">
+                <td className="px-6 py-4">
+                  {rp.player && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(rp.player.id)}
+                      onChange={(e) => toggleOne(rp.player!.id, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      aria-label={`Selecionar ${rp.player.full_name}`}
+                    />
+                  )}
+                </td>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">
                   {rp.player?.full_name ?? "—"}
                   {rp.player?.jersey_num ? ` #${rp.player.jersey_num}` : ""}

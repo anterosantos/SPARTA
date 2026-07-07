@@ -228,6 +228,66 @@ export async function deletePlayer(playerId: string): Promise<CreateRosterResult
   return { ok: true, data: { id: playerId } };
 }
 
+interface DeletePlayersResult {
+  ok: boolean;
+  data?: { deletedCount: number; failed: { id: string; message: string }[] };
+  error?: { code: string; message: string };
+}
+
+/**
+ * Bulk variant of deletePlayer(): erases each selected player in turn
+ * (each is its own atomic transaction via fn_erase_subject_cascade), and
+ * reports per-player failures instead of aborting the whole batch.
+ */
+export async function deletePlayers(playerIds: string[]): Promise<DeletePlayersResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED", message: "Staff access required" },
+    };
+  }
+
+  if (!Array.isArray(playerIds) || playerIds.length === 0) {
+    return {
+      ok: false,
+      error: { code: "INVALID_INPUT", message: "No players selected" },
+    };
+  }
+
+  const { clubId, userId } = authResult.data;
+  const serviceRole = getAdminClient();
+
+  const { data: players, error: playersError } = await serviceRole
+    .from("players")
+    .select("id")
+    .in("id", playerIds)
+    .eq("club_id", clubId);
+
+  if (playersError) {
+    return { ok: false, error: { code: "DATABASE_ERROR", message: playersError.message } };
+  }
+
+  const validIds = new Set((players ?? []).map((p: { id: string }) => p.id));
+  const failed: { id: string; message: string }[] = [];
+  let deletedCount = 0;
+
+  for (const id of playerIds) {
+    if (!validIds.has(id)) {
+      failed.push({ id, message: "Player not found in your club" });
+      continue;
+    }
+    const result = await callEraseCascade(id, userId);
+    if (result.ok) {
+      deletedCount++;
+    } else {
+      failed.push({ id, message: result.error.message });
+    }
+  }
+
+  return { ok: true, data: { deletedCount, failed } };
+}
+
 /**
  * AC #3: addPlayerToTeam server action
  *
