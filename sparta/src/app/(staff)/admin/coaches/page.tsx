@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { listTeamCoaches, listTeams, listClubProfiles, assignCoachToTeam, removeCoachFromTeam, inviteCoach } from "@/lib/actions/admin";
+import { listTeamCoaches, listTeams, listClubProfiles, listRosters, assignCoachToTeam, removeCoachFromTeam, inviteCoach } from "@/lib/actions/admin";
 import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
+import { AssignCoachForm } from "./AssignCoachForm";
 
 export default async function CoachesPage({
   searchParams,
@@ -12,11 +13,13 @@ export default async function CoachesPage({
   if (!authResult.ok) redirect("/login");
 
   const params = await searchParams;
-  const [coaches = [], teams = [], profiles = []] = await Promise.all([
+  const [coaches = [], teams = [], profiles = [], rosters = []] = await Promise.all([
     listTeamCoaches(),
     listTeams(),
     listClubProfiles(),
+    listRosters(),
   ]);
+  const activeRosters = rosters.filter((r: any) => r.status === "active");
 
   async function handleInvite(formData: FormData) {
     "use server";
@@ -109,43 +112,9 @@ export default async function CoachesPage({
 
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Atribuir Treinador a Equipa</h2>
-        <form action={handleAssign} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Treinador / Analista</label>
-            <select name="profile_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Selecionar pessoa...</option>
-              {profiles.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name ?? p.id} ({p.role})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Equipa</label>
-            <select name="team_id" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Selecionar equipa...</option>
-              {teams.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Papel</label>
-            <select name="role" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="assistant">Assistente</option>
-              <option value="principal">Principal</option>
-              <option value="analyst">Analista</option>
-            </select>
-          </div>
-          <div>
-            <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
-              Atribuir
-            </button>
-          </div>
-        </form>
-        {teams.length === 0 && (
-          <p className="text-sm text-amber-600 mt-3">⚠️ Não há equipas disponíveis. Crie uma equipa primeiro.</p>
+        <AssignCoachForm rosters={activeRosters} teams={teams as any} profiles={profiles as any} action={handleAssign} />
+        {activeRosters.length === 0 && (
+          <p className="text-sm text-amber-600 mt-3">⚠️ Não há rosters ativos. Crie um roster primeiro.</p>
         )}
       </div>
 
