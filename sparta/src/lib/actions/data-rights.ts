@@ -124,7 +124,11 @@ export async function callEraseCascade(playerId: string, actorId: string): Promi
     clearTimeout(timeout)
 
     if (!response.ok) {
-      console.error('[data-rights] erase-cascade failed', { status: response.status })
+      // Diagnostic only — length of the key this deployment is actually using, never the value.
+      console.error('[data-rights] erase-cascade failed', {
+        status: response.status,
+        serviceRoleKeyLength: serviceRoleKey.length,
+      })
       return err({ code: 'internal', message: 'Falha no apagamento de dados' })
     }
 
