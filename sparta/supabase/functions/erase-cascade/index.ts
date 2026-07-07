@@ -66,6 +66,12 @@ export async function handler(req: Request): Promise<Response> {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader || authHeader !== `Bearer ${supabaseServiceRoleKey}`) {
+      // Diagnostic only — lengths, never the actual secret values.
+      console.error('[erase-cascade] auth mismatch', {
+        hasAuthHeader: !!authHeader,
+        authHeaderLength: authHeader?.length ?? 0,
+        expectedLength: `Bearer ${supabaseServiceRoleKey}`.length,
+      })
       return new Response(
         JSON.stringify({ ok: false, error: 'forbidden' }),
         { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
