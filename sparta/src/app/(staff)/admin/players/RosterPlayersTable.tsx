@@ -1,8 +1,8 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addPlayerToTeam, removePlayerFromTeam } from "@/lib/actions/admin";
+import { addPlayerToTeam, removePlayerFromTeam, deletePlayer } from "@/lib/actions/admin";
 
 interface Team {
   id: string;
@@ -43,12 +43,13 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Escalão</th>
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Roster</th>
             <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Equipas</th>
+            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {rosterPlayers.length === 0 ? (
             <tr>
-              <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-400">
+              <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-400">
                 Nenhum jogador no roster ainda.
               </td>
             </tr>
@@ -72,6 +73,11 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
                       allTeams={allTeams.filter((t) => t.roster_id === rp.rosterId)}
                       assignments={rp.teams}
                     />
+                  )}
+                </td>
+                <td className="px-6 py-4">
+                  {rp.player && (
+                    <DeletePlayerButton playerId={rp.player.id} playerName={rp.player.full_name} />
                   )}
                 </td>
               </tr>
@@ -139,6 +145,43 @@ function TeamSelector({
           </label>
         );
       })}
+    </div>
+  );
+}
+
+function DeletePlayerButton({ playerId, playerName }: { playerId: string; playerName: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleDelete() {
+    const confirmed = window.confirm(
+      `Apagar "${playerName}" permanentemente?\n\nEsta ação é irreversível e apaga TODOS os dados associados (fadiga, eventos, presenças, métricas, consentimentos, equipas, empréstimos, etc.).`
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    startTransition(async () => {
+      const result = await deletePlayer(playerId);
+      if (!result.ok) {
+        setError(result.error?.message ?? "Erro ao apagar jogador");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={isPending}
+        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
+      >
+        Apagar
+      </button>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }

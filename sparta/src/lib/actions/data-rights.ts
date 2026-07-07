@@ -99,7 +99,7 @@ export async function requestDataExportForSelf(): Promise<Result<ExportResult, A
   return callExportCsv(player.id as string)
 }
 
-async function callEraseCascade(playerId: string, actorId: string): Promise<Result<ErasureResult, AppError>> {
+export async function callEraseCascade(playerId: string, actorId: string): Promise<Result<ErasureResult, AppError>> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 

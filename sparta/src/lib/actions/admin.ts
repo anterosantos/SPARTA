@@ -30,6 +30,7 @@ import { requireAdminRole } from "@/lib/actions/auth";
 import { newId } from "@/lib/uuid";
 import { AGE_GROUPS } from "@/lib/schemas/players";
 import { differenceInYears } from "date-fns";
+import { callEraseCascade } from "@/lib/actions/data-rights";
 
 // Supabase does not infer types for nested joins or for insert payloads that
 // use snake_case field names not yet reflected in generated types.
@@ -178,6 +179,51 @@ export async function createPlayerForRoster(
     target_id: playerId,
     payload: { full_name: trimmedName, roster_id: rosterId },
   });
+
+  return { ok: true, data: { id: playerId } };
+}
+
+/**
+ * Permanently delete a player and every record associated with them
+ * (fatigue responses, match events, session metrics, attendances,
+ * consents, roster/team/loan assignments, audit trail references, etc.).
+ * Reuses the same fn_erase_subject_cascade RPC (via erase-cascade Edge
+ * Function) that backs the GDPR "right to erasure" self-service flow —
+ * this is genuinely irreversible, not a soft-delete/archive.
+ */
+export async function deletePlayer(playerId: string): Promise<CreateRosterResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED", message: "Staff access required" },
+    };
+  }
+
+  const { clubId, userId } = authResult.data;
+  const serviceRole = getAdminClient();
+
+  const { data: player, error: playerError } = await serviceRole
+    .from("players")
+    .select("id")
+    .eq("id", playerId)
+    .eq("club_id", clubId)
+    .single();
+
+  if (playerError || !player) {
+    return {
+      ok: false,
+      error: { code: "PLAYER_NOT_FOUND", message: "Player not found in your club" },
+    };
+  }
+
+  const result = await callEraseCascade(playerId, userId);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: { code: "ERASURE_FAILED", message: result.error.message },
+    };
+  }
 
   return { ok: true, data: { id: playerId } };
 }
