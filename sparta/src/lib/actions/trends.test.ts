@@ -53,13 +53,17 @@ describe("getFatigueTrendsData", () => {
   }
 
   function setupServiceRoleClient(overrides: {
-    players?: object[];
+    players?: { id: string; full_name: string; age_group: string }[];
     positions?: object[];
     responses?: object[];
+    teamCoaches?: { team_id: string }[];
+    teamPlayers?: { team_id: string; player_id: string }[];
   } = {}) {
+    const players = overrides.players ?? [];
+
     const playersQuery = createMockTableQuery();
     playersQuery.order.mockResolvedValue({
-      data: overrides.players ?? [],
+      data: players,
       error: null,
     });
 
@@ -75,11 +79,31 @@ describe("getFatigueTrendsData", () => {
       error: null,
     });
 
+    // Staff is assigned to "team-1", which every mock player belongs to by default —
+    // mirrors the real team_coaches → team_players scoping getFatigueTrendsData now enforces.
+    // requireStaffRole chains .eq("profile_id", ...).eq("is_archived", false) — two calls,
+    // so only the second one resolves the promise.
+    const teamCoachesQuery = createMockTableQuery();
+    teamCoachesQuery.eq
+      .mockReturnValueOnce(teamCoachesQuery)
+      .mockResolvedValueOnce({
+        data: overrides.teamCoaches ?? [{ team_id: "team-1" }],
+        error: null,
+      });
+
+    const teamPlayersQuery = createMockTableQuery();
+    teamPlayersQuery.eq.mockResolvedValue({
+      data: overrides.teamPlayers ?? players.map((p) => ({ team_id: "team-1", player_id: p.id })),
+      error: null,
+    });
+
     const serviceClient = {
       from: vi.fn((table: string) => {
         if (table === "players") return playersQuery;
         if (table === "positions") return positionsQuery;
         if (table === "fatigue_responses") return responsesQuery;
+        if (table === "team_coaches") return teamCoachesQuery;
+        if (table === "team_players") return teamPlayersQuery;
         return createMockTableQuery();
       }),
     };
@@ -111,7 +135,7 @@ describe("getFatigueTrendsData", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe("unauthorized");
+      expect(result.error.code).toBe("forbidden");
     }
   });
 

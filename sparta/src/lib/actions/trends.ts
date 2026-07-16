@@ -1,7 +1,7 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { auditedRead } from "@/lib/data/audited";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
@@ -47,49 +47,7 @@ type TrendResponseRow = {
   dim_mood: number | null;
 };
 
-const STAFF_ROLES = ["coach", "analyst"] as const;
 const DURATION_DAYS = 28;
-
-/**
- * Checks whether the currently authenticated user is staff (coach or analyst).
- * Returns their profile row if so, or an authorization error result.
- *
- * Used as a shared guard by trends Server Actions.
- */
-async function requireStaffRole(): Promise<Result<{ userId: string; clubId: string; role: string }, AppError>> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role, club_id")
-    .eq("id", user.id)
-    .single();
-
-  if (
-    profileError ||
-    !profile ||
-    !(STAFF_ROLES as readonly string[]).includes(profile.role ?? "")
-  ) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  if (!profile.club_id) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  return ok({
-    userId: user.id,
-    clubId: profile.club_id,
-    role: profile.role as string,
-  });
-}
 
 /**
  * getFatigueTrendsData — Fetches 4-week fatigue trends for all active players
@@ -106,7 +64,13 @@ export async function getFatigueTrendsData(
   // 1. Guard
   const authResult = await requireStaffRole();
   if (!authResult.ok) return authResult;
-  const { userId, clubId } = authResult.data;
+  const { userId, clubId, teamIds } = authResult.data;
+
+  // Staff only see players on teams they're assigned to (team_coaches → team_players)
+  const teamScopedPlayerIds = await getPlayerIdsForTeams(teamIds);
+  if (teamScopedPlayerIds.length === 0) {
+    return ok({ players: [] });
+  }
 
   // Use service role for all DB queries — createServerClient JWT propagation
   // is unreliable for Server Actions (AGENTS.md Rule 1)
@@ -116,7 +80,7 @@ export async function getFatigueTrendsData(
   const { data: playersData, error: playersError } = await serviceRole
     .from("players")
     .select("id, full_name, age_group")
-    .eq("club_id", clubId)
+    .in("id", teamScopedPlayerIds)
     .neq("is_archived", true)
     .order("full_name", { ascending: true });
 

@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import { after } from "next/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
 import type { Season } from "@/lib/schemas/seasons";
@@ -31,45 +32,6 @@ export type LoadFilters = {
   sortBy: "load" | "sessions" | "alphabetic";
 };
 
-const STAFF_ROLES = ["coach", "analyst"] as const;
-
-async function requireStaffRole(): Promise<
-  Result<{ userId: string; clubId: string; role: string }, AppError>
-> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role, club_id")
-    .eq("id", user.id)
-    .single();
-
-  if (
-    profileError ||
-    !profile ||
-    !(STAFF_ROLES as readonly string[]).includes(profile.role ?? "")
-  ) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  if (!profile.club_id) {
-    return err({ code: "unauthorized", message: "Não autorizado" });
-  }
-
-  return ok({
-    userId: user.id,
-    clubId: profile.club_id,
-    role: profile.role as string,
-  });
-}
-
 type MetricRow = {
   player_id: string;
   srpe_load: number;
@@ -94,7 +56,10 @@ export async function getCumulativeLoadData(): Promise<
 > {
   const authResult = await requireStaffRole();
   if (!authResult.ok) return authResult;
-  const { userId, clubId } = authResult.data;
+  const { userId, clubId, teamIds } = authResult.data;
+
+  // Staff only see players on teams they're assigned to (team_coaches → team_players)
+  const teamScopedPlayerIds = await getPlayerIdsForTeams(teamIds);
 
   const supabase = await createServerClient();
 
@@ -102,11 +67,15 @@ export async function getCumulativeLoadData(): Promise<
   const seasonResult = await getCurrentSeason();
   const currentSeason = seasonResult.ok ? seasonResult.data : null;
 
+  if (teamScopedPlayerIds.length === 0) {
+    return ok({ players: [], currentSeason });
+  }
+
   // Query batch 1 — active players
   const { data: playersData, error: playersError } = await supabase
     .from("players")
     .select("id, full_name, age_group")
-    .eq("club_id", clubId)
+    .in("id", teamScopedPlayerIds)
     .is("archived_at", null)
     .order("full_name", { ascending: true });
 
