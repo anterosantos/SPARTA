@@ -21,7 +21,7 @@ interface Assignment {
 interface RosterRow {
   rosterId: string;
   rosterName: string;
-  player: { id: string; full_name: string; jersey_num: number; age_group: string } | null;
+  player: { id: string; full_name: string; jersey_num: number | null; age_group: string } | null;
   teams: Assignment[];
 }
 

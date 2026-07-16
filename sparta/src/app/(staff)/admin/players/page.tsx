@@ -29,10 +29,11 @@ export default async function PlayersPage({
     const rosterId = formData.get("roster_id") as string;
     const fullName = formData.get("full_name") as string;
     const birthdate = formData.get("birthdate") as string;
-    const jerseyNum = Number(formData.get("jersey_num"));
+    const jerseyNumRaw = formData.get("jersey_num") as string;
+    const jerseyNum = jerseyNumRaw ? Number(jerseyNumRaw) : null;
     const ageGroup = formData.get("age_group") as string;
     const position = formData.get("position") as string;
-    if (!rosterId || !fullName || !birthdate || !jerseyNum || !ageGroup || !position) {
+    if (!rosterId || !fullName || !birthdate || !ageGroup || !position) {
       return redirect("/admin/players?error=Preenche+todos+os+campos");
     }
     const result = await createPlayerForRoster(rosterId, fullName, birthdate, jerseyNum, ageGroup, position);
@@ -83,8 +84,8 @@ export default async function PlayersPage({
             <input type="date" name="birthdate" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nº Camisola</label>
-            <input type="number" name="jersey_num" min={1} max={99} required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nº Camisola (opcional)</label>
+            <input type="number" name="jersey_num" min={1} max={99} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Escalão</label>

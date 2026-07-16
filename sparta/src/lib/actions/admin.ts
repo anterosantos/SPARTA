@@ -62,7 +62,7 @@ export async function createPlayerForRoster(
   rosterId: string,
   fullName: string,
   birthdate: string,
-  jerseyNum: number,
+  jerseyNum: number | null,
   ageGroup: string,
   position: string
 ): Promise<CreateRosterResult> {
@@ -106,7 +106,7 @@ export async function createPlayerForRoster(
     };
   }
 
-  if (!Number.isInteger(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
+  if (jerseyNum !== null && (!Number.isInteger(jerseyNum) || jerseyNum < 1 || jerseyNum > 99)) {
     return {
       ok: false,
       error: { code: "INVALID_INPUT", message: "Jersey number must be between 1 and 99" },
