@@ -28,14 +28,20 @@ export default async function PlayersPage({
     "use server";
     const rosterId = formData.get("roster_id") as string;
     const fullName = formData.get("full_name") as string;
-    const birthdate = formData.get("birthdate") as string;
+    const birthdateInput = formData.get("birthdate") as string;
     const jerseyNumRaw = formData.get("jersey_num") as string;
     const jerseyNum = jerseyNumRaw ? Number(jerseyNumRaw) : null;
     const ageGroup = formData.get("age_group") as string;
     const position = formData.get("position") as string;
-    if (!rosterId || !fullName || !birthdate || !ageGroup || !position) {
+    if (!rosterId || !fullName || !birthdateInput || !ageGroup || !position) {
       return redirect("/admin/players?error=Preenche+todos+os+campos");
     }
+    const birthdateMatch = birthdateInput.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!birthdateMatch) {
+      return redirect("/admin/players?error=Data+de+nascimento+deve+estar+no+formato+dd%2Fmm%2Faaaa");
+    }
+    const [, day, month, year] = birthdateMatch;
+    const birthdate = `${year}-${month}-${day}`;
     const result = await createPlayerForRoster(rosterId, fullName, birthdate, jerseyNum, ageGroup, position);
     if (!result.ok) {
       const msg = encodeURIComponent(result.error?.message ?? "Erro ao criar jogador");
@@ -81,7 +87,15 @@ export default async function PlayersPage({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
-            <input type="date" name="birthdate" lang="pt-PT" required className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              name="birthdate"
+              placeholder="dd/mm/aaaa"
+              pattern="\d{2}/\d{2}/\d{4}"
+              title="Formato: dd/mm/aaaa"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nº Camisola (opcional)</label>
