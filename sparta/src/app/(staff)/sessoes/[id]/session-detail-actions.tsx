@@ -5,10 +5,11 @@ import Link from "next/link";
 import { ClipboardList, Users, Video, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CancelSessionDialog } from "@/components/dialogs/cancel-session-dialog";
+import type { SessionType } from "@/lib/schemas/sessions";
 
 interface SessionDetailActionsProps {
   sessionId: string;
-  sessionType: "training" | "match" | "friendly";
+  sessionType: SessionType;
   isScheduled: boolean;
   isCoach: boolean;
 }

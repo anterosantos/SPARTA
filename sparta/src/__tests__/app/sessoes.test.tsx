@@ -129,8 +129,11 @@ describe("SessoesPage — vista do analista", () => {
     const jsx = await SessoesPage({ searchParams: params });
     render(jsx);
 
+    // Training filter fetches without server-side type filter and filters
+    // client-side (training + lecture), mirroring the "matches" branch —
+    // this lets "lecture" sessions count as "Treinos" (spec-sessao-tipo-palestra).
     expect(getSessionsForClub).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "training" })
+      expect.not.objectContaining({ type: expect.anything() })
     );
   });
 

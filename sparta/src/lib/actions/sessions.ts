@@ -35,7 +35,7 @@ const SessionFiltersSchema = z.object({
   status: z.enum(["scheduled", "cancelled", "completed"]).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-  type: z.enum(["training", "match", "friendly"]).optional(),
+  type: z.enum(["training", "match", "friendly", "lecture"]).optional(),
 });
 
 export type SessionFilters = z.infer<typeof SessionFiltersSchema>;

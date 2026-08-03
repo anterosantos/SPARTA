@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const SESSION_TYPES = ["training", "match", "friendly"] as const;
+const SESSION_TYPES = ["training", "match", "friendly", "lecture"] as const;
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 

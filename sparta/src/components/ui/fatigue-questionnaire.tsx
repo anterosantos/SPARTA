@@ -34,7 +34,7 @@ import type { MusclePainZone } from "@/lib/schemas/fatigue";
 
 export interface FatigueQuestionnaireProps {
   sessionId: string;
-  sessionType: "training" | "match" | "friendly";
+  sessionType: "training" | "match" | "friendly" | "lecture";
   /** ISO string — é formatada em PT-PT */
   sessionDate: string;
   phase: "pre" | "post";
@@ -79,11 +79,12 @@ const DraftValuesSchema = z.object({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatSessionType(type: "training" | "match" | "friendly"): string {
+function formatSessionType(type: "training" | "match" | "friendly" | "lecture"): string {
   const map: Record<typeof type, string> = {
     training: "Treino",
     match: "Jogo",
     friendly: "Jogo amigável",
+    lecture: "Palestra",
   };
   return map[type];
 }

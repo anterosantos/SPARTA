@@ -57,8 +57,8 @@ export default async function ConvocatoriaPage({
 
   const session = sessionResult.data;
 
-  // Redirect if training session
-  if (session.type === "training") {
+  // Redirect if training (or lecture) session
+  if (session.type === "training" || session.type === "lecture") {
     redirect(`/sessoes/${id}?toast=training-no-lineup`);
   }
 

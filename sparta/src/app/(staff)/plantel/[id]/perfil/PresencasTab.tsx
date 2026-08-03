@@ -22,6 +22,7 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
   training: "Treino",
   match: "Jogo",
   friendly: "Amigável",
+  lecture: "Palestra",
 };
 
 function statusColor(status: string): string {
@@ -112,7 +113,7 @@ export function PresencasTab({ playerId }: PresencasTabProps) {
   const filteredMonths = data.months.map((month) => ({
     ...month,
     sessions: month.sessions.filter((s) => {
-      if (!filters.treinos && s.session_type === "training") return false;
+      if (!filters.treinos && (s.session_type === "training" || s.session_type === "lecture")) return false;
       if (!filters.jogos && (s.session_type === "match" || s.session_type === "friendly")) return false;
       return true;
     }),

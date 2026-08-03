@@ -93,25 +93,16 @@ export default async function SessoesPage({
 
   let sessions: Session[];
 
+  const result = await getSessionsForClub(seasonId ? { season_id: seasonId } : undefined);
+  if (!result.ok) {
+    throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
+  }
+
   if (activeFilter === "matches") {
-    const result = await getSessionsForClub(seasonId ? { season_id: seasonId } : undefined);
-    if (!result.ok) {
-      throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
-    }
-    sessions = result.data.filter(
-      (s) => s.type === "match" || s.type === "friendly"
-    );
+    sessions = result.data.filter((s) => s.type === "match" || s.type === "friendly");
+  } else if (activeFilter === "training") {
+    sessions = result.data.filter((s) => s.type === "training" || s.type === "lecture");
   } else {
-    const result = await getSessionsForClub(
-      seasonId
-        ? { season_id: seasonId, type: activeFilter === "training" ? "training" : undefined }
-        : activeFilter === "training"
-          ? { type: "training" }
-          : undefined
-    );
-    if (!result.ok) {
-      throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
-    }
     sessions = result.data;
   }
 

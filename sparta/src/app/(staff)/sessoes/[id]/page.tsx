@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { Dumbbell, Trophy, Handshake } from "lucide-react";
+import { Dumbbell, Trophy, Handshake, Presentation } from "lucide-react";
 import { SessionDateDisplay } from "./session-date-display";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
@@ -16,6 +16,7 @@ const TYPE_CONFIG: Record<
   training: { label: "Treino", Icon: Dumbbell },
   match: { label: "Jogo", Icon: Trophy },
   friendly: { label: "Jogo amigável", Icon: Handshake },
+  lecture: { label: "Palestra", Icon: Presentation },
 };
 
 const STATUS_LABELS: Record<SessionStatus, string> = {
@@ -127,7 +128,7 @@ export default async function SessionDetailPage({
 
         <SessionDetailActions
           sessionId={session.id}
-          sessionType={session.type as "training" | "match" | "friendly"}
+          sessionType={session.type}
           isScheduled={isScheduled}
           isCoach={isCoach}
         />

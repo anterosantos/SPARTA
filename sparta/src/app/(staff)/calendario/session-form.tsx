@@ -24,6 +24,7 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
   training: "Treino",
   match: "Jogo",
   friendly: "Jogo amigável",
+  lecture: "Palestra",
 };
 
 // Convert ISO datetime string to local datetime-local input format

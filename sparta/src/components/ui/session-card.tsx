@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Dumbbell, Trophy, Handshake, CheckCircle2 } from "lucide-react";
+import { Dumbbell, Trophy, Handshake, Presentation, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Session, SessionType } from "@/lib/schemas/sessions";
 
@@ -14,6 +14,7 @@ const TYPE_CONFIG: Record<
   training: { label: "Treino", Icon: Dumbbell },
   match: { label: "Jogo", Icon: Trophy },
   friendly: { label: "Jogo amigável", Icon: Handshake },
+  lecture: { label: "Palestra", Icon: Presentation },
 };
 
 interface SessionCardProps {
