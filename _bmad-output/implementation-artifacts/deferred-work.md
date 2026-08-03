@@ -2,6 +2,10 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-calendar-view-return-to (2026-08-04)
+
+- **`/sessoes/nova` and `/sessoes/[id]/editar` still land the user on hardcoded `/calendario` after submit/close** [`sparta/src/app/(staff)/sessoes/nova/page.tsx`, `sparta/src/app/(staff)/sessoes/[id]/editar/page.tsx`]: These two routes reuse the same `SessionForm`/`SessionEditForm` components fixed in this story, but the create form now defaults `returnTo` to `"/calendario"` (unchanged for them, since they don't pass the prop) and `SessionEditForm` doesn't accept `returnTo` at all. An analyst creating a session from `/sessoes`, or a coach editing one from `/sessoes/[id]`, gets redirected to `/calendario` instead of back to where they came from — a separate, pre-existing UX rough edge, not reported by the user and not touched by this fix. Extend `returnTo` support to `SessionEditForm` and wire both routes to pass their own origin path if this is ever prioritized.
+
 ## Deferred from: code review of spec-session-opponent-name-field (2026-08-04)
 
 - **`location`, `notes`, and now `opponentName` never trim whitespace before the `|| undefined` empty-check** [`sparta/src/app/(staff)/calendario/session-form.tsx`]: A whitespace-only value (e.g. `"   "`) is truthy in JS, so it's sent and persisted verbatim instead of being treated as empty; none of these three text fields guard against it, and none of the corresponding Zod schemas (`sparta/src/lib/schemas/sessions.ts`) trim either. Pre-existing pattern for `location`/`notes`, extended (not introduced) by adding `opponentName` alongside it. Fix all three together (e.g. `.trim()` in a shared Zod `.transform()`) if data-quality complaints ever surface — fixing only the new field would be an inconsistent one-off.

@@ -49,9 +49,11 @@ interface SessionFormCreateProps {
   mode: "create";
   hasSeason: boolean;
   staffTeams?: StaffTeam[];
+  /** Where to navigate after closing/submitting — preserves the calendar view (vista/mes/cumulativo) the user came from. */
+  returnTo?: string;
 }
 
-function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProps) {
+function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario" }: SessionFormCreateProps) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [isPending, startTransition] = useTransition();
@@ -88,7 +90,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
 
   function handleClose() {
     setOpen(false);
-    router.push("/calendario");
+    router.push(returnTo);
   }
 
   function onSubmit(data: SessionCreateInput) {
@@ -128,7 +130,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
       {showConfirmation && (
         <CalmConfirmation
           message="Sessão criada"
-          onDismiss={() => router.push("/calendario")}
+          onDismiss={() => router.push(returnTo)}
         />
       )}
       <DrillDownSheet open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -371,6 +373,9 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
 
   function handleClose() {
     setOpen(false);
+    // Unlike SessionCreateForm, editing is only reached via /sessoes/[id]/editar
+    // (never from a /calendario page with vista/mes/cumulativo state to restore),
+    // so a fixed destination is correct here.
     router.push("/calendario");
   }
 

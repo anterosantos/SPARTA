@@ -7,9 +7,10 @@ vi.mock("@/lib/actions/sessions", () => ({
   getSessionTeams: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
-    push: vi.fn(),
+    push: mockPush,
     refresh: vi.fn(),
   })),
 }));
@@ -25,8 +26,17 @@ vi.mock("@/components/ui/drill-down-sheet", () => ({
 }));
 
 vi.mock("@/components/ui/calm-confirmation", () => ({
-  CalmConfirmation: ({ message }: { message: string }) => (
-    <div data-testid="calm-confirmation">{message}</div>
+  CalmConfirmation: ({
+    message,
+    onDismiss,
+  }: {
+    message: string;
+    onDismiss: () => void;
+  }) => (
+    <div data-testid="calm-confirmation">
+      {message}
+      <button onClick={onDismiss}>Fechar</button>
+    </div>
   ),
 }));
 
@@ -188,6 +198,36 @@ describe("SessionForm — modo create", () => {
         "Sessão criada"
       );
     });
+  });
+
+  it("volta para o returnTo (preserva vista/mês do calendário) em vez de /calendario fixo (regressão)", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(
+      <SessionForm
+        mode="create"
+        hasSeason={true}
+        returnTo="/calendario?vista=mes&mes=2026-08"
+      />
+    );
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("calm-confirmation")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /fechar/i }));
+
+    expect(mockPush).toHaveBeenCalledWith("/calendario?vista=mes&mes=2026-08");
   });
 
   it("converte datetime-local para ISO sem duplicar o offset de timezone (regressão)", async () => {

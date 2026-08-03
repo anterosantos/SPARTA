@@ -24,6 +24,7 @@ import {
 } from "date-fns";
 import { pt } from "date-fns/locale";
 import type { Session } from "@/lib/schemas/sessions";
+import { buildCalendarViewQuery } from "@/lib/utils/calendar-query";
 
 export const metadata = { title: "Calendário" };
 
@@ -116,6 +117,10 @@ export default async function CalendarioPage({
   const prevMonthHref = `?vista=mes${baseQuery}&mes=${format(subMonths(targetMonth, 1), "yyyy-MM")}`;
   const nextMonthHref = `?vista=mes${baseQuery}&mes=${format(addMonths(targetMonth, 1), "yyyy-MM")}`;
 
+  // Carry the current view (vista/cumulativo/mes) into "Nova sessão" so the
+  // form can send the user back to the same view instead of always /calendario.
+  const novaSessionHref = `/calendario/nova${buildCalendarViewQuery(params ?? {})}`;
+
   return (
     <main id="main-content">
       <StickyHeader title="Calendário" />
@@ -125,7 +130,7 @@ export default async function CalendarioPage({
           <CalendarViewToggle />
           {isCoach && (
             <Button asChild variant="primary">
-              <Link href="/calendario/nova">
+              <Link href={novaSessionHref}>
                 <Plus className="mr-1 h-4 w-4" />
                 Nova sessão
               </Link>
