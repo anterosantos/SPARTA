@@ -22,6 +22,10 @@ export const SessionCreateSchema = z
       .string()
       .max(500, "Notas demasiado longas (máx. 500 caracteres)")
       .optional(),
+    opponentName: z
+      .string()
+      .max(100, "Nome da equipa adversária demasiado longo (máx. 100 caracteres)")
+      .optional(),
   })
   .refine(
     (data) => {
@@ -53,6 +57,10 @@ export const SessionUpdateSchema = z
     notes: z
       .string()
       .max(500, "Notas demasiado longas (máx. 500 caracteres)")
+      .optional(),
+    opponentName: z
+      .string()
+      .max(100, "Nome da equipa adversária demasiado longo (máx. 100 caracteres)")
       .optional(),
   })
   .refine(

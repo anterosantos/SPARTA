@@ -68,6 +68,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
       durationMin: 90,
       location: "",
       notes: "",
+      opponentName: "",
     },
   });
 
@@ -105,6 +106,9 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
             durationMin: data.durationMin ?? 90,
             location: data.location || undefined,
             notes: data.notes || undefined,
+            // Only match/friendly sessions have an opponent — a leftover value
+            // from a type the user switched away from must not be persisted.
+            opponentName: isSingleTeamType ? data.opponentName || undefined : undefined,
           },
           teamIds.length > 0 ? teamIds : undefined
         );
@@ -163,6 +167,28 @@ function SessionCreateForm({ hasSeason, staffTeams = [] }: SessionFormCreateProp
               </p>
             )}
           </div>
+
+          {isSingleTeamType && (
+            <div className="space-y-1">
+              <label htmlFor="session-opponent" className="text-sm font-medium">
+                Equipa adversária
+              </label>
+              <input
+                id="session-opponent"
+                type="text"
+                maxLength={100}
+                placeholder="ex: SC Vilanovense"
+                className="w-full rounded border px-3 py-2 text-sm"
+                disabled={!hasSeason}
+                {...form.register("opponentName")}
+              />
+              {form.formState.errors.opponentName && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.opponentName.message}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1">
             <label htmlFor="session-scheduled-at" className="text-sm font-medium">
@@ -325,6 +351,7 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
       durationMin: session.duration_min,
       location: session.location ?? "",
       notes: session.notes ?? "",
+      opponentName: session.opponent_name ?? "",
     },
   });
 
@@ -358,6 +385,9 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
           durationMin: data.durationMin ?? 90,
           location: data.location || undefined,
           notes: data.notes || undefined,
+          // Only match/friendly sessions have an opponent — a leftover value
+          // from a type the user switched away from must not be persisted.
+          opponentName: isSingleTeamType ? data.opponentName || undefined : undefined,
         });
         if (!result.ok) {
           form.setError("root", { message: result.error.message });
@@ -422,6 +452,28 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
               </p>
             )}
           </div>
+
+          {isSingleTeamType && (
+            <div className="space-y-1">
+              <label htmlFor="session-opponent" className="text-sm font-medium">
+                Equipa adversária
+              </label>
+              <input
+                id="session-opponent"
+                type="text"
+                maxLength={100}
+                placeholder="ex: SC Vilanovense"
+                className="w-full rounded border px-3 py-2 text-sm"
+                disabled={isLocked}
+                {...form.register("opponentName")}
+              />
+              {form.formState.errors.opponentName && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.opponentName.message}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1">
             <label htmlFor="session-scheduled-at" className="text-sm font-medium">

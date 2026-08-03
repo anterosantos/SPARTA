@@ -2,6 +2,10 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-session-opponent-name-field (2026-08-04)
+
+- **`location`, `notes`, and now `opponentName` never trim whitespace before the `|| undefined` empty-check** [`sparta/src/app/(staff)/calendario/session-form.tsx`]: A whitespace-only value (e.g. `"   "`) is truthy in JS, so it's sent and persisted verbatim instead of being treated as empty; none of these three text fields guard against it, and none of the corresponding Zod schemas (`sparta/src/lib/schemas/sessions.ts`) trim either. Pre-existing pattern for `location`/`notes`, extended (not introduced) by adding `opponentName` alongside it. Fix all three together (e.g. `.trim()` in a shared Zod `.transform()`) if data-quality complaints ever surface — fixing only the new field would be an inconsistent one-off.
+
 ## Deferred from: code review of fix-session-timezone-offset (2026-08-04)
 
 - **Sessões já criadas durante DST (verão, UTC+1) têm `scheduled_at` guardado 1h antes da hora real pretendida** [`sparta`, tabela `sessions`]: A função `toISOFromLocal` (agora corrigida em `sparta/src/app/(staff)/calendario/session-form.tsx`) duplicava a conversão de fuso horário — sem efeito no inverno (offset=0) mas subtraía 1h extra sempre que o navegador estava em DST. Não há forma de distinguir, só a partir dos dados, quais as linhas afetadas (o bug era condicional ao fuso do navegador de quem criou/editou, não fica registado). Requer auditoria manual/decisão humana antes de qualquer backfill — não corrigir automaticamente sem confirmação, o risco de "corrigir" sessões que na verdade já estavam certas é real.

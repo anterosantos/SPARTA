@@ -184,6 +184,7 @@ export async function createSession(
       duration_min: validated.data.durationMin,
       location: validated.data.location ?? null,
       notes: validated.data.notes ?? null,
+      opponent_name: validated.data.opponentName ?? null,
       created_by: profile.id,
     })
     .select("*")
@@ -254,6 +255,7 @@ export async function updateSession(
       duration_min: validated.data.durationMin,
       location: validated.data.location ?? null,
       notes: validated.data.notes ?? null,
+      opponent_name: validated.data.opponentName ?? null,
     })
     .eq("id", validated.data.id)
     .eq("club_id", profile.club_id)

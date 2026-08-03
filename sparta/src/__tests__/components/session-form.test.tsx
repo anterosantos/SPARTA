@@ -80,6 +80,83 @@ describe("SessionForm — modo create", () => {
     ).toBeInTheDocument();
   });
 
+  it("campo 'Equipa adversária' só aparece para Jogo/Jogo amigável", () => {
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    expect(screen.queryByLabelText(/equipa adversária/i)).not.toBeInTheDocument();
+
+    const select = screen.getByLabelText(/tipo de sessão/i);
+    fireEvent.change(select, { target: { value: "match" } });
+    expect(screen.getByLabelText(/equipa adversária/i)).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "friendly" } });
+    expect(screen.getByLabelText(/equipa adversária/i)).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "training" } });
+    expect(screen.queryByLabelText(/equipa adversária/i)).not.toBeInTheDocument();
+  });
+
+  it("envia opponentName ao criar um Jogo com equipa adversária preenchida", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const select = screen.getByLabelText(/tipo de sessão/i);
+    fireEvent.change(select, { target: { value: "match" } });
+
+    fireEvent.change(screen.getByLabelText(/equipa adversária/i), {
+      target: { value: "SC Vilanovense" },
+    });
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    expect(submittedPayload.opponentName).toBe("SC Vilanovense");
+  });
+
+  it("não envia opponentName se o tipo for trocado de volta para Treino antes de submeter (regressão)", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const select = screen.getByLabelText(/tipo de sessão/i);
+    fireEvent.change(select, { target: { value: "match" } });
+    fireEvent.change(screen.getByLabelText(/equipa adversária/i), {
+      target: { value: "SC Vilanovense" },
+    });
+    // Muda de ideias antes de submeter — o campo desaparece da UI
+    fireEvent.change(select, { target: { value: "training" } });
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    expect(submittedPayload.opponentName).toBeUndefined();
+  });
+
   it("chama createSession ao submeter e mostra confirmação", async () => {
     vi.mocked(createSession).mockResolvedValue({
       ok: true,
