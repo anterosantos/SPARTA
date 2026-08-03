@@ -34,12 +34,13 @@ function toDateTimeLocal(isoString: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Convert datetime-local input value to ISO string, accounting for browser timezone offset
+// Convert datetime-local input value to ISO string.
+// `new Date("YYYY-MM-DDTHH:mm")` (no timezone designator) is already parsed as
+// local time per spec, so no further offset adjustment is needed here — applying
+// getTimezoneOffset() on top double-shifted the result whenever the browser's
+// offset was non-zero (e.g. off by 1h during Lisbon's summer DST).
 function toISOFromLocal(localStr: string): string {
-  const d = new Date(localStr);
-  // datetime-local input is interpreted as UTC by JS, so we adjust for browser's timezone offset
-  const offset = d.getTimezoneOffset() * 60 * 1000;
-  return new Date(d.getTime() + offset).toISOString();
+  return new Date(localStr).toISOString();
 }
 
 // ─── Create Form ──────────────────────────────────────────────────────────────

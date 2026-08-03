@@ -113,6 +113,38 @@ describe("SessionForm — modo create", () => {
     });
   });
 
+  it("converte datetime-local para ISO sem duplicar o offset de timezone (regressão)", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    // Local wall-clock value a user would pick — independent of the test
+    // runner's own timezone, so this regresses the double-offset bug
+    // regardless of where CI runs.
+    const chosenLocal = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    chosenLocal.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${chosenLocal.getFullYear()}-${pad(chosenLocal.getMonth() + 1)}-${pad(chosenLocal.getDate())}T${pad(chosenLocal.getHours())}:${pad(chosenLocal.getMinutes())}`;
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    const durationInput = screen.getByLabelText(/duração/i);
+    fireEvent.change(durationInput, { target: { value: "60" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    expect(submittedPayload.scheduledAt).toBe(chosenLocal.toISOString());
+  });
+
   it("mostra erro quando createSession falha", async () => {
     vi.mocked(createSession).mockResolvedValue({
       ok: false,

@@ -2,6 +2,18 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of fix-session-timezone-offset (2026-08-04)
+
+- **Sessões já criadas durante DST (verão, UTC+1) têm `scheduled_at` guardado 1h antes da hora real pretendida** [`sparta`, tabela `sessions`]: A função `toISOFromLocal` (agora corrigida em `sparta/src/app/(staff)/calendario/session-form.tsx`) duplicava a conversão de fuso horário — sem efeito no inverno (offset=0) mas subtraía 1h extra sempre que o navegador estava em DST. Não há forma de distinguir, só a partir dos dados, quais as linhas afetadas (o bug era condicional ao fuso do navegador de quem criou/editou, não fica registado). Requer auditoria manual/decisão humana antes de qualquer backfill — não corrigir automaticamente sem confirmação, o risco de "corrigir" sessões que na verdade já estavam certas é real.
+- **Datas locais na fronteira exata da transição DST (madrugada de mudança de hora) não são tratadas explicitamente** [`sparta/src/app/(staff)/calendario/session-form.tsx:toISOFromLocal`]: `new Date("YYYY-MM-DDTHH:mm")` tem comportamento implementation-defined para instantes inexistentes (spring-forward) ou ambíguos (fall-back). Janela de ~1h, 2 dias por ano; risco muito baixo para agendamento de sessões desportivas. Reavaliar apenas se um caso real for reportado.
+
+## Deferred from: bmad-quick-dev intent split — user report on /calendario (2026-08-04)
+
+User reported 3 issues from `/calendario` screenshots in one message. Split per user decision: tackled the timezone display bug first (own spec); these two are deferred to their own future specs.
+
+- **Toggle "Mês" não persiste durante a sessão de navegação** [`sparta/src/components/ui/calendar-view-toggle.tsx`, `sparta/src/app/(staff)/calendario/page.tsx`]: Ao selecionar "Mês", a vista deveria manter-se em "Mês" (ex: ao navegar com as setas ou criar uma sessão), mas aparenta reverter para "Semana". Gatilho exato por investigar — provavelmente falta de persistência do view mode em estado/URL entre re-renders/navegação.
+- **Falta campo "Equipa adversária" no formulário "Nova sessão" para Jogo/Jogo amigável** [`sparta/src/app/(staff)/calendario/session-form.tsx`]: A coluna `opponent_name` já existe em `Session` (`sparta/src/lib/schemas/sessions.ts:88`) e é lida por outros ecrãs, mas o formulário de criar/editar sessão não expõe um input para a preencher quando o tipo é `match`/`friendly`.
+
 ## Deferred from: code review of spec-sessao-tipo-palestra (2026-08-03)
 
 - **`?toast=training-no-lineup` query param is dead — nothing renders it** [`sparta/src/app/(staff)/sessoes/[id]/convocatoria/page.tsx:62`, `sparta/src/app/(staff)/sessoes/[id]/page.tsx`]: The convocatória redirect sets this param for both training and (now) lecture sessions, but no component on the destination page reads `searchParams.toast` to show a message. Pre-existing before this story; noticed because a lecture-session redirect would reuse the training-worded toast id if the param were ever wired up. Implement actual toast rendering (and consider a distinct id/copy per reason) if this UX gap is ever prioritized.
