@@ -2,6 +2,11 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-admin-players-move-roster (2026-08-04)
+
+- **No automated tests for `sparta/src/lib/actions/admin.ts`** [whole file]: Pre-existing — none of this file's ~30 exported functions have unit test coverage (only an integration test requiring a live Supabase instance, and an unrelated validators test). `movePlayerToRoster` follows this same gap rather than introducing a new one. Worth a dedicated pass to build mockable test scaffolding for this file if it becomes a change hotspot.
+- **No lock/guard against two admins concurrently moving the same player's roster** [`movePlayerToRoster`, `RosterSelector`]: `disabled={isPending}` prevents a single user's double-click but not two overlapping requests from different sessions racing the archive/insert steps. Matches the existing risk posture of every other action in this file (e.g. `TeamSelector`'s `addPlayerToTeam`/`removePlayerFromTeam` has the identical gap) — an internal admin tool for a small club's staff, not prioritized unless it actually bites.
+
 ## Deferred from: code review of spec-plantel-sort-filter (2026-08-04)
 
 - **`role="tablist"`/`role="tab"` toggles have no keyboard arrow-key navigation** [`sparta/src/components/patterns/PlantelListControls.tsx`, and pre-existing in `sparta/src/components/ui/calendar-view-toggle.tsx`]: WAI-ARIA tablist pattern implies Left/Right arrow-key navigation between tabs; these components only support click/Tab-key focus. `PlantelListControls`'s sort control mirrors the exact same (pre-existing, unmodified) pattern already shipped in `CalendarViewToggle` — fixing one in isolation would be inconsistent. Address both together if full APG tablist compliance is ever prioritized.

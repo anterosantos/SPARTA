@@ -2,13 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addPlayerToTeam, removePlayerFromTeam, deletePlayer, deletePlayers } from "@/lib/actions/admin";
+import { addPlayerToTeam, removePlayerFromTeam, deletePlayer, deletePlayers, movePlayerToRoster } from "@/lib/actions/admin";
 
 interface Team {
   id: string;
   name: string;
   escalao?: string | null;
   roster_id: string;
+}
+
+interface Roster {
+  id: string;
+  name: string;
 }
 
 interface Assignment {
@@ -28,9 +33,10 @@ interface RosterRow {
 interface Props {
   rosterPlayers: RosterRow[];
   allTeams: Team[];
+  allRosters: Roster[];
 }
 
-export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
+export function RosterPlayersTable({ rosterPlayers, allTeams, allRosters }: Props) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -152,7 +158,18 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
                     <span className="text-blue-600 font-medium">{rp.player.age_group}</span>
                   ) : "—"}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">{rp.rosterName}</td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {rp.player ? (
+                    <RosterSelector
+                      playerId={rp.player.id}
+                      currentRosterId={rp.rosterId}
+                      currentRosterName={rp.rosterName}
+                      allRosters={allRosters}
+                    />
+                  ) : (
+                    rp.rosterName
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   {rp.player && (
                     <TeamSelector
@@ -172,6 +189,72 @@ export function RosterPlayersTable({ rosterPlayers, allTeams }: Props) {
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function RosterSelector({
+  playerId,
+  currentRosterId,
+  currentRosterName,
+  allRosters,
+}: {
+  playerId: string;
+  currentRosterId: string;
+  currentRosterName: string;
+  allRosters: Roster[];
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  // Ensure the player's current roster is always selectable, even if it's
+  // no longer active — marked distinctly so it isn't mistaken for a real option.
+  const options = allRosters.some((r) => r.id === currentRosterId)
+    ? allRosters
+    : [{ id: currentRosterId, name: `${currentRosterName} (inativo)` }, ...allRosters];
+
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newRosterId = e.target.value;
+    if (!newRosterId || newRosterId === currentRosterId) return;
+
+    const confirmed = window.confirm(
+      "Mudar jogador para outro roster?\n\nAs equipas atualmente atribuídas ficam ligadas ao roster antigo e podem deixar de fazer sentido — revê as equipas depois de mudar."
+    );
+    if (!confirmed) {
+      e.target.value = currentRosterId;
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      const result = await movePlayerToRoster(playerId, currentRosterId, newRosterId);
+      if (!result.ok) {
+        setError(result.error?.message ?? "Erro ao mudar de roster");
+        e.target.value = currentRosterId;
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div>
+      <select
+        key={currentRosterId}
+        defaultValue={currentRosterId}
+        onChange={handleChange}
+        disabled={isPending}
+        aria-label={`Roster de ${currentRosterName}`}
+        className="px-2 py-1 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+      >
+        {options.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }

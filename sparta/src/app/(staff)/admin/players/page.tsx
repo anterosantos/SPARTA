@@ -178,7 +178,11 @@ export default async function PlayersPage({
       </div>
 
       {/* Tabela com checkboxes de equipa por jogador */}
-      <RosterPlayersTable rosterPlayers={rosterPlayers as any} allTeams={teams as any} />
+      <RosterPlayersTable
+        rosterPlayers={rosterPlayers as any}
+        allTeams={teams as any}
+        allRosters={activeRosters as any}
+      />
     </div>
   );
 }

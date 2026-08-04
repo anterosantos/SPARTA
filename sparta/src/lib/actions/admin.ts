@@ -184,6 +184,121 @@ export async function createPlayerForRoster(
 }
 
 /**
+ * Move a player from one specific roster to another. Only the roster_players
+ * row for `fromRosterId` is archived (H-9 soft-delete convention, mirrors
+ * removePlayerFromTeam) — a player can legitimately belong to more than one
+ * roster at once (schema allows it), so this must not touch any of their
+ * other active roster memberships. If a roster_players row already exists
+ * for `toRosterId` (player was there before and left), it's re-activated
+ * instead of inserted — the table has a UNIQUE(roster_id, player_id)
+ * constraint that doesn't distinguish archived rows, so a second insert for
+ * the same pair would violate it. If activating the target fails after the
+ * source was archived, the archive is rolled back so the player isn't left
+ * without an active roster (mirrors the compensating-delete pattern already
+ * used in createPlayerForRoster for its own multi-step insert).
+ */
+export async function movePlayerToRoster(
+  playerId: string,
+  fromRosterId: string,
+  toRosterId: string
+): Promise<AddPlayerToTeamResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED", message: "Staff access required" },
+    };
+  }
+  const { clubId, userId } = authResult.data;
+  const serviceRole = getAdminClient();
+
+  const { data: player } = await serviceRole
+    .from("players")
+    .select("id, club_id")
+    .eq("id", playerId)
+    .single();
+  if (!player || player.club_id !== clubId) {
+    return {
+      ok: false,
+      error: { code: "FORBIDDEN", message: "Player not found or not in your club" },
+    };
+  }
+
+  const { data: roster } = await serviceRole
+    .from("rosters")
+    .select("id, club_id")
+    .eq("id", toRosterId)
+    .single();
+  if (!roster || roster.club_id !== clubId) {
+    return {
+      ok: false,
+      error: { code: "ROSTER_NOT_FOUND", message: "Roster not found in your club" },
+    };
+  }
+
+  const { data: sourceRow } = await serviceRole
+    .from("roster_players")
+    .select("id")
+    .eq("player_id", playerId)
+    .eq("roster_id", fromRosterId)
+    .eq("is_archived", false)
+    .maybeSingle();
+  if (!sourceRow) {
+    return {
+      ok: false,
+      error: { code: "NOT_FOUND", message: "Player is not currently in the source roster" },
+    };
+  }
+
+  const { data: existingTarget } = await serviceRole
+    .from("roster_players")
+    .select("id, is_archived")
+    .eq("roster_id", toRosterId)
+    .eq("player_id", playerId)
+    .maybeSingle();
+  if (existingTarget && !existingTarget.is_archived) {
+    return {
+      ok: false,
+      error: { code: "ALREADY_IN_ROSTER", message: "Player already in this roster" },
+    };
+  }
+
+  const { error: archiveError } = await serviceRole
+    .from("roster_players")
+    .update({ is_archived: true })
+    .eq("id", sourceRow.id);
+  if (archiveError) {
+    return { ok: false, error: { code: "DATABASE_ERROR", message: archiveError.message } };
+  }
+
+  const { error: writeError } = existingTarget
+    ? await serviceRole
+        .from("roster_players")
+        .update({ is_archived: false, joined_at: new Date().toISOString() })
+        .eq("id", existingTarget.id)
+    : await serviceRole
+        .from("roster_players")
+        .insert({ roster_id: toRosterId, player_id: playerId });
+
+  if (writeError) {
+    // Compensate: restore the source membership so the player isn't left without a roster.
+    await serviceRole.from("roster_players").update({ is_archived: false }).eq("id", sourceRow.id);
+    return { ok: false, error: { code: "DATABASE_ERROR", message: writeError.message } };
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: clubId,
+    actor_id: userId,
+    action: "roster_players.moved",
+    target_kind: "roster_players",
+    target_id: playerId,
+    payload: { player_id: playerId, from_roster_id: fromRosterId, to_roster_id: toRosterId },
+  });
+
+  return { ok: true, data: { id: playerId } };
+}
+
+/**
  * Permanently delete a player and every record associated with them
  * (fatigue responses, match events, session metrics, attendances,
  * consents, roster/team/loan assignments, audit trail references, etc.).
