@@ -50,12 +50,12 @@ const players: PlayerWithPositions[] = [
 ];
 
 describe("sortPlayers", () => {
-  it("'nome' ordena por último nome (comportamento por omissão)", () => {
+  it("'nome' ordena por primeiro nome (comportamento por omissão)", () => {
     const sorted = sortPlayers(players, "nome");
     expect(sorted.map((p) => p.full_name)).toEqual([
-      "Tomás Alves",
       "Davi Araujo",
       "David Correia",
+      "Tomás Alves",
     ]);
   });
 

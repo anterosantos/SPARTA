@@ -12,16 +12,11 @@ const POSITION_ORDER: Record<string, number> = POSITIONS.reduce<Record<string, n
   {}
 );
 
-function lastNameOf(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  return parts[parts.length - 1] ?? fullName;
-}
-
 function primaryPositionOf(player: PlayerWithPositions): string | null {
   return player.positions.find((p) => p.is_primary)?.position ?? null;
 }
 
-/** Sorts a copy of `players` by the given criterion. "nome" matches the default (last-name) order already applied server-side. */
+/** Sorts a copy of `players` by the given criterion. "nome" sorts by first name (full_name starts with it). */
 export function sortPlayers(
   players: PlayerWithPositions[],
   sort: PlayerSort
@@ -36,10 +31,10 @@ export function sortPlayers(
       const orderA = posA !== null ? (POSITION_ORDER[posA] ?? POSITIONS.length) : POSITIONS.length;
       const orderB = posB !== null ? (POSITION_ORDER[posB] ?? POSITIONS.length) : POSITIONS.length;
       if (orderA !== orderB) return orderA - orderB;
-      return lastNameOf(a.full_name).localeCompare(lastNameOf(b.full_name), "pt");
+      return a.full_name.localeCompare(b.full_name, "pt");
     });
   } else {
-    sorted.sort((a, b) => lastNameOf(a.full_name).localeCompare(lastNameOf(b.full_name), "pt"));
+    sorted.sort((a, b) => a.full_name.localeCompare(b.full_name, "pt"));
   }
   return sorted;
 }
