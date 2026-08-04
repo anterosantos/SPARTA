@@ -6,9 +6,17 @@ import { SemaforoBadge } from "@/components/ui/semaforo-badge";
 import { PlayerPhoto } from "@/components/ui/player-photo";
 import { getPlayers } from "@/lib/actions/players";
 import { getUpcomingSession, getClubReadinessSnapshots } from "@/lib/actions/readiness";
-import { AGE_GROUPS } from "@/lib/schemas/players";
+import { AGE_GROUPS, POSITIONS } from "@/lib/schemas/players";
 import { PlantelEmptyState } from "./plantel-empty-state";
 import { PendingConsentsBanner } from "./pending-consents-banner";
+import { PlantelListControls } from "@/components/patterns/PlantelListControls";
+import {
+  PLAYER_SORT_OPTIONS,
+  sortPlayers,
+  filterPlayersByPosition,
+  type PlayerSort,
+} from "@/lib/utils/player-sort";
+import { buildPlantelSortFilterQuery } from "@/lib/utils/plantel-query";
 import type { ReadinessSnapshot } from "@/types/supabase";
 type ReadinessState = ReadinessSnapshot["state"];
 
@@ -27,10 +35,18 @@ const AGE_GROUP_LABELS: Record<string, string> = {
 export default async function PlantelPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; ordenar?: string; posicao?: string }>;
 }) {
-  const { view } = await searchParams;
+  const { view, ordenar, posicao } = await searchParams;
   const showInactive = view === "inativos";
+  const currentSort: PlayerSort = (PLAYER_SORT_OPTIONS as readonly string[]).includes(
+    ordenar ?? ""
+  )
+    ? (ordenar as PlayerSort)
+    : "nome";
+  const currentPosition = posicao && (POSITIONS as readonly string[]).includes(posicao)
+    ? posicao
+    : null;
 
   const [result, sessionResult] = await Promise.all([
     getPlayers(showInactive ? { showInactive: true } : undefined),
@@ -58,6 +74,20 @@ export default async function PlantelPage({
 
   const grouped = result.data;
   const hasPlayers = AGE_GROUPS.some((g) => (grouped[g]?.length ?? 0) > 0);
+
+  const allPlayers = AGE_GROUPS.flatMap((g) => grouped[g] ?? []);
+  const availablePositions = POSITIONS.filter((pos) =>
+    allPlayers.some((p) => p.positions.some((pp) => pp.is_primary && pp.position === pos))
+  );
+
+  // Preserve ordenar/posicao when toggling Ver activos/inativos, mirroring the
+  // param round-trip already used within PlantelListControls itself.
+  const sortFilterQuery = buildPlantelSortFilterQuery({
+    sort: currentSort,
+    position: currentPosition,
+  });
+  const activeViewHref = `/plantel${sortFilterQuery}`;
+  const inactiveViewHref = `/plantel${sortFilterQuery ? `${sortFilterQuery}&view=inativos` : "?view=inativos"}`;
 
   return (
     <div className="px-4 py-6 sm:px-6">
@@ -87,21 +117,32 @@ export default async function PlantelPage({
       <div className="mb-4">
         {showInactive ? (
           <Button asChild variant="ghost" size="sm">
-            <Link href="/plantel">← Ver activos</Link>
+            <Link href={activeViewHref}>← Ver activos</Link>
           </Button>
         ) : (
           <Button asChild variant="ghost" size="sm">
-            <Link href="/plantel?view=inativos">Ver inativos</Link>
+            <Link href={inactiveViewHref}>Ver inativos</Link>
           </Button>
         )}
       </div>
+
+      {hasPlayers && (
+        <PlantelListControls
+          currentSort={currentSort}
+          currentPosition={currentPosition}
+          availablePositions={availablePositions}
+        />
+      )}
 
       {!hasPlayers ? (
         <PlantelEmptyState />
       ) : (
         <div className="space-y-6">
           {AGE_GROUPS.map((group) => {
-            const players = grouped[group] ?? [];
+            const players = sortPlayers(
+              filterPlayersByPosition(grouped[group] ?? [], currentPosition),
+              currentSort
+            );
             if (players.length === 0) return null;
 
             return (

@@ -2,6 +2,11 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-plantel-sort-filter (2026-08-04)
+
+- **`role="tablist"`/`role="tab"` toggles have no keyboard arrow-key navigation** [`sparta/src/components/patterns/PlantelListControls.tsx`, and pre-existing in `sparta/src/components/ui/calendar-view-toggle.tsx`]: WAI-ARIA tablist pattern implies Left/Right arrow-key navigation between tabs; these components only support click/Tab-key focus. `PlantelListControls`'s sort control mirrors the exact same (pre-existing, unmodified) pattern already shipped in `CalendarViewToggle` — fixing one in isolation would be inconsistent. Address both together if full APG tablist compliance is ever prioritized.
+- **No pending/loading indicator during `router.push` on filter/sort/view-toggle clicks** [`PlantelListControls.tsx`, and the same pre-existing gap in `CalendarViewToggle`/`SessionTypeFilter`/`SeasonToggle`]: All URL-param-driven toggle controls in this codebase trigger a Server Component re-render with no `useTransition`/disabled-state feedback. Systemic, not specific to this change; revisit if slow-connection double-click reports come in.
+
 ## Deferred from: code review of spec-calendar-view-return-to (2026-08-04)
 
 - **`/sessoes/nova` and `/sessoes/[id]/editar` still land the user on hardcoded `/calendario` after submit/close** [`sparta/src/app/(staff)/sessoes/nova/page.tsx`, `sparta/src/app/(staff)/sessoes/[id]/editar/page.tsx`]: These two routes reuse the same `SessionForm`/`SessionEditForm` components fixed in this story, but the create form now defaults `returnTo` to `"/calendario"` (unchanged for them, since they don't pass the prop) and `SessionEditForm` doesn't accept `returnTo` at all. An analyst creating a session from `/sessoes`, or a coach editing one from `/sessoes/[id]`, gets redirected to `/calendario` instead of back to where they came from — a separate, pre-existing UX rough edge, not reported by the user and not touched by this fix. Extend `returnTo` support to `SessionEditForm` and wire both routes to pass their own origin path if this is ever prioritized.
