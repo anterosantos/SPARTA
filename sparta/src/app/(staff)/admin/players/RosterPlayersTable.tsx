@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addPlayerToTeam, removePlayerFromTeam, deletePlayer, deletePlayers, movePlayerToRoster } from "@/lib/actions/admin";
+import { withdrawConsentByStaff } from "@/lib/actions/data-rights";
 
 interface Team {
   id: string;
@@ -179,9 +180,12 @@ export function RosterPlayersTable({ rosterPlayers, allTeams, allRosters }: Prop
                     />
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 space-y-1">
                   {rp.player && (
-                    <DeletePlayerButton playerId={rp.player.id} playerName={rp.player.full_name} />
+                    <>
+                      <DeletePlayerButton playerId={rp.player.id} playerName={rp.player.full_name} />
+                      <WithdrawConsentButton playerId={rp.player.id} playerName={rp.player.full_name} />
+                    </>
                   )}
                 </td>
               </tr>
@@ -352,6 +356,107 @@ function DeletePlayerButton({ playerId, playerName }: { playerId: string; player
         Apagar
       </button>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Staff-mediated consent withdrawal for requests received outside the
+ * self-service channels (phone, email). Requires typing the player's full
+ * name to confirm — stricter than DeletePlayerButton's window.confirm(),
+ * by explicit product decision, since this is triggered on someone else's
+ * behalf rather than by the titular themselves.
+ */
+function WithdrawConsentButton({ playerId, playerName }: { playerId: string; playerName: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [expanded, setExpanded] = useState(false);
+  const [reason, setReason] = useState("");
+  const [nameConfirm, setNameConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const reasonOk = reason.trim().length >= 3;
+  const nameMatches = playerName.trim().length > 0 && nameConfirm.trim() === playerName.trim();
+  const canConfirm = nameMatches && reasonOk && !isPending;
+
+  function handleConfirm() {
+    if (!canConfirm) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await withdrawConsentByStaff(playerId, reason.trim());
+      if (!result.ok) {
+        setError(result.error?.message ?? "Erro ao retirar consentimento");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="text-orange-600 hover:text-orange-800 text-sm font-medium"
+      >
+        Retirar consentimento
+      </button>
+    );
+  }
+
+  return (
+    <div className="border border-orange-300 rounded-md p-3 bg-orange-50 space-y-2 max-w-xs">
+      <p className="text-xs text-orange-800">
+        Isto apaga permanentemente TODOS os dados de &quot;{playerName}&quot; (RGPD Art. 21) —
+        igual a &quot;Apagar&quot;, mas registado como retirada de consentimento. Irreversível.
+      </p>
+      <textarea
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Motivo (ex: pedido por telefone em 04/08, confirmado pelo encarregado)"
+        maxLength={500}
+        rows={2}
+        disabled={isPending}
+        className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 bg-white"
+      />
+      <input
+        type="text"
+        value={nameConfirm}
+        onChange={(e) => setNameConfirm(e.target.value)}
+        placeholder={`Escreve "${playerName}" para confirmar`}
+        disabled={isPending}
+        className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 bg-white"
+      />
+      {!canConfirm && !isPending && (reason.length > 0 || nameConfirm.length > 0) && (
+        <p className="text-xs text-orange-700">
+          {!reasonOk ? "Motivo precisa de pelo menos 3 caracteres. " : ""}
+          {!nameMatches ? "O nome tem de corresponder exatamente." : ""}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={!canConfirm}
+          className="px-3 py-1 bg-orange-600 text-white rounded text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Confirmar retirada
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setExpanded(false);
+            setReason("");
+            setNameConfirm("");
+            setError(null);
+          }}
+          disabled={isPending}
+          className="px-3 py-1 text-gray-600 text-sm hover:text-gray-800"
+        >
+          Cancelar
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

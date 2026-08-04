@@ -25,6 +25,7 @@ import {
   checkProcessingRestricted,
   withdrawConsent,
   withdrawConsentByToken,
+  withdrawConsentByStaff,
   __clearTokenValidationCache,
 } from '@/lib/actions/data-rights'
 
@@ -989,6 +990,174 @@ describe('withdrawConsentByToken', () => {
       expect(result.error.code).toBe('unauthorized')
     }
     expect(mockFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('withdrawConsentByStaff', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://localhost:54321')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  function setupAdminServiceRole(overrides?: {
+    mockAuditInsert?: ReturnType<typeof vi.fn>
+    mockParentalUpdate?: ReturnType<typeof vi.fn>
+    mockProfileUpdate?: ReturnType<typeof vi.fn>
+    playerData?: unknown
+  }) {
+    const mockAuditInsert = overrides?.mockAuditInsert ?? vi.fn().mockResolvedValue({ error: null })
+    const mockParentalUpdate = overrides?.mockParentalUpdate ?? vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ error: null }),
+    })
+    const mockProfileUpdate = overrides?.mockProfileUpdate ?? vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { role: 'admin', club_id: CLUB_ID_3_10 },
+              error: null,
+            }),
+            update: mockProfileUpdate,
+          }
+        }
+        if (table === 'players') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: overrides?.playerData ?? { id: PLAYER_ID, club_id: CLUB_ID_3_10, profile_id: USER_ID },
+              error: null,
+            }),
+          }
+        }
+        if (table === 'parental_consents') {
+          return { update: mockParentalUpdate }
+        }
+        if (table === 'audit_logs') {
+          return { insert: mockAuditInsert }
+        }
+        return {}
+      }),
+    })
+
+    return { mockAuditInsert, mockParentalUpdate, mockProfileUpdate }
+  }
+
+  it('admin sucesso: retorna withdrawn:true, audit log com reason inserido, cascade chamado', async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+    })
+    const { mockAuditInsert, mockParentalUpdate, mockProfileUpdate } = setupAdminServiceRole()
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, erased: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ))
+
+    const result = await withdrawConsentByStaff(PLAYER_ID, 'Pedido por telefone em 04/08, confirmado pelo encarregado')
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.withdrawn).toBe(true)
+    }
+    expect(mockParentalUpdate).toHaveBeenCalled()
+    expect(mockProfileUpdate).toHaveBeenCalled()
+    expect(mockAuditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'subject.withdrew',
+        actor_id: USER_ID,
+        target_kind: 'player',
+        target_id: PLAYER_ID,
+        payload: expect.objectContaining({
+          via: 'staff',
+          reason: 'Pedido por telefone em 04/08, confirmado pelo encarregado',
+        }),
+      })
+    )
+  })
+
+  it('não autenticado: retorna err unauthorized', async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    })
+
+    const result = await withdrawConsentByStaff(PLAYER_ID, 'motivo válido')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('unauthorized')
+    }
+  })
+
+  it('não-admin (coach): retorna err forbidden', async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+    })
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { role: 'coach', club_id: CLUB_ID_3_10 },
+              error: null,
+            }),
+          }
+        }
+        return {}
+      }),
+    })
+
+    const result = await withdrawConsentByStaff(PLAYER_ID, 'motivo válido')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('forbidden')
+    }
+  })
+
+  it('motivo demasiado curto: retorna err validation', async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+    })
+    setupAdminServiceRole()
+
+    const result = await withdrawConsentByStaff(PLAYER_ID, 'ab')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('validation')
+    }
+  })
+
+  it('jogador de outro clube: retorna err not_found', async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+    })
+    setupAdminServiceRole({ playerData: { id: PLAYER_ID, club_id: 'other-club', profile_id: null } })
+
+    const result = await withdrawConsentByStaff(PLAYER_ID, 'motivo válido')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('not_found')
+    }
   })
 })
 

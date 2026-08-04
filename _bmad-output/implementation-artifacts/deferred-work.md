@@ -2,6 +2,12 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-staff-mediated-consent-withdrawal (2026-08-05)
+
+- **No idempotency/concurrency guard across all three `subject.withdrew` paths** [`withdrawConsent`, `withdrawConsentByToken`, `withdrawConsentByStaff` in `sparta/src/lib/actions/data-rights.ts`]: None of the three withdrawal entry points check whether a player was already erased before proceeding, nor guard against two concurrent calls for the same player racing the erasure cascade. Systemic across all three (not introduced by the new staff-mediated path) — worth a dedicated hardening pass (e.g. a `WHERE status != 'erased'` guard or advisory lock) if double-submission is ever observed in practice.
+- **`withdrawConsentByStaff` role-check duplicates `approveRectification`'s inline pattern instead of the shared `requireAdminRole()` helper used in `admin.ts`** [`sparta/src/lib/actions/data-rights.ts`]: Deliberate — matches this file's own established convention (profile lookup via service-role, not the `auth.ts` helper), consistent with `approveRectification`. Pre-existing fork between `data-rights.ts` and `admin.ts`'s auth patterns, not introduced here. Consolidate if the two ever need to diverge behavior (e.g. a future `admin_readonly` role) and the drift starts causing bugs.
+- **`profiles`/`parental_consents` update results aren't checked for error before proceeding to the audit log + erasure cascade** [`withdrawConsentByStaff`, mirrors identical pre-existing gap in `withdrawConsentByToken`]: If either update silently fails (RLS glitch, network blip against service-role), the function still writes the audit log and triggers erasure. Matches the exact established pattern in the sibling token-flow function — fix both together if this is ever prioritized, not just the new path.
+
 ## Deferred from: code review of spec-admin-players-move-roster (2026-08-04)
 
 - **No automated tests for `sparta/src/lib/actions/admin.ts`** [whole file]: Pre-existing — none of this file's ~30 exported functions have unit test coverage (only an integration test requiring a live Supabase instance, and an unrelated validators test). `movePlayerToRoster` follows this same gap rather than introducing a new one. Worth a dedicated pass to build mockable test scaffolding for this file if it becomes a change hotspot.

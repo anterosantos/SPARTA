@@ -376,6 +376,93 @@ export async function withdrawConsentByToken(token: string): Promise<Result<With
   return ok({ withdrawn: true })
 }
 
+/**
+ * Staff-mediated consent withdrawal — for requests received outside the
+ * self-service channels (phone, email) that can't go through withdrawConsent
+ * (requires the titular's own session) or withdrawConsentByToken (requires
+ * their token). Admin-only given the irreversible erasure cascade this
+ * triggers — role check mirrors approveRectification's pattern (profile
+ * lookup via service-role, the source of truth for role in this file).
+ * `reason` is required and stored in the audit log so there's a human-readable
+ * record of how the request was received, since — unlike the token flow —
+ * there's no token/session proving the titular actually asked for this. It's
+ * free text the admin fills in, not independently verified by this function.
+ */
+export async function withdrawConsentByStaff(
+  playerId: string,
+  reason: string
+): Promise<Result<WithdrawalResult, AppError>> {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return err({ code: 'unauthorized', message: 'Não autenticado' })
+  }
+
+  const serviceRole = getServiceRoleClient()
+  const { data: profile } = await serviceRole
+    .from('profiles')
+    .select('role, club_id')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (!profile || profile.role !== 'admin') {
+    return err({ code: 'forbidden', message: 'Apenas administradores podem retirar consentimento em nome de outrem' })
+  }
+
+  const trimmedReason = reason.trim()
+  if (trimmedReason.length < 3 || trimmedReason.length > 500) {
+    return err({ code: 'validation', message: 'Motivo deve ter entre 3 e 500 caracteres' })
+  }
+
+  const { data: player } = await serviceRole
+    .from('players')
+    .select('id, club_id, profile_id')
+    .eq('id', playerId)
+    .maybeSingle()
+
+  if (!player?.id || !profile.club_id || player.club_id !== profile.club_id) {
+    return err({ code: 'not_found', message: 'Jogador não encontrado' })
+  }
+
+  // Só atualiza parental_consents e profiles se o jogador tem account
+  if (player.profile_id) {
+    await serviceRole
+      .from('parental_consents')
+      .update({ status: 'withdrawn' })
+      .eq('player_id', playerId)
+      .in('status', ['pending', 'confirmed'])
+
+    await serviceRole
+      .from('profiles')
+      .update({ consent_status: 'revoked' })
+      .eq('id', player.profile_id as string)
+  }
+
+  // Audit log BEFORE cascade — compliance crítico, igual a withdrawConsent/withdrawConsentByToken
+  const { error: auditError } = await serviceRole.from('audit_logs').insert({
+    club_id: profile.club_id as string,
+    actor_id: user.id,
+    action: 'subject.withdrew',
+    target_kind: 'player',
+    target_id: playerId,
+    payload: { withdrawn_at: new Date().toISOString(), via: 'staff', reason: trimmedReason },
+  })
+
+  if (auditError) {
+    console.error('[data-rights] withdrawConsentByStaff audit insert error:', auditError.message)
+    return err({ code: 'internal', message: 'Falha no registo de auditoria' })
+  }
+
+  const cascadeResult = await callEraseCascade(playerId, user.id)
+
+  if (!cascadeResult.ok) {
+    return err(cascadeResult.error)
+  }
+
+  return ok({ withdrawn: true })
+}
+
 // =============================================================================
 // Story 3.8: Direito de Retificação — Server Action para busca de pendentes
 // =============================================================================
