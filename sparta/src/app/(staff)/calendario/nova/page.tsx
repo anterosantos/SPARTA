@@ -10,7 +10,7 @@ export const metadata = { title: "Nova sessão" };
 export default async function NovaSessionPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ cumulativo?: string; vista?: string; mes?: string }>;
+  searchParams?: Promise<{ vista?: string; mes?: string }>;
 }) {
   const supabase = await createServerClient();
   const {
@@ -35,8 +35,8 @@ export default async function NovaSessionPage({
 
   const hasSeason = seasonResult.ok && seasonResult.data !== null;
 
-  // Preserve the calendar view (vista/cumulativo/mes) the coach came from,
-  // so submitting/closing this form returns to the same view.
+  // Preserve the calendar view (vista/mes) the coach came from, so
+  // submitting/closing this form returns to the same view.
   const params = await searchParams;
   const returnTo = `/calendario${buildCalendarViewQuery(params ?? {})}`;
 

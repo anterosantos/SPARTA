@@ -5,7 +5,6 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
-import { SeasonToggle } from "@/components/patterns/SeasonToggle";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { CalendarViewToggle } from "@/components/ui/calendar-view-toggle";
@@ -31,10 +30,9 @@ export const metadata = { title: "Calendário" };
 export default async function CalendarioPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ cumulativo?: string; vista?: string; mes?: string }>;
+  searchParams?: Promise<{ vista?: string; mes?: string }>;
 }) {
   const params = await searchParams;
-  const isCumulative = params?.cumulativo === "true";
   const vista = params?.vista === "mes" ? "mes" : "semana";
 
   // Parse target month from ?mes=YYYY-MM; default to current month
@@ -64,29 +62,14 @@ export default async function CalendarioPage({
     redirect("/");
   }
 
-  let sessions: Session[];
+  const seasonResult = await getCurrentSeason();
+  const seasonId = seasonResult.ok ? (seasonResult.data?.id ?? undefined) : undefined;
 
-  if (isCumulative) {
-    const result = await getSessionsForClub();
-    if (!result.ok) {
-      throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
-    }
-    sessions = result.data
-      .slice()
-      .sort(
-        (a, b) =>
-          new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
-      );
-  } else {
-    const seasonResult = await getCurrentSeason();
-    const seasonId = seasonResult.ok ? (seasonResult.data?.id ?? undefined) : undefined;
-
-    const result = await getSessionsForClub(seasonId ? { season_id: seasonId } : undefined);
-    if (!result.ok) {
-      throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
-    }
-    sessions = result.data;
+  const result = await getSessionsForClub(seasonId ? { season_id: seasonId } : undefined);
+  if (!result.ok) {
+    throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
   }
+  const sessions: Session[] = result.data;
 
   const isCoach = profile.role === "coach";
 
@@ -113,12 +96,17 @@ export default async function CalendarioPage({
   const monthLabel = format(targetMonth, "MMMM yyyy", { locale: pt });
 
   // Navigation hrefs for prev/next month
-  const baseQuery = isCumulative ? "&cumulativo=true" : "";
-  const prevMonthHref = `?vista=mes${baseQuery}&mes=${format(subMonths(targetMonth, 1), "yyyy-MM")}`;
-  const nextMonthHref = `?vista=mes${baseQuery}&mes=${format(addMonths(targetMonth, 1), "yyyy-MM")}`;
+  const prevMonthHref = buildCalendarViewQuery({
+    vista: "mes",
+    mes: format(subMonths(targetMonth, 1), "yyyy-MM"),
+  });
+  const nextMonthHref = buildCalendarViewQuery({
+    vista: "mes",
+    mes: format(addMonths(targetMonth, 1), "yyyy-MM"),
+  });
 
-  // Carry the current view (vista/cumulativo/mes) into "Nova sessão" so the
-  // form can send the user back to the same view instead of always /calendario.
+  // Carry the current view (vista/mes) into "Nova sessão" so the form can
+  // send the user back to the same view instead of always /calendario.
   const novaSessionHref = `/calendario/nova${buildCalendarViewQuery(params ?? {})}`;
 
   return (
@@ -126,7 +114,6 @@ export default async function CalendarioPage({
       <StickyHeader title="Calendário" />
       <div className="px-4 py-6 sm:px-6 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <SeasonToggle isCumulative={isCumulative} />
           <CalendarViewToggle />
           {isCoach && (
             <Button asChild variant="primary">

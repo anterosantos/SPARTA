@@ -49,7 +49,7 @@ interface SessionFormCreateProps {
   mode: "create";
   hasSeason: boolean;
   staffTeams?: StaffTeam[];
-  /** Where to navigate after closing/submitting — preserves the calendar view (vista/mes/cumulativo) the user came from. */
+  /** Where to navigate after closing/submitting — preserves the calendar view (vista/mes) the user came from. */
   returnTo?: string;
 }
 
@@ -374,7 +374,7 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
   function handleClose() {
     setOpen(false);
     // Unlike SessionCreateForm, editing is only reached via /sessoes/[id]/editar
-    // (never from a /calendario page with vista/mes/cumulativo state to restore),
+    // (never from a /calendario page with vista/mes state to restore),
     // so a fixed destination is correct here.
     router.push("/calendario");
   }
