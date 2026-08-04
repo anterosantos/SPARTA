@@ -8,6 +8,92 @@ import { newId } from "@/lib/uuid";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
 
+/**
+ * Shared HTML/text template for parental consent request emails — used by
+ * both the initial send (initiateParentalConsent) and the manual staff
+ * resend (resendConsentEmail), so both look identical to the parent. The
+ * day-7/day-14 automated reminders live in a separate Deno Edge Function
+ * (supabase/functions/send-parental-consent) that can't import from here
+ * (different runtime) — kept in sync manually; if this template changes,
+ * update that one too.
+ */
+function parentalConsentEmailHtml({
+  playerName,
+  confirmUrl,
+  expiresAt,
+  reminder,
+}: {
+  playerName: string;
+  confirmUrl: string;
+  expiresAt: string;
+  reminder?: boolean;
+}): { html: string; text: string } {
+  const reminderBlock = reminder
+    ? `<p style="font-size:13px;line-height:1.6;color:#525252;margin-bottom:16px;font-style:italic;">Este é um lembrete — se já confirmou, pode ignorar este email.</p>`
+    : "";
+  const reminderText = reminder ? "\nEste é um lembrete — se já confirmou, pode ignorar este email.\n" : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-PT">
+<head><meta charset="UTF-8"><title>Consentimento parental</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#171717;">
+
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:16px;">Pedido de consentimento parental</h1>
+  ${reminderBlock}
+  <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
+    Foi criada uma conta para <strong>${playerName}</strong> na plataforma <strong>SPARTA</strong>,
+    usada pelo clube para gerir treinos, jogos e o bem-estar dos atletas.
+  </p>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
+    Como encarregado(a) de educação, precisamos da sua autorização para que ${playerName} possa
+    aceder à plataforma e:
+  </p>
+  <ul style="font-size:14px;line-height:1.8;margin-bottom:16px;padding-left:20px;">
+    <li>Consultar o calendário de treinos e jogos da equipa</li>
+    <li>Responder aos questionários de bem-estar antes e depois das sessões</li>
+    <li>Acompanhar o histórico e a recuperação</li>
+  </ul>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:24px;">
+    O link é válido até <strong>${expiresAt}</strong>.
+  </p>
+
+  <a href="${confirmUrl}"
+     style="display:inline-block;background:#171717;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">
+    Confirmar consentimento
+  </a>
+
+  <p style="font-size:12px;color:#737373;margin-top:24px;">
+    Se não reconhece este pedido, pode ignorar este email — os dados só serão recolhidos após confirmação.
+  </p>
+
+  <p style="font-size:11px;color:#A3A3A3;margin-top:16px;">
+    Se o botão não funcionar, copie e cole este link no navegador:<br>
+    <a href="${confirmUrl}" style="color:#A3A3A3;">${confirmUrl}</a>
+  </p>
+
+  <hr style="border:none;border-top:1px solid #E5E5E5;margin:24px 0;">
+  <p style="font-size:11px;color:#A3A3A3;">SPARTA &middot; Gestão desportiva</p>
+
+</body>
+</html>`;
+
+  const text = `Pedido de consentimento parental — SPARTA
+${reminderText}
+Foi criada uma conta para ${playerName} na plataforma SPARTA.
+
+Como encarregado(a) de educação, a sua autorização é necessária para que ${playerName} possa
+aceder à plataforma, consultar o calendário de treinos/jogos e responder aos questionários de
+bem-estar antes e depois das sessões.
+
+Para autorizar o acesso, clique no link abaixo (válido até ${expiresAt}):
+
+${confirmUrl}
+
+Se não reconhece este pedido, ignore este email.`;
+
+  return { html, text };
+}
+
 const ConsentInitiateSchema = z.object({
   playerId: z.string().uuid(),
   parentEmail: z.string().email(),
@@ -26,7 +112,7 @@ export async function initiateParentalConsent(
 
   const { data: player } = await serviceRole
     .from("players")
-    .select("id, profile_id, age_group, club_id")
+    .select("id, profile_id, age_group, club_id, full_name")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -114,6 +200,11 @@ export async function initiateParentalConsent(
       const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sparta-webapp.vercel.app";
       const confirmUrl = `${siteUrl}/consentimento/${token}`;
       const expiresAt = new Date(tokenExpiresAt).toLocaleDateString("pt-PT");
+      const { html, text } = parentalConsentEmailHtml({
+        playerName: player.full_name ?? "o seu educando",
+        confirmUrl,
+        expiresAt,
+      });
 
       const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
@@ -125,12 +216,8 @@ export async function initiateParentalConsent(
           sender: { name: "SPARTA", email: brevoSenderEmail },
           to: [{ email: parentEmail }],
           subject: "Consentimento parental — SPARTA",
-          htmlContent: `<p>Olá,</p>
-<p>Para que o seu educando possa aceder à plataforma SPARTA, precisamos da sua autorização como encarregado de educação.</p>
-<p>O link é válido até ${expiresAt}.</p>
-<p><a href="${confirmUrl}" style="display:inline-block;background:#171717;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;">Confirmar consentimento</a></p>
-<p>Se não reconhece este pedido, ignore este email.</p>`,
-          textContent: `Consentimento parental — SPARTA\n\nPara autorizar o acesso do seu educando, clique no link abaixo (válido até ${expiresAt}):\n\n${confirmUrl}\n\nSe não reconhece este pedido, ignore este email.`,
+          htmlContent: html,
+          textContent: text,
         }),
       });
 
@@ -244,9 +331,12 @@ export async function resendConsentEmail(
   const confirmUrl = `${siteUrl}/consentimento/${consentRecord.token}`;
   const expiresAt = new Date(consentRecord.token_expires_at as string).toLocaleDateString("pt-PT");
 
-  const emailHtml = `<p>Caro encarregado de educação,</p>
-<p>Este é um lembrete para confirmar o consentimento parental de <strong>${playerName}</strong>.</p>
-<p><a href="${confirmUrl}">Confirmar consentimento</a> (válido até ${expiresAt})</p>`;
+  const { html, text } = parentalConsentEmailHtml({
+    playerName,
+    confirmUrl,
+    expiresAt,
+    reminder: true,
+  });
 
   const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -258,7 +348,8 @@ export async function resendConsentEmail(
       sender: { name: "SPARTA", email: brevoSenderEmail },
       to: [{ email: consentRecord.parent_email }],
       subject: "[Lembrete] Consentimento parental — SPARTA",
-      htmlContent: emailHtml,
+      htmlContent: html,
+      textContent: text,
     }),
   });
 

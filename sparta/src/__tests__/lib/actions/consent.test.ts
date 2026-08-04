@@ -60,7 +60,7 @@ function buildServiceRole(overrides: {
   profileUpdate?: unknown;
   auditInsert?: unknown;
 } = {}) {
-  const playerChain = makeQueryChain(overrides.player ?? { data: { id: PLAYER_UUID, profile_id: PROFILE_UUID, age_group: "u14", club_id: CLUB_UUID } });
+  const playerChain = makeQueryChain(overrides.player ?? { data: { id: PLAYER_UUID, profile_id: PROFILE_UUID, age_group: "u14", club_id: CLUB_UUID, full_name: "Rodrigo Silva" } });
   const existingChain = makeQueryChain(overrides.existing ?? { data: null });
   const policyChain = makeQueryChain(overrides.policy ?? { data: { id: POLICY_UUID } });
   const consentChain = makeQueryChain(overrides.consentInsert ?? { data: { id: CONSENT_UUID }, error: null });
@@ -219,6 +219,35 @@ describe("initiateParentalConsent", () => {
     expect((options as RequestInit)?.method).toBe("POST");
     expect((options as RequestInit)?.body).toContain("mae@mail.com");
   });
+
+  it("email usa o template completo: nome do jogador, bullets e rodapé SPARTA", async () => {
+    const originalBrevoKey = process.env.BREVO_API_KEY;
+    const originalBrevoSender = process.env.BREVO_SENDER_EMAIL;
+    process.env.BREVO_API_KEY = "test-brevo-key";
+    process.env.BREVO_SENDER_EMAIL = "sparta@test.com";
+
+    const serviceRole = buildServiceRole();
+    mockGetServiceRoleClient.mockReturnValue(serviceRole);
+    mockBrevoFetch.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    await initiateParentalConsent({
+      playerId: PLAYER_UUID,
+      parentEmail: "mae@mail.com",
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    process.env.BREVO_API_KEY = originalBrevoKey;
+    process.env.BREVO_SENDER_EMAIL = originalBrevoSender;
+
+    const [, options] = mockBrevoFetch.mock.calls[0] ?? [];
+    const body = JSON.parse((options as RequestInit).body as string);
+    expect(body.htmlContent).toContain("Rodrigo Silva");
+    expect(body.htmlContent).toContain("<li>Consultar o calendário de treinos e jogos da equipa</li>");
+    expect(body.htmlContent).toContain("SPARTA &middot; Gestão desportiva");
+    expect(body.textContent).toContain("Rodrigo Silva");
+  });
 });
 
 // ─── resendConsentEmail ──────────────────────────────────────────────────────
@@ -310,6 +339,13 @@ describe("resendConsentEmail", () => {
       expect(result.data.message).toBe("Email de consentimento reenviado.");
     }
     expect(mockBrevoFetch).toHaveBeenCalled();
+
+    const [, options] = mockBrevoFetch.mock.calls[0] ?? [];
+    const body = JSON.parse((options as RequestInit).body as string);
+    expect(body.htmlContent).toContain("João Silva");
+    expect(body.htmlContent).toContain("Este é um lembrete");
+    expect(body.htmlContent).toContain("SPARTA &middot; Gestão desportiva");
+    expect(body.textContent).toContain("João Silva");
   });
 
   it("retorna err({ code: 'internal' }) se Brevo falha", async () => {
