@@ -20,31 +20,54 @@ function parentalConsentEmailHtml({
 <html lang="pt-PT">
 <head><meta charset="UTF-8"><title>Consentimento parental</title></head>
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#171717;">
+
   <h1 style="font-size:20px;font-weight:600;margin-bottom:16px;">Pedido de consentimento parental</h1>
   ${reminderBlock}
   <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
-    Foi criada uma conta para <strong>${playerName}</strong> na plataforma SPARTA,
-    utilizada pelo clube para gerir sess&#245;es desportivas e bem-estar dos atletas.
+    Foi criada uma conta para <strong>${playerName}</strong> na plataforma <strong>SPARTA</strong>,
+    usada pelo clube para gerir treinos, jogos e o bem-estar dos atletas.
   </p>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
+    Como encarregado(a) de educação, precisamos da sua autorização para que ${playerName} possa
+    aceder à plataforma e:
+  </p>
+  <ul style="font-size:14px;line-height:1.8;margin-bottom:16px;padding-left:20px;">
+    <li>Consultar o calendário de treinos e jogos da equipa</li>
+    <li>Responder aos questionários de bem-estar antes e depois das sessões</li>
+    <li>Acompanhar o histórico e a recuperação</li>
+  </ul>
   <p style="font-size:14px;line-height:1.6;margin-bottom:24px;">
-    Para que ${playerName} possa aceder, precisamos da sua autoriza&#231;&#227;o como encarregado de educa&#231;&#227;o.
-    O link &#233; v&#225;lido at&#233; ${expiresAt}.
+    O link é válido até <strong>${expiresAt}</strong>.
   </p>
+
   <a href="${confirmUrl}"
      style="display:inline-block;background:#171717;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">
     Confirmar consentimento
   </a>
+
   <p style="font-size:12px;color:#737373;margin-top:24px;">
-    Se n&#227;o reconhece este pedido, pode ignorar este email. Os dados s&#243; ser&#227;o recolhidos ap&#243;s confirma&#231;&#227;o.
+    Se não reconhece este pedido, pode ignorar este email — os dados só serão recolhidos após confirmação.
   </p>
+
+  <p style="font-size:11px;color:#A3A3A3;margin-top:16px;">
+    Se o botão não funcionar, copie e cole este link no navegador:<br>
+    <a href="${confirmUrl}" style="color:#A3A3A3;">${confirmUrl}</a>
+  </p>
+
   <hr style="border:none;border-top:1px solid #E5E5E5;margin:24px 0;">
-  <p style="font-size:11px;color:#A3A3A3;">SPARTA &middot; Gest&#227;o desportiva &middot; <a href="${confirmUrl}" style="color:#A3A3A3;">${confirmUrl}</a></p>
+  <p style="font-size:11px;color:#A3A3A3;">SPARTA &middot; Gestão desportiva</p>
+
 </body>
 </html>`;
 
   const text = `Pedido de consentimento parental — SPARTA
 ${reminderText}
 Foi criada uma conta para ${playerName} na plataforma SPARTA.
+
+Como encarregado(a) de educação, a sua autorização é necessária para que ${playerName} possa
+aceder à plataforma, consultar o calendário de treinos/jogos e responder aos questionários de
+bem-estar antes e depois das sessões.
+
 Para autorizar o acesso, clique no link abaixo (válido até ${expiresAt}):
 
 ${confirmUrl}
@@ -222,4 +245,4 @@ const handler = async (req: Request): Promise<Response> => {
   );
 };
 
-export default handler;
+Deno.serve(handler);

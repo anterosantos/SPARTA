@@ -283,8 +283,8 @@ const result = await getReadinessPanelData(sessionId);
 
 **Porquê:** Descoberto em 2026-06-04 após horas de debug. Um handler no-op com `export default` pendura 150 s; o mesmo handler com `Deno.serve()` responde em < 1 s.
 
-**Funções já corrigidas:** `send-push`, `schedule-session-pushes`.
-**Funções ainda por corrigir:** `consent-validate`, `erase-cascade`, `export-csv`, `send-parental-consent`, `staff-alert-consent`, `validate-subject-token`, `anonymize-player-photos`, `generate-pdf-report`, `send-rectification-sla`, `send-age-18-reconfirmation`, `auth-hook` — todas usam `export default` e **não funcionam**.
+**Funções já corrigidas:** `send-push`, `schedule-session-pushes`, `send-parental-consent`.
+**Funções ainda por corrigir:** `consent-validate`, `erase-cascade`, `export-csv`, `staff-alert-consent`, `validate-subject-token`, `anonymize-player-photos`, `generate-pdf-report`, `send-rectification-sla`, `send-age-18-reconfirmation`, `auth-hook` — todas usam `export default` e **não funcionam**.
 
 ```typescript
 // ✅ Correcto
