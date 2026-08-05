@@ -69,8 +69,8 @@ Nunca vendemos os teus dados a terceiros.
 
 ### Quem vê os teus dados?
 
-O treinador e o analista do teu clube têm acesso aos teus dados.
-Ninguém fora do teu clube pode ver as tuas informações.
+O treinador e o analista da tua equipa técnica têm acesso aos teus dados.
+Ninguém fora da tua equipa técnica pode ver as tuas informações.
 Os dados são armazenados em servidores seguros na União Europeia.
 
 ### Os teus direitos
@@ -92,7 +92,7 @@ Fazemos cópias de segurança semanais dos dados.
 
 ### Contacto
 
-Para questões sobre privacidade, fala com o teu clube.
+Para questões sobre privacidade, fala com a tua equipa técnica.
   $body_full$,
   $body_u14$
 ## A tua privacidade
@@ -110,8 +110,8 @@ Seguimos o RGPD, a lei europeia que protege os teus dados.
 
 ### Quem vê os dados?
 
-Só o treinador e o analista do teu clube.
-Mais ninguém fora do clube pode ver as tuas informações.
+Só o treinador e o analista da tua equipa técnica.
+Mais ninguém fora da equipa técnica pode ver as tuas informações.
 
 ### Os teus direitos
 

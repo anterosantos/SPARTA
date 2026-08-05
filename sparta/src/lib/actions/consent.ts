@@ -42,7 +42,7 @@ function parentalConsentEmailHtml({
   ${reminderBlock}
   <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
     Foi criada uma conta para <strong>${playerName}</strong> na plataforma <strong>SPARTA</strong>,
-    usada pelo clube para gerir treinos, jogos e o bem-estar dos atletas.
+    usada pela equipa técnica para gerir treinos, jogos e o bem-estar dos atletas.
   </p>
   <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
     Como encarregado(a) de educação, precisamos da sua autorização para que ${playerName} possa
