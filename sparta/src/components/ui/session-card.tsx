@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Dumbbell, Trophy, Handshake, Presentation, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sessionLabelWithOpponent } from "@/lib/constants/session-colors";
 import type { Session, SessionType } from "@/lib/schemas/sessions";
 
 const TYPE_CONFIG: Record<
@@ -32,6 +33,7 @@ export function SessionCard({
 }: SessionCardProps) {
   const config = TYPE_CONFIG[session.type] ?? TYPE_CONFIG.training;
   const Icon = config.Icon;
+  const label = sessionLabelWithOpponent(config.label, session);
   const isCancelled = session.status === "cancelled";
   const isAnswered = userRole === "player" && answered === true;
 
@@ -59,7 +61,7 @@ export function SessionCard({
           ? "opacity-75 bg-muted/50"
           : "hover:bg-muted active:bg-muted"
       )}
-      aria-label={`${config.label} - ${formattedDate}${isCancelled ? " (cancelada)" : ""}${isAnswered ? " (respondido)" : ""}`}
+      aria-label={`${label} - ${formattedDate}${isCancelled ? " (cancelada)" : ""}${isAnswered ? " (respondido)" : ""}`}
     >
       <Icon
         className={`h-5 w-5 shrink-0 ${isCancelled ? "text-muted-foreground" : "text-foreground"}`}
@@ -68,7 +70,7 @@ export function SessionCard({
         <span
           className={`text-sm font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-foreground"}`}
         >
-          {formattedDate} — {config.label}
+          {formattedDate} — {label}
         </span>
         {session.location && (
           <span className="truncate text-xs text-muted-foreground">

@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
 import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
-import { SESSION_TYPE_COLORS } from "@/lib/constants/session-colors";
+import { SESSION_TYPE_COLORS, sessionLabelWithOpponent } from "@/lib/constants/session-colors";
 import { AbsenceForm } from "./absence-form";
 
 export const metadata = { title: "Detalhe da sessão" };
@@ -66,7 +66,7 @@ export default async function PlayerSessionDetailPage({
           className="rounded-xl p-5 text-white space-y-3"
           style={{ backgroundColor: config.bg }}
         >
-          <p className="text-lg font-bold">{config.label}</p>
+          <p className="text-lg font-bold">{sessionLabelWithOpponent(config.label, session)}</p>
           <div className="space-y-1 text-sm opacity-90">
             <p className="capitalize">{formattedDate}</p>
             <p>{formattedTime} · {session.duration_min ?? 90} min</p>

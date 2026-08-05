@@ -2,7 +2,7 @@ import Link from "next/link"
 import { format, isToday } from "date-fns"
 import { pt } from "date-fns/locale"
 import type { Session } from "@/lib/schemas/sessions"
-import { SESSION_TYPE_COLORS } from "@/lib/constants/session-colors"
+import { SESSION_TYPE_COLORS, sessionLabelWithOpponent } from "@/lib/constants/session-colors"
 import { Eyebrow } from "@/components/ui/eyebrow"
 
 interface NextSevenDaysListProps {
@@ -35,7 +35,7 @@ export function NextSevenDaysList({ sessions, sessionBasePath = "/sessoes" }: Ne
                 style={{ borderLeftColor: config.bg }}
               >
                 <div className="space-y-0.5 min-w-0">
-                  <p className="text-xs font-semibold text-ink-1 capitalize">{config.label}</p>
+                  <p className="text-xs font-semibold text-ink-1 capitalize">{sessionLabelWithOpponent(config.label, session)}</p>
                   <p className="text-xs text-ink-2">
                     {dateLabel} · {time}
                     {session.location ? ` · ${session.location}` : ""}

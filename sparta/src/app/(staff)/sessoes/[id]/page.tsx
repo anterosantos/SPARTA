@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { SessionDetailActions } from "./session-detail-actions";
+import { sessionLabelWithOpponent } from "@/lib/constants/session-colors";
 import type { SessionType, SessionStatus } from "@/lib/schemas/sessions";
 
 export const metadata = { title: "Detalhes da sessão" };
@@ -57,6 +58,7 @@ export default async function SessionDetailPage({
   const session = result.data;
   const config = TYPE_CONFIG[session.type as SessionType] ?? TYPE_CONFIG.training;
   const Icon = config.Icon;
+  const label = sessionLabelWithOpponent(config.label, session);
   const statusLabel = STATUS_LABELS[session.status as SessionStatus] ?? session.status;
   const isScheduled = session.status === "scheduled";
   const isCoach = profile.role === "coach";
@@ -67,7 +69,7 @@ export default async function SessionDetailPage({
       <div className="px-4 py-6 sm:px-6 space-y-4">
         <div className="flex items-center gap-3">
           <Icon className="h-6 w-6 text-foreground" />
-          <h1 className="text-lg font-semibold">{config.label}</h1>
+          <h1 className="text-lg font-semibold">{label}</h1>
         </div>
 
         <dl className="space-y-3">

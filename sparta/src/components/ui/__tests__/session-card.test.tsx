@@ -25,6 +25,8 @@ const mockSession: Session = {
   notes: null,
   created_by: "950e8400-e29b-41d4-a716-446655440005",
   created_at: "2026-05-24T00:00:00Z",
+  concentration_time: null,
+  opponent_name: null,
 };
 
 describe("SessionCard phase prop", () => {

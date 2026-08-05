@@ -24,6 +24,8 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     notes: null,
     created_by: "user-1",
     created_at: "2026-06-01T09:00:00.000Z",
+    concentration_time: null,
+    opponent_name: null,
     ...overrides,
   }
 }
@@ -61,5 +63,20 @@ describe("SessionBlock", () => {
     const { container } = render(<SessionBlock session={makeSession({ id: "sess-abc" })} />)
     const link = container.querySelector("a")
     expect(link).toHaveAttribute("href", "/sessoes/sess-abc")
+  })
+
+  it("mostra 'vs adversário' para jogo/amigável com opponent_name definido", () => {
+    render(<SessionBlock session={makeSession({ type: "friendly", opponent_name: "Equipa" })} />)
+    expect(screen.getByText("Amigável vs Equipa")).toBeInTheDocument()
+  })
+
+  it("não mostra 'vs' quando opponent_name não está definido", () => {
+    render(<SessionBlock session={makeSession({ type: "match", opponent_name: null })} />)
+    expect(screen.getByText("Jogo")).toBeInTheDocument()
+  })
+
+  it("não mostra 'vs' para treino mesmo que opponent_name esteja definido", () => {
+    render(<SessionBlock session={makeSession({ type: "training", opponent_name: "Equipa" })} />)
+    expect(screen.getByText("Treino")).toBeInTheDocument()
   })
 })

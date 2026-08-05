@@ -15,6 +15,8 @@ const BASE_SESSION: Session = {
   notes: null,
   created_by: "850e8400-e29b-41d4-a716-446655440003",
   created_at: "2026-05-01T00:00:00Z",
+  concentration_time: null,
+  opponent_name: null,
 };
 
 describe("SessionCard", () => {
@@ -97,5 +99,28 @@ describe("SessionCard", () => {
     render(<SessionCard session={BASE_SESSION} />);
     const link = screen.getByRole("link");
     expect(link.className).toContain("min-h-[44px]");
+  });
+
+  it("mostra 'vs adversário' para jogo com opponent_name definido", () => {
+    const match: Session = { ...BASE_SESSION, type: "match", opponent_name: "Equipa" };
+    render(<SessionCard session={match} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("aria-label", expect.stringContaining("Jogo vs Equipa"));
+    expect(link).toHaveTextContent("Jogo vs Equipa");
+  });
+
+  it("mostra 'vs adversário' para amigável com opponent_name definido", () => {
+    const friendly: Session = { ...BASE_SESSION, type: "friendly", opponent_name: "Equipa" };
+    render(<SessionCard session={friendly} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("aria-label", expect.stringContaining("Jogo amigável vs Equipa"));
+  });
+
+  it("não mostra 'vs' quando opponent_name é nulo", () => {
+    const match: Session = { ...BASE_SESSION, type: "match", opponent_name: null };
+    render(<SessionCard session={match} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent("Jogo");
+    expect(link).not.toHaveTextContent("vs");
   });
 });

@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
 const TODAY = new Date("2026-06-01T00:00:00.000Z")
 vi.setSystemTime(TODAY)
 
-function makeSession(scheduledAt: string, id = "sess-1"): Session {
+function makeSession(scheduledAt: string, id = "sess-1", overrides: Partial<Session> = {}): Session {
   return {
     id,
     club_id: "club-1",
@@ -25,6 +25,9 @@ function makeSession(scheduledAt: string, id = "sess-1"): Session {
     notes: null,
     created_by: "user-1",
     created_at: "2026-06-01T08:00:00.000Z",
+    concentration_time: null,
+    opponent_name: null,
+    ...overrides,
   }
 }
 
@@ -57,5 +60,13 @@ describe("NextSevenDaysList", () => {
     render(<NextSevenDaysList sessions={sessions} />)
     const link = screen.getByRole("link")
     expect(link).toHaveAttribute("href", "/sessoes/abc-123")
+  })
+
+  it("mostra 'vs adversário' para jogo/amigável com opponent_name definido", () => {
+    const sessions = [
+      makeSession("2026-06-01T10:00:00.000Z", "sess-1", { type: "match", opponent_name: "Equipa" }),
+    ]
+    render(<NextSevenDaysList sessions={sessions} />)
+    expect(screen.getByText("Jogo vs Equipa")).toBeInTheDocument()
   })
 })
