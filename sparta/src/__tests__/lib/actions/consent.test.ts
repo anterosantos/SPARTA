@@ -30,7 +30,7 @@ global.fetch = vi.fn((url: string, options?: RequestInit) => {
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { createServerClient } from "@/lib/supabase/server";
-import { initiateParentalConsent, resendConsentEmail } from "@/lib/actions/consent";
+import { initiateParentalConsent, resendConsentEmail, processConsentDecision } from "@/lib/actions/consent";
 
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
@@ -478,5 +478,79 @@ describe("resendConsentEmail", () => {
 
     expect(result.ok).toBe(true);
     expect(mockBrevoFetch).toHaveBeenCalled();
+  });
+});
+
+// ─── processConsentDecision (confirm) ────────────────────────────────────────
+
+function buildProcessConfirmServiceRole() {
+  const consentSelectChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: {
+        id: CONSENT_UUID,
+        player_id: PLAYER_UUID,
+        club_id: CLUB_UUID,
+        parent_email: "mae@mail.com",
+        token_expires_at: new Date(Date.now() + 86400000).toISOString(),
+        token: "tok-abc",
+      },
+      error: null,
+    }),
+    update: vi.fn().mockReturnThis(),
+  };
+  const playerChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: { profile_id: PROFILE_UUID, full_name: "Rodrigo Silva" },
+      error: null,
+    }),
+  };
+  const genericChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+  };
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table === "parental_consents") return consentSelectChain;
+      if (table === "players") return playerChain;
+      return genericChain;
+    }),
+  };
+}
+
+describe("processConsentDecision — confirm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("email de confirmação usa o template completo: nome do jogador, botão de direitos RGPD e rodapé SPARTA", async () => {
+    const originalBrevoKey = process.env.BREVO_API_KEY;
+    const originalBrevoSender = process.env.BREVO_SENDER_EMAIL;
+    process.env.BREVO_API_KEY = "test-brevo-key";
+    process.env.BREVO_SENDER_EMAIL = "sparta@test.com";
+
+    mockGetServiceRoleClient.mockReturnValue(buildProcessConfirmServiceRole());
+    mockBrevoFetch.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    await processConsentDecision("tok-abc", "confirm", "127.0.0.1");
+
+    process.env.BREVO_API_KEY = originalBrevoKey;
+    process.env.BREVO_SENDER_EMAIL = originalBrevoSender;
+
+    expect(mockBrevoFetch).toHaveBeenCalled();
+    const [, options] = mockBrevoFetch.mock.calls[0] ?? [];
+    const body = JSON.parse((options as RequestInit).body as string);
+    expect(body.htmlContent).toContain("Rodrigo Silva");
+    expect(body.htmlContent).toContain("Gerir direitos RGPD");
+    expect(body.htmlContent).toContain("SPARTA &middot; Gestão desportiva");
+    expect(body.textContent).toContain("Rodrigo Silva");
   });
 });

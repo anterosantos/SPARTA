@@ -94,6 +94,66 @@ Se não reconhece este pedido, ignore este email.`;
   return { html, text };
 }
 
+/**
+ * HTML/text template for the "consent registered" confirmation email — sent
+ * once the encarregado confirms via the consent link. Matches the visual
+ * style of parentalConsentEmailHtml above (same header, button, footer).
+ */
+function consentConfirmedEmailHtml({
+  playerName,
+  confirmedAt,
+  direitosUrl,
+}: {
+  playerName: string;
+  confirmedAt: string;
+  direitosUrl: string;
+}): { html: string; text: string } {
+  const html = `<!DOCTYPE html>
+<html lang="pt-PT">
+<head><meta charset="UTF-8"><title>Consentimento registado</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#171717;">
+
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:16px;">Consentimento registado</h1>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
+    O seu consentimento para <strong>${playerName}</strong> foi registado em ${confirmedAt}.
+  </p>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:16px;">
+    ${playerName} pode agora aceder à plataforma <strong>SPARTA</strong>.
+  </p>
+  <p style="font-size:14px;line-height:1.6;margin-bottom:24px;">
+    Enquanto encarregado(a), pode exercer os seus direitos RGPD (exportar, apagar, retificar dados,
+    entre outros) durante os próximos 30 dias através do link abaixo:
+  </p>
+
+  <a href="${direitosUrl}"
+     style="display:inline-block;background:#171717;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">
+    Gerir direitos RGPD
+  </a>
+
+  <p style="font-size:11px;color:#A3A3A3;margin-top:24px;">
+    Se o botão não funcionar, copie e cole este link no navegador:<br>
+    <a href="${direitosUrl}" style="color:#A3A3A3;">${direitosUrl}</a>
+  </p>
+
+  <hr style="border:none;border-top:1px solid #E5E5E5;margin:24px 0;">
+  <p style="font-size:11px;color:#A3A3A3;">SPARTA &middot; Gestão desportiva</p>
+
+</body>
+</html>`;
+
+  const text = `Consentimento registado — SPARTA
+
+O seu consentimento para ${playerName} foi registado em ${confirmedAt}.
+${playerName} pode agora aceder à plataforma SPARTA.
+
+Enquanto encarregado(a), pode exercer os seus direitos RGPD (exportar, apagar, retificar dados,
+entre outros) durante os próximos 30 dias através do link abaixo:
+
+${direitosUrl}`;
+
+  return { html, text };
+}
+
 const ConsentInitiateSchema = z.object({
   playerId: z.string().uuid(),
   parentEmail: z.string().email(),
@@ -443,6 +503,8 @@ async function sendConsentConfirmationEmail(
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sparta-webapp.vercel.app";
   const direitosUrl = `${siteUrl}/direitos/${token}`;
 
+  const { html, text } = consentConfirmedEmailHtml({ playerName, confirmedAt, direitosUrl });
+
   try {
     const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -454,10 +516,8 @@ async function sendConsentConfirmationEmail(
         sender: { name: "SPARTA", email: brevoSenderEmail },
         to: [{ email: parentEmail }],
         subject: `Consentimento registado em ${confirmedAt}`,
-        htmlContent: `<p>O seu consentimento para <strong>${playerName}</strong> foi registado em ${confirmedAt}.</p>
-<p>${playerName} pode agora aceder à plataforma SPARTA.</p>
-<p>Enquanto encarregado, pode exercer os seus direitos RGPD (exportar, apagar, retificar dados, entre outros) durante os próximos 30 dias através do link abaixo:</p>
-<p><a href="${direitosUrl}">Gerir direitos RGPD</a></p>`,
+        htmlContent: html,
+        textContent: text,
       }),
     });
 

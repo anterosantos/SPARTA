@@ -43,7 +43,6 @@ Aqui vês todas as tuas respostas anteriores aos questionários — é só um re
 No separador **Eu** encontras:
 
 - **Notificações** — ativa para receberes um aviso antes e depois de cada sessão, e sempre que fores convocado. Podes desativar quando quiseres.
-- **Épocas** — para consultares épocas anteriores.
 - **Os meus direitos** — aqui podes pedir uma cópia dos teus dados, corrigir informação incorreta, limitar o seu uso, ou retirar o teu consentimento (o que apaga os teus dados de forma permanente). Também podes ver quem acedeu aos teus dados de saúde nos últimos 12 meses.
 
 **Se tens menos de 16 anos**, estes direitos são geridos pelo teu encarregado de educação — o ecrã explica-te isso e indica que deves falar com ele.
