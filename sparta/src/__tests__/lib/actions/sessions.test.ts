@@ -121,13 +121,40 @@ function makeSupabaseMock({
 
 // ─── getSessionsForClub ───────────────────────────────────────────────────────
 
-// Helpers for getSessionsForClub (now uses requireStaffRole + getServiceRoleClient)
-function setupSessionsForClub(sessionsList: typeof mockSession[] = [mockSession]) {
-  mockRequireStaffRole.mockResolvedValue({
-    ok: true,
-    data: { userId: USER_UUID, clubId: CLUB_UUID, role: "coach", teamIds: [] },
-  });
-  // getServiceRoleClient is used for both sessions query and session_teams query
+const PLAYER_UUID = "950e8400-e29b-41d4-a716-446655440005";
+const TEAM_UUID = "a50e8400-e29b-41d4-a716-446655440006";
+
+// Helpers for getSessionsForClub (role-branches: coach/analyst → requireStaffRole,
+// player → own team_players lookup, via getServiceRoleClient)
+function setupSessionsForClub({
+  sessionsList = [mockSession],
+  role = "coach",
+  playerTeamIds = [],
+}: {
+  sessionsList?: typeof mockSession[];
+  role?: "coach" | "analyst" | "player";
+  playerTeamIds?: string[];
+} = {}) {
+  vi.mocked(createServerClient).mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_UUID } }, error: null }),
+    },
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { role, club_id: CLUB_UUID }, error: null }),
+    }),
+  } as never);
+
+  if (role === "coach" || role === "analyst") {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: true,
+      data: { userId: USER_UUID, clubId: CLUB_UUID, role, teamIds: [] },
+    });
+  }
+
+  // getServiceRoleClient is used for the sessions query, session_teams query,
+  // and (player role only) the players + team_players lookup.
   // session_teams returns empty → all sessions visible (no team restriction)
   mockGetServiceRoleClient.mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
@@ -136,6 +163,22 @@ function setupSessionsForClub(sessionsList: typeof mockSession[] = [mockSession]
           select: vi.fn().mockReturnThis(),
           in: vi.fn().mockResolvedValue({ data: [], error: null }),
         };
+      }
+      if (table === "players") {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { id: PLAYER_UUID }, error: null }),
+        };
+      }
+      if (table === "team_players") {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          then: (resolve: (v: { data: { team_id: string }[]; error: null }) => void) =>
+            resolve({ data: playerTeamIds.map((tid) => ({ team_id: tid })), error: null }),
+        };
+        return chain;
       }
       // sessions query
       return {
@@ -152,8 +195,8 @@ function setupSessionsForClub(sessionsList: typeof mockSession[] = [mockSession]
 describe("getSessionsForClub", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("devolve lista de sessões para utilizador autenticado", async () => {
-    setupSessionsForClub([mockSession]);
+  it("devolve lista de sessões para utilizador autenticado (staff)", async () => {
+    setupSessionsForClub({ sessionsList: [mockSession] });
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(true);
@@ -163,11 +206,20 @@ describe("getSessionsForClub", () => {
     }
   });
 
+  it("devolve lista de sessões para jogador autenticado", async () => {
+    setupSessionsForClub({ sessionsList: [mockSession], role: "player" });
+
+    const result = await getSessionsForClub();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toHaveLength(1);
+    }
+  });
+
   it("devolve erro unauthorized quando não autenticado", async () => {
-    mockRequireStaffRole.mockResolvedValue({
-      ok: false,
-      error: { code: "unauthorized", message: "Autenticação necessária." },
-    });
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
+    } as never);
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(false);
@@ -175,10 +227,30 @@ describe("getSessionsForClub", () => {
   });
 
   it("devolve erro forbidden quando perfil não encontrado", async () => {
-    mockRequireStaffRole.mockResolvedValue({
-      ok: false,
-      error: { code: "forbidden", message: "Perfil não encontrado." },
-    });
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_UUID } }, error: null }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    } as never);
+
+    const result = await getSessionsForClub();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
+  });
+
+  it("devolve erro forbidden para role desconhecido (ex.: admin)", async () => {
+    setupSessionsForClub({ sessionsList: [mockSession] });
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_UUID } }, error: null }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { role: "admin", club_id: CLUB_UUID }, error: null }),
+      }),
+    } as never);
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(false);
@@ -187,7 +259,7 @@ describe("getSessionsForClub", () => {
 
   it("filtra por type=training quando passado", async () => {
     const trainingSession = { ...mockSession, type: "training" };
-    setupSessionsForClub([trainingSession]);
+    setupSessionsForClub({ sessionsList: [trainingSession] });
 
     const result = await getSessionsForClub({ type: "training" });
     expect(result.ok).toBe(true);
@@ -198,7 +270,7 @@ describe("getSessionsForClub", () => {
 
   it("filtra por type=match quando passado", async () => {
     const matchSession = { ...mockSession, type: "match" };
-    setupSessionsForClub([matchSession]);
+    setupSessionsForClub({ sessionsList: [matchSession] });
 
     const result = await getSessionsForClub({ type: "match" });
     expect(result.ok).toBe(true);
@@ -212,7 +284,7 @@ describe("getSessionsForClub", () => {
       { ...mockSession, type: "training" },
       { ...mockSession, id: "id2", type: "match" },
     ];
-    setupSessionsForClub(mixed);
+    setupSessionsForClub({ sessionsList: mixed });
 
     const result = await getSessionsForClub();
     expect(result.ok).toBe(true);
@@ -222,13 +294,82 @@ describe("getSessionsForClub", () => {
   });
 
   it("aceita filtros opcionais (season_id, status)", async () => {
-    setupSessionsForClub([]);
+    setupSessionsForClub({ sessionsList: [] });
 
     const result = await getSessionsForClub({
       season_id: SEASON_UUID,
       status: "scheduled",
     });
     expect(result.ok).toBe(true);
+  });
+
+  it("jogador só vê sessões da sua equipa quando a sessão tem equipas atribuídas", async () => {
+    const OTHER_TEAM_UUID = "b50e8400-e29b-41d4-a716-446655440007";
+    const ownTeamSession = { ...mockSession, id: "session-own-team" };
+    const otherTeamSession = { ...mockSession, id: "session-other-team" };
+    const noTeamSession = { ...mockSession, id: "session-no-team" };
+
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_UUID } }, error: null }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { role: "player", club_id: CLUB_UUID }, error: null }),
+      }),
+    } as never);
+
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "session_teams") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({
+              data: [
+                { session_id: "session-own-team", team_id: TEAM_UUID },
+                { session_id: "session-other-team", team_id: OTHER_TEAM_UUID },
+              ],
+              error: null,
+            }),
+          };
+        }
+        if (table === "players") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { id: PLAYER_UUID }, error: null }),
+          };
+        }
+        if (table === "team_players") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            then: (resolve: (v: { data: { team_id: string }[]; error: null }) => void) =>
+              resolve({ data: [{ team_id: TEAM_UUID }], error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({
+            data: [ownTeamSession, otherTeamSession, noTeamSession],
+            error: null,
+          }),
+        };
+      }),
+    });
+
+    const result = await getSessionsForClub();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const ids = result.data.map((s) => s.id);
+      expect(ids).toContain("session-own-team");
+      expect(ids).toContain("session-no-team");
+      expect(ids).not.toContain("session-other-team");
+    }
   });
 });
 

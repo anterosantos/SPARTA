@@ -48,11 +48,48 @@ export async function getSessionsForClub(
     return err({ code: "validation", message: "Filtros inválidos" });
   }
 
-  const authResult = await requireStaffRole();
-  if (!authResult.ok) return authResult;
-  const { clubId, teamIds } = authResult.data;
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.club_id) return err({ code: "forbidden", message: "Perfil não encontrado" });
 
   const serviceRole = getServiceRoleClient();
+
+  let clubId: string;
+  let teamIds: string[];
+
+  if (profile.role === "coach" || profile.role === "analyst") {
+    const authResult = await requireStaffRole();
+    if (!authResult.ok) return authResult;
+    clubId = authResult.data.clubId;
+    teamIds = authResult.data.teamIds;
+  } else if (profile.role === "player") {
+    clubId = profile.club_id;
+
+    const { data: player } = await serviceRole
+      .from("players")
+      .select("id")
+      .eq("profile_id", user.id)
+      .eq("club_id", clubId)
+      .maybeSingle();
+    if (!player) return err({ code: "forbidden", message: "Registo de jogador não encontrado" });
+
+    const { data: tpRows } = await serviceRole
+      .from("team_players")
+      .select("team_id")
+      .eq("player_id", player.id)
+      .eq("is_archived", false);
+    teamIds = [...new Set((tpRows ?? []).map((r: { team_id: string }) => r.team_id))];
+  } else {
+    return err({ code: "forbidden", message: "Acesso restrito a staff." });
+  }
 
   let query = serviceRole
     .from("sessions")
