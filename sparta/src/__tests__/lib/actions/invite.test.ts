@@ -5,7 +5,23 @@ import {
   InvitePlayer,
   ResendInvite,
 } from "@/lib/schemas/players";
-import { invitePlayer, resendPlayerInvite } from "@/lib/actions/players";
+
+vi.mock("@/lib/supabase/server", () => ({
+  createServerClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/service-role", () => ({
+  getServiceRoleClient: vi.fn(),
+}));
+
+vi.mock("@/lib/actions/audit", () => ({
+  logAccess: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+}));
+
+import { createServerClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { logAccess } from "@/lib/actions/audit";
+import { invitePlayer, resendPlayerInvite, getPlayerInviteLink } from "@/lib/actions/players";
 
 const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 const VALID_EMAIL = "test@example.com";
@@ -217,5 +233,138 @@ describe("resendPlayerInvite action", () => {
   it("logs access event on successful resend", async () => {
     // Test that logAccess is called with correct parameters
     expect(true).toBe(true); // Placeholder
+  });
+});
+
+// ─── getPlayerInviteLink ────────────────────────────────────────────────────
+
+function buildStaffProfilesFrom(role = "coach") {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: { club_id: CLUB_UUID, role }, error: null }),
+      }),
+    }),
+  };
+}
+
+function buildInvitablePlayersFrom(overrides: Partial<{ email: string | null; is_archived: boolean }> = {}) {
+  const email = "email" in overrides ? overrides.email : VALID_EMAIL;
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: PLAYER_UUID,
+              email,
+              club_id: CLUB_UUID,
+              is_archived: overrides.is_archived ?? false,
+            },
+            error: null,
+          }),
+        }),
+      }),
+    }),
+  };
+}
+
+function mockAuthenticatedStaff(role = "coach", playersFrom = buildInvitablePlayersFrom()) {
+  vi.mocked(createServerClient).mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: STAFF_UUID } } }),
+    },
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === "profiles") return buildStaffProfilesFrom(role);
+      if (table === "players") return playersFrom;
+      return {};
+    }),
+  } as unknown as Awaited<ReturnType<typeof createServerClient>>);
+}
+
+describe("getPlayerInviteLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("retorna err de validação quando playerId inválido", async () => {
+    const result = await getPlayerInviteLink({ playerId: "not-a-uuid" } as unknown as ResendInvite);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation");
+  });
+
+  it("retorna unauthorized quando não autenticado", async () => {
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      from: vi.fn(),
+    } as unknown as Awaited<ReturnType<typeof createServerClient>>);
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("unauthorized");
+  });
+
+  it("retorna forbidden quando o role não é coach/analyst", async () => {
+    mockAuthenticatedStaff("admin");
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
+  });
+
+  it("retorna forbidden quando o jogador está arquivado", async () => {
+    mockAuthenticatedStaff("coach", buildInvitablePlayersFrom({ is_archived: true }));
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
+  });
+
+  it("retorna no_email quando o jogador não tem email registado", async () => {
+    mockAuthenticatedStaff("coach", buildInvitablePlayersFrom({ email: null }));
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_email");
+  });
+
+  it("devolve o action_link do generateLink e regista acesso, sem chamar redirect/invite_sent_at", async () => {
+    mockAuthenticatedStaff("coach");
+    const generateLink = vi.fn().mockResolvedValue({
+      data: { properties: { action_link: "https://sparta-webapp.vercel.app/auth/v1/verify?token=abc" }, user: {} },
+      error: null,
+    });
+    vi.mocked(getServiceRoleClient).mockReturnValue({
+      auth: { admin: { generateLink } },
+    } as unknown as ReturnType<typeof getServiceRoleClient>);
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.link).toBe("https://sparta-webapp.vercel.app/auth/v1/verify?token=abc");
+    }
+    expect(generateLink).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "invite", email: VALID_EMAIL })
+    );
+    expect(logAccess).toHaveBeenCalledWith("player.invite_link_copied", "player", PLAYER_UUID);
+  });
+
+  it("retorna err quando generateLink falha", async () => {
+    mockAuthenticatedStaff("coach");
+    vi.mocked(getServiceRoleClient).mockReturnValue({
+      auth: {
+        admin: {
+          generateLink: vi.fn().mockResolvedValue({
+            data: { properties: null, user: null },
+            error: { message: "email rate limit exceeded" },
+          }),
+        },
+      },
+    } as unknown as ReturnType<typeof getServiceRoleClient>);
+
+    const result = await getPlayerInviteLink({ playerId: PLAYER_UUID });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toBe("email rate limit exceeded");
   });
 });

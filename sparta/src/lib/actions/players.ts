@@ -1081,6 +1081,83 @@ export async function resendPlayerInvite(
   redirect(`/plantel/${validated.data.playerId}?resent=1`);
 }
 
+/**
+ * Gera o mesmo link de convite que seria enviado por email, para o staff
+ * copiar e partilhar manualmente (ex.: WhatsApp). Não reenvia o email nem
+ * actualiza invite_sent_at — só devolve o link para a interface copiar.
+ */
+export async function getPlayerInviteLink(
+  input: ResendInvite
+): Promise<Result<{ link: string }, AppError>> {
+  const validated = ResendInviteSchema.safeParse(input);
+  if (!validated.success) {
+    return err({
+      code: "validation",
+      message: "Dados inválidos",
+      details: { issues: validated.error.issues },
+    });
+  }
+
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
+
+  const { data: staffProfile } = await supabase
+    .from("profiles")
+    .select("club_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!staffProfile) return err({ code: "forbidden", message: "Perfil não encontrado" });
+  if (!["coach", "analyst"].includes(staffProfile.role)) {
+    return err({
+      code: "forbidden",
+      message: "Sem permissão para aceder ao link de convite",
+    });
+  }
+
+  // Verificar jogador pertence ao clube e não está arquivado
+  const { data: player } = await supabase
+    .from("players")
+    .select("id, email, club_id, is_archived")
+    .eq("id", validated.data.playerId)
+    .eq("club_id", staffProfile.club_id)
+    .single();
+  if (!player) return err({ code: "not_found", message: "Jogador não encontrado" });
+  if (player.is_archived) {
+    return err({
+      code: "forbidden",
+      message: "Não é possível obter o link de convite para um jogador arquivado",
+    });
+  }
+  if (!player.email) {
+    return err({
+      code: "no_email",
+      message: "Jogador não tem email registado. Enviar convite primeiro.",
+    });
+  }
+
+  const serviceRole = getServiceRoleClient();
+  const { data: linkData, error: linkError } = await serviceRole.auth.admin.generateLink({
+    type: "invite",
+    email: player.email,
+    options: {
+      data: {
+        club_id: staffProfile.club_id,
+        role: "player",
+        player_id: validated.data.playerId,
+      },
+    },
+  });
+
+  if (linkError) return err({ code: "unknown", message: linkError.message });
+
+  await logAccess("player.invite_link_copied", "player", validated.data.playerId);
+
+  return ok({ link: linkData.properties.action_link });
+}
+
 async function triggerPhotoCleanup(supabaseUrl: string, serviceKey: string, maxRetries = 3): Promise<void> {
   let lastError: Error | null = null;
 

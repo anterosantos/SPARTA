@@ -30,6 +30,9 @@ const InvitePlayerSheet = dynamicImport(() =>
 const ResendInviteButton = dynamicImport(() =>
   import("./resend-invite-button").then(m => ({ default: m.ResendInviteButton }))
 );
+const CopyInviteLinkButton = dynamicImport(() =>
+  import("./copy-invite-link-button").then(m => ({ default: m.CopyInviteLinkButton }))
+);
 const InitiateConsentSheet = dynamicImport(() =>
   import("./initiate-consent-sheet").then(m => ({ default: m.InitiateConsentSheet }))
 );
@@ -394,7 +397,10 @@ export default async function PlayerDetailPage({
                   {format(new Date(player.invite_sent_at), "d 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: pt })}
                 </p>
               </div>
-              <ResendInviteButton playerId={player.id} />
+              <div className="flex flex-wrap justify-end gap-1">
+                <CopyInviteLinkButton playerId={player.id} />
+                <ResendInviteButton playerId={player.id} />
+              </div>
             </div>
           ) : (
             <InvitePlayerSheet playerId={player.id} ageGroup={player.age_group} />
