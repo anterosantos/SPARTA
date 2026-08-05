@@ -5,6 +5,7 @@ import { format } from "date-fns"
 import { pt } from "date-fns/locale"
 import type { Session } from "@/lib/schemas/sessions"
 import { SESSION_TYPE_COLORS, sessionLabelWithOpponent } from "@/lib/constants/session-colors"
+import { sessionEndDate } from "@/lib/session-time"
 import { useDarkMode } from "@/hooks/useDarkMode"
 
 interface SessionBlockProps {
@@ -18,12 +19,14 @@ export function SessionBlock({ session, sessionBasePath = "/sessoes" }: SessionB
   const bgColor = isDark ? config.bgDark : config.bg
   const isCancelled = session.status === "cancelled"
   const time = format(new Date(session.scheduled_at), "HH:mm", { locale: pt })
+  const endTime = format(sessionEndDate(session.scheduled_at, session.duration_min), "HH:mm", { locale: pt })
+  const timeRange = `${time} - ${endTime}`
   const label = sessionLabelWithOpponent(config.label, session)
 
   return (
     <Link
       href={`${sessionBasePath}/${session.id}`}
-      aria-label={`${label}, ${time}${session.location ? `, ${session.location}` : ", sem local"}`}
+      aria-label={`${label}, ${timeRange}${session.location ? `, ${session.location}` : ", sem local"}`}
       className="block w-full rounded-lg p-4 text-white transition-opacity hover:opacity-90"
       style={{ backgroundColor: bgColor, opacity: isCancelled ? 0.5 : 1 }}
     >
@@ -36,7 +39,7 @@ export function SessionBlock({ session, sessionBasePath = "/sessoes" }: SessionB
             )}
           </p>
           <p className="text-xs opacity-90">
-            {time} · {session.duration_min} min
+            {timeRange}
           </p>
           {session.location && (
             <p className="text-xs opacity-80">{session.location}</p>

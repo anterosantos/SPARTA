@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
+import { format } from "date-fns"
 import { SessionBlock } from "./session-block"
+import { sessionEndDate } from "@/lib/session-time"
 import type { Session } from "@/lib/schemas/sessions"
 
 vi.mock("next/link", () => ({
@@ -78,5 +80,15 @@ describe("SessionBlock", () => {
   it("não mostra 'vs' para treino mesmo que opponent_name esteja definido", () => {
     render(<SessionBlock session={makeSession({ type: "training", opponent_name: "Equipa" })} />)
     expect(screen.getByText("Treino")).toBeInTheDocument()
+  })
+
+  it("mostra intervalo de horas calculado a partir da duração (início - fim)", () => {
+    const scheduledAt = "2026-06-01T10:00:00.000Z"
+    const durationMin = 90
+    const start = format(new Date(scheduledAt), "HH:mm")
+    const end = format(sessionEndDate(scheduledAt, durationMin), "HH:mm")
+
+    render(<SessionBlock session={makeSession({ scheduled_at: scheduledAt, duration_min: durationMin })} />)
+    expect(screen.getByText(`${start} - ${end}`)).toBeInTheDocument()
   })
 })

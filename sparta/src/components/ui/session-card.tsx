@@ -6,6 +6,7 @@ import { pt } from "date-fns/locale";
 import { Dumbbell, Trophy, Handshake, Presentation, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sessionLabelWithOpponent } from "@/lib/constants/session-colors";
+import { sessionEndDate } from "@/lib/session-time";
 import type { Session, SessionType } from "@/lib/schemas/sessions";
 
 const TYPE_CONFIG: Record<
@@ -38,9 +39,12 @@ export function SessionCard({
   const isAnswered = userRole === "player" && answered === true;
 
   const scheduledDate = new Date(session.scheduled_at);
-  const formattedDate = format(scheduledDate, "dd/MM 'às' HH:mm", {
+  const datePart = format(scheduledDate, "dd/MM", { locale: pt });
+  const startTime = format(scheduledDate, "HH:mm", { locale: pt });
+  const endTime = format(sessionEndDate(session.scheduled_at, session.duration_min), "HH:mm", {
     locale: pt,
   });
+  const formattedDate = `${datePart} às ${startTime} - ${endTime}`;
 
   // Jogadores vão para responder questionário; staff/analistas vão para gestão
   // Phase prop permite especificar 'post' para post-session flow (AC #4, Story 4.9)

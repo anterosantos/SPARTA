@@ -4,6 +4,7 @@ import { getSessionById } from "@/lib/actions/sessions";
 import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { SESSION_TYPE_COLORS, sessionLabelWithOpponent } from "@/lib/constants/session-colors";
+import { sessionEndDate } from "@/lib/session-time";
 import { AbsenceForm } from "./absence-form";
 
 export const metadata = { title: "Detalhe da sessão" };
@@ -46,6 +47,10 @@ export default async function PlayerSessionDetailPage({
   const formattedTime = date.toLocaleTimeString("pt-PT", {
     hour: "2-digit", minute: "2-digit", timeZone: TZ, hour12: false,
   });
+  const formattedEndTime = sessionEndDate(session.scheduled_at, session.duration_min ?? 90).toLocaleTimeString(
+    "pt-PT",
+    { hour: "2-digit", minute: "2-digit", timeZone: TZ, hour12: false }
+  );
 
   const STATUS_LABEL: Record<string, string> = {
     sem_questionario: "Sem questionário",
@@ -69,7 +74,7 @@ export default async function PlayerSessionDetailPage({
           <p className="text-lg font-bold">{sessionLabelWithOpponent(config.label, session)}</p>
           <div className="space-y-1 text-sm opacity-90">
             <p className="capitalize">{formattedDate}</p>
-            <p>{formattedTime} · {session.duration_min ?? 90} min</p>
+            <p>{formattedTime} - {formattedEndTime}</p>
             {session.location && <p>{session.location}</p>}
           </div>
         </div>

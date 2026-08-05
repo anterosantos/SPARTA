@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { format } from "date-fns";
 import { SessionCard } from "@/components/ui/session-card";
+import { sessionEndDate } from "@/lib/session-time";
 import type { Session } from "@/lib/schemas/sessions";
 
 const BASE_SESSION: Session = {
@@ -122,5 +124,12 @@ describe("SessionCard", () => {
     const link = screen.getByRole("link");
     expect(link).toHaveTextContent("Jogo");
     expect(link).not.toHaveTextContent("vs");
+  });
+
+  it("mostra intervalo de horas calculado a partir da duração (início - fim)", () => {
+    render(<SessionCard session={BASE_SESSION} />);
+    const start = format(new Date(BASE_SESSION.scheduled_at), "HH:mm");
+    const end = format(sessionEndDate(BASE_SESSION.scheduled_at, BASE_SESSION.duration_min), "HH:mm");
+    expect(screen.getByRole("link")).toHaveTextContent(`${start} - ${end}`);
   });
 });
