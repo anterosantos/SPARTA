@@ -68,7 +68,9 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
       <div className="grid grid-cols-7">
         {days.map((day) => {
           const key = startOfDay(day).toISOString()
-          const daySessions = sessionsByDay.get(key) ?? []
+          const daySessions = (sessionsByDay.get(key) ?? [])
+            .slice()
+            .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
           const isCurrentMonth = isSameMonth(day, month)
           const today = isToday(day)
           const dayNum = format(day, "d")
@@ -82,7 +84,7 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
               onClick={() => onSelectDay(day)}
               aria-label={`${format(day, "d 'de' MMMM", { locale: pt })}, ${daySessions.length} ${daySessions.length === 1 ? "sessão" : "sessões"}`}
               className={[
-                "flex flex-col items-center py-1.5 px-0.5 min-h-[52px] rounded transition-colors hover:bg-surface",
+                "flex flex-col items-center py-1.5 px-0.5 min-h-[56px] rounded transition-colors hover:bg-surface",
                 !isCurrentMonth && "opacity-30",
                 today && "ring-1 ring-foreground ring-inset",
               ]
@@ -90,20 +92,21 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
                 .join(" ")}
             >
               <span className="text-xs font-medium leading-none mb-1">{dayNum}</span>
-              <div className="flex flex-wrap gap-0.5 justify-center">
+              <div className="flex flex-col gap-0.5 w-full px-1.5">
+                {/* Sessões ordenadas por hora — a mais cedo fica em cima */}
                 {visibleSessions.map((s) => {
                   const color = SESSION_TYPE_COLORS[s.type]?.bg
                   return (
                     <span
                       key={s.id}
-                      className="w-1.5 h-1.5 rounded-full"
+                      className="h-1 w-full rounded-sm"
                       style={{ backgroundColor: color }}
                       aria-hidden="true"
                     />
                   )
                 })}
                 {extraCount > 0 && (
-                  <span className="text-[9px] text-ink-3 leading-none">+{extraCount}</span>
+                  <span className="text-[9px] text-ink-3 leading-none text-center">+{extraCount}</span>
                 )}
               </div>
             </button>
