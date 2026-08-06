@@ -18,6 +18,7 @@ import Link from "next/link";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { TooltipExplain } from "@/components/ui/tooltip-explain";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TeamWeightFormation } from "@/components/domain/TeamWeightFormation";
 import { TeamAggregateFiltersSheet, DEFAULT_FILTERS } from "@/components/domain/TeamAggregateFiltersSheet";
 import type { TeamAggregateFilters } from "@/components/domain/TeamAggregateFiltersSheet";
 import type {
@@ -78,6 +79,11 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
       ? data.eventsPerMatch
       : data.eventsPerMatch.filter((e) => e.sessionType === filters.competition);
 
+  const filteredSquad =
+    filters.ageGroup === "all"
+      ? data.squadFormation
+      : data.squadFormation.filter((p) => p.ageGroup === filters.ageGroup);
+
   const hasAgeGroupFilter = filters.ageGroup !== "all";
 
   return (
@@ -130,6 +136,22 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
           .
         </div>
       )}
+
+      {/* Equipa por posição — tamanho da bola representa o último peso registado */}
+      <section aria-labelledby="squad-formation-heading">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <h2
+            id="squad-formation-heading"
+            className="text-sm font-semibold text-foreground flex items-center gap-1"
+          >
+            <TooltipExplain
+              term="Equipa por posição"
+              definition="Cada jogador é colocado no campo pela sua posição primária. O tamanho da bola representa o último peso registado (Métricas físicas). Sem leitura, assume-se 50 kg por omissão."
+            />
+          </h2>
+          <TeamWeightFormation players={filteredSquad} />
+        </div>
+      </section>
 
       {/* Gráficos de linha — fadiga e presença */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

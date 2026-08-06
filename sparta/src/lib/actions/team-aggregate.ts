@@ -37,12 +37,26 @@ export type MatchEventsPoint = {
   eventCount: number;
 };
 
+/** Peso (kg) assumido quando o jogador não tem nenhuma leitura de peso registada. */
+const DEFAULT_WEIGHT_KG = 50;
+
+export type PlayerFormationItem = {
+  playerId: string;
+  playerName: string;
+  position: string | null;
+  ageGroup: string;
+  jerseyNum: number | null;
+  weightKg: number;
+  hasWeightReading: boolean;
+};
+
 export type TeamAggregateData = {
   weeklyFatigue: WeeklyFatiguePoint[];
   weeklyAttendance: WeeklyAttendancePoint[];
   topLoaded: TopPlayerItem[];
   topFatigued: TopPlayerItem[];
   eventsPerMatch: MatchEventsPoint[];
+  squadFormation: PlayerFormationItem[];
   currentSeason: { id: string; name: string } | null;
   totalActivePlayers: number;
   userRole: "coach" | "analyst";
@@ -82,11 +96,11 @@ export async function getTeamAggregateData(): Promise<
   // Scope to the staff's assigned teams only
   const playerIds = await getPlayerIdsForTeams(teamIds);
 
-  const playersArr: { id: string; full_name: string; age_group: string }[] = [];
+  const playersArr: { id: string; full_name: string; age_group: string; jersey_num: number | null }[] = [];
   if (playerIds.length > 0) {
     const { data: playersData, error: playersError } = await serviceRole
       .from("players")
-      .select("id, full_name, age_group")
+      .select("id, full_name, age_group, jersey_num")
       .in("id", playerIds)
       .is("archived_at", null);
     if (playersError) {
@@ -130,6 +144,7 @@ export async function getTeamAggregateData(): Promise<
       topLoaded: [],
       topFatigued: [],
       eventsPerMatch: [],
+      squadFormation: [],
       currentSeason: currentSeason
         ? { id: currentSeason.id, name: currentSeason.name ?? "" }
         : null,
@@ -138,7 +153,7 @@ export async function getTeamAggregateData(): Promise<
     });
   }
 
-  const [fatigueResult, attendanceResult, metricsResult, eventsResult] =
+  const [fatigueResult, attendanceResult, metricsResult, eventsResult, weightResult] =
     await Promise.allSettled([
       // fatigue_responses — dados de saúde, obrigatório auditedRead (FR50)
       auditedRead<FatigueRow[]>(
@@ -191,6 +206,14 @@ export async function getTeamAggregateData(): Promise<
         .in("sessions.type", ["jogo", "amigavel"])
         .order("sessions.date", { ascending: false })
         .limit(10),
+      // player_metrics — última leitura de peso por jogador (para a vista "Equipa por posição")
+      serviceRole
+        .from("player_metrics")
+        .select("player_id, weight_kg, recorded_at")
+        .eq("club_id", clubId)
+        .in("player_id", playerIds)
+        .not("weight_kg", "is", null)
+        .order("recorded_at", { ascending: false }),
     ]);
 
   // Guard: se auditedRead() foi rejeitado, não continuar
@@ -367,12 +390,40 @@ export async function getTeamAggregateData(): Promise<
     .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
     .slice(-10);
 
+  // Última leitura de peso por jogador — linhas já vêm ordenadas por
+  // recorded_at DESC, por isso a primeira ocorrência de cada player_id é a mais recente.
+  type WeightRow = { player_id: string; weight_kg: number; recorded_at: string };
+  const weightRows: WeightRow[] =
+    weightResult.status === "fulfilled" && !weightResult.value.error
+      ? ((weightResult.value.data ?? []) as unknown as WeightRow[])
+      : [];
+  const lastWeightByPlayer = new Map<string, number>();
+  for (const row of weightRows) {
+    if (row.player_id && !lastWeightByPlayer.has(row.player_id)) {
+      lastWeightByPlayer.set(row.player_id, row.weight_kg);
+    }
+  }
+
+  const squadFormation: PlayerFormationItem[] = playersArr.map((p) => {
+    const weightKg = lastWeightByPlayer.get(p.id);
+    return {
+      playerId: p.id,
+      playerName: p.full_name?.trim() || "—",
+      position: positionMap.get(p.id) ?? null,
+      ageGroup: p.age_group ?? "—",
+      jerseyNum: p.jersey_num ?? null,
+      weightKg: weightKg ?? DEFAULT_WEIGHT_KG,
+      hasWeightReading: weightKg !== undefined,
+    };
+  });
+
   return ok({
     weeklyFatigue,
     weeklyAttendance,
     topLoaded,
     topFatigued,
     eventsPerMatch,
+    squadFormation,
     currentSeason: currentSeason
       ? { id: currentSeason.id, name: currentSeason.name ?? "" }
       : null,

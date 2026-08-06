@@ -41,6 +41,7 @@ type MockQuery = {
   eq: ReturnType<typeof vi.fn>;
   neq: ReturnType<typeof vi.fn>;
   is: ReturnType<typeof vi.fn>;
+  not: ReturnType<typeof vi.fn>;
   gte: ReturnType<typeof vi.fn>;
   lte: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
@@ -56,6 +57,7 @@ function createMockQuery(): MockQuery {
     eq: vi.fn().mockReturnThis(),
     neq: vi.fn().mockReturnThis(),
     is: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
     gte: vi.fn().mockReturnThis(),
     lte: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
@@ -104,6 +106,13 @@ function makeFatigueQuery(rows: object[]): MockQuery {
   return q;
 }
 
+function makeWeightQuery(rows: object[]): MockQuery {
+  const q = createMockQuery();
+  // player_metrics: .eq("club_id") → q, .in() → q, .not() → q, .order() → resolves
+  q.order.mockResolvedValue({ data: rows, error: null });
+  return q;
+}
+
 function makePlayersQuery(rows: object[]): MockQuery {
   const q = createMockQuery();
   q.is.mockResolvedValue({ data: rows, error: null });
@@ -123,6 +132,7 @@ function setupServiceRole(overrides: {
   attendance?: object[];
   metrics?: object[];
   events?: object[];
+  weight?: object[];
   playersError?: object;
 } = {}) {
   const playersQuery = makePlayersQuery(overrides.players ?? []);
@@ -134,6 +144,7 @@ function setupServiceRole(overrides: {
   const attendanceQuery = makeAttendanceQuery(overrides.attendance ?? []);
   const metricsQuery = makeMetricsQuery(overrides.metrics ?? []);
   const eventsQuery = makeEventsQuery(overrides.events ?? []);
+  const weightQuery = makeWeightQuery(overrides.weight ?? []);
 
   const serviceClient = {
     from: vi.fn((table: string) => {
@@ -143,6 +154,7 @@ function setupServiceRole(overrides: {
       if (table === "attendances") return attendanceQuery;
       if (table === "session_metrics") return metricsQuery;
       if (table === "match_events") return eventsQuery;
+      if (table === "player_metrics") return weightQuery;
       return createMockQuery();
     }),
   };
@@ -496,5 +508,56 @@ describe("getTeamAggregateData", () => {
     if (result.ok) {
       expect(result.data.currentSeason).toBeNull();
     }
+  });
+
+  describe("squadFormation", () => {
+    it("usa peso por omissão de 50kg quando o jogador não tem nenhuma leitura", async () => {
+      setupAuth("coach", CLUB_A);
+      setupServiceRole({
+        players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior", jersey_num: 7 }],
+        positions: [{ player_id: PLAYER_1, position: "MC", is_primary: true }],
+        weight: [],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.squadFormation).toHaveLength(1);
+        expect(result.data.squadFormation[0]).toMatchObject({
+          playerId: PLAYER_1,
+          playerName: "João Silva",
+          position: "MC",
+          jerseyNum: 7,
+          weightKg: 50,
+          hasWeightReading: false,
+        });
+      }
+    });
+
+    it("usa a leitura de peso mais recente por jogador quando há várias", async () => {
+      setupAuth("coach", CLUB_A);
+      const now = new Date();
+      const older = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const newer = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString();
+
+      setupServiceRole({
+        players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+        positions: [{ player_id: PLAYER_1, position: "DEF", is_primary: true }],
+        // Já ordenado por recorded_at DESC, tal como a query real devolve
+        weight: [
+          { player_id: PLAYER_1, weight_kg: 72.5, recorded_at: newer },
+          { player_id: PLAYER_1, weight_kg: 68, recorded_at: older },
+        ],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.squadFormation[0]?.weightKg).toBe(72.5);
+        expect(result.data.squadFormation[0]?.hasWeightReading).toBe(true);
+      }
+    });
   });
 });
