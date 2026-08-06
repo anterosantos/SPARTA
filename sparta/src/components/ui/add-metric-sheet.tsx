@@ -113,7 +113,9 @@ export function AddMetricSheet({ playerId, lastWeight, lastHeight, onSuccess }: 
               max="150"
               className="w-full rounded border px-3 py-2 text-sm"
               placeholder="ex: 72.50"
-              {...form.register("weight_kg", { valueAsNumber: true })}
+              {...form.register("weight_kg", {
+                setValueAs: (v) => (v === "" || v === null ? undefined : parseFloat(v)),
+              })}
             />
             {form.formState.errors.weight_kg && (
               <p className="text-xs text-destructive">
@@ -131,7 +133,9 @@ export function AddMetricSheet({ playerId, lastWeight, lastHeight, onSuccess }: 
               max="220"
               className="w-full rounded border px-3 py-2 text-sm"
               placeholder="ex: 178.00"
-              {...form.register("height_cm", { valueAsNumber: true })}
+              {...form.register("height_cm", {
+                setValueAs: (v) => (v === "" || v === null ? undefined : parseFloat(v)),
+              })}
             />
             {form.formState.errors.height_cm && (
               <p className="text-xs text-destructive">
