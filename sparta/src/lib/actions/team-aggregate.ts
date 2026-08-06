@@ -37,7 +37,11 @@ export type MatchEventsPoint = {
   eventCount: number;
 };
 
-/** Peso (kg) assumido quando o jogador não tem nenhuma leitura de peso registada. */
+/**
+ * Peso (kg) de último recurso, usado apenas quando NENHUM jogador do plantel
+ * tem leitura de peso (não há média possível). Normalmente o peso por omissão
+ * é a média dos pesos registados no plantel menos 1 kg — ver squadFormation.
+ */
 const DEFAULT_WEIGHT_KG = 50;
 
 export type PlayerFormationItem = {
@@ -404,6 +408,17 @@ export async function getTeamAggregateData(): Promise<
     }
   }
 
+  // Peso por omissão para jogadores sem nenhuma leitura: média dos pesos
+  // registados no plantel menos 1 kg. Sem nenhuma leitura no plantel inteiro,
+  // usa-se DEFAULT_WEIGHT_KG como último recurso (não há média para calcular).
+  const registeredWeights = Array.from(lastWeightByPlayer.values());
+  const defaultWeightKg =
+    registeredWeights.length > 0
+      ? Math.round(
+          (registeredWeights.reduce((sum, w) => sum + w, 0) / registeredWeights.length - 1) * 10
+        ) / 10
+      : DEFAULT_WEIGHT_KG;
+
   const squadFormation: PlayerFormationItem[] = playersArr.map((p) => {
     const weightKg = lastWeightByPlayer.get(p.id);
     return {
@@ -412,7 +427,7 @@ export async function getTeamAggregateData(): Promise<
       position: positionMap.get(p.id) ?? null,
       ageGroup: p.age_group ?? "—",
       jerseyNum: p.jersey_num ?? null,
-      weightKg: weightKg ?? DEFAULT_WEIGHT_KG,
+      weightKg: weightKg ?? defaultWeightKg,
       hasWeightReading: weightKg !== undefined,
     };
   });

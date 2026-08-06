@@ -511,7 +511,7 @@ describe("getTeamAggregateData", () => {
   });
 
   describe("squadFormation", () => {
-    it("usa peso por omissão de 50kg quando o jogador não tem nenhuma leitura", async () => {
+    it("usa peso por omissão de último recurso (50kg) quando NENHUM jogador do plantel tem leitura", async () => {
       setupAuth("coach", CLUB_A);
       setupServiceRole({
         players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior", jersey_num: 7 }],
@@ -532,6 +532,40 @@ describe("getTeamAggregateData", () => {
           weightKg: 50,
           hasWeightReading: false,
         });
+      }
+    });
+
+    it("jogador sem leitura recebe a média dos pesos registados no plantel menos 1kg", async () => {
+      setupAuth("coach", CLUB_A);
+      setupServiceRole({
+        players: [
+          { id: PLAYER_1, full_name: "Tem leitura A", age_group: "senior" },
+          { id: PLAYER_2, full_name: "Tem leitura B", age_group: "senior" },
+          { id: PLAYER_3, full_name: "Sem leitura", age_group: "senior" },
+        ],
+        positions: [
+          { player_id: PLAYER_1, position: "DEF", is_primary: true },
+          { player_id: PLAYER_2, position: "DEF", is_primary: true },
+          { player_id: PLAYER_3, position: "MC", is_primary: true },
+        ],
+        // média de 70 e 80 = 75; default esperado = 75 - 1 = 74
+        weight: [
+          { player_id: PLAYER_1, weight_kg: 70, recorded_at: new Date().toISOString() },
+          { player_id: PLAYER_2, weight_kg: 80, recorded_at: new Date().toISOString() },
+        ],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const withoutReading = result.data.squadFormation.find((p) => p.playerId === PLAYER_3);
+        expect(withoutReading?.weightKg).toBe(74);
+        expect(withoutReading?.hasWeightReading).toBe(false);
+
+        const p1 = result.data.squadFormation.find((p) => p.playerId === PLAYER_1);
+        expect(p1?.weightKg).toBe(70);
+        expect(p1?.hasWeightReading).toBe(true);
       }
     });
 

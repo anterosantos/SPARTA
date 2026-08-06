@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TeamWeightFormation, weightToSizePx } from "./TeamWeightFormation";
+import { TeamWeightFormation, weightToSizePx, weightToColor } from "./TeamWeightFormation";
 import type { PlayerFormationItem } from "@/lib/actions/team-aggregate";
 
 function makePlayer(overrides: Partial<PlayerFormationItem> = {}): PlayerFormationItem {
@@ -33,6 +33,25 @@ describe("weightToSizePx", () => {
   it("faz clamp de pesos fora do intervalo [30, 150]", () => {
     expect(weightToSizePx(10)).toBe(weightToSizePx(30));
     expect(weightToSizePx(500)).toBe(weightToSizePx(150));
+  });
+});
+
+describe("weightToColor", () => {
+  it("devolve a cor azul (leve) no limite inferior", () => {
+    expect(weightToColor(30)).toBe("rgb(37, 99, 235)");
+  });
+
+  it("devolve a cor vermelha (pesado) no limite superior", () => {
+    expect(weightToColor(150)).toBe("rgb(220, 38, 38)");
+  });
+
+  it("devolve a cor âmbar (médio) a meio da escala", () => {
+    expect(weightToColor(90)).toBe("rgb(245, 158, 11)");
+  });
+
+  it("faz clamp de pesos fora do intervalo [30, 150]", () => {
+    expect(weightToColor(10)).toBe(weightToColor(30));
+    expect(weightToColor(500)).toBe(weightToColor(150));
   });
 });
 
@@ -93,8 +112,30 @@ describe("TeamWeightFormation", () => {
   it("SVG do campo tem o aria-label correcto", () => {
     const { container } = render(<TeamWeightFormation players={[makePlayer()]} />);
     const svg = container.querySelector(
-      'svg[aria-label="Campo de futebol — jogadores por posição, tamanho representa o peso"]'
+      'svg[aria-label="Campo de futebol — jogadores por posição, tamanho e cor representam o peso"]'
     );
     expect(svg).toBeInTheDocument();
+  });
+
+  it("a cor de fundo da bola segue a escala de cor do peso", () => {
+    const { container } = render(
+      <TeamWeightFormation players={[makePlayer({ weightKg: 30 })]} />
+    );
+    const ball = container.querySelector('[aria-label*="30 kg"]') as HTMLElement;
+    expect(ball.style.backgroundColor).toBe("rgb(37, 99, 235)");
+  });
+
+  it("bola de jogador sem leitura tem contorno tracejado", () => {
+    const { container } = render(
+      <TeamWeightFormation players={[makePlayer({ hasWeightReading: false })]} />
+    );
+    const ball = container.querySelector('[aria-label*="por omissão"]') as HTMLElement;
+    expect(ball.className).toContain("border-dashed");
+  });
+
+  it("mostra legenda da escala com os limites min/max", () => {
+    render(<TeamWeightFormation players={[makePlayer()]} />);
+    expect(screen.getByText("30 kg")).toBeInTheDocument();
+    expect(screen.getByText("150 kg")).toBeInTheDocument();
   });
 });

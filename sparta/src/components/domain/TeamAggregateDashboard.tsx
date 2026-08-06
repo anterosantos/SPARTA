@@ -137,22 +137,6 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
         </div>
       )}
 
-      {/* Equipa por posição — tamanho da bola representa o último peso registado */}
-      <section aria-labelledby="squad-formation-heading">
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <h2
-            id="squad-formation-heading"
-            className="text-sm font-semibold text-foreground flex items-center gap-1"
-          >
-            <TooltipExplain
-              term="Equipa por posição"
-              definition="Cada jogador é colocado no campo pela sua posição primária. O tamanho da bola representa o último peso registado (Métricas físicas). Sem leitura, assume-se 50 kg por omissão."
-            />
-          </h2>
-          <TeamWeightFormation players={filteredSquad} />
-        </div>
-      </section>
-
       {/* Gráficos de linha — fadiga e presença */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Fadiga média semanal */}
@@ -376,6 +360,22 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Equipa por posição — tamanho e cor da bola representam o último peso registado */}
+      <section aria-labelledby="squad-formation-heading">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <h2
+            id="squad-formation-heading"
+            className="text-sm font-semibold text-foreground flex items-center gap-1"
+          >
+            <TooltipExplain
+              term="Equipa por posição"
+              definition="Cada jogador é colocado no campo pela sua posição primária. O tamanho e a cor da bola representam o último peso registado (Métricas físicas). Sem leitura, assume-se a média dos pesos registados no plantel menos 1 kg."
+            />
+          </h2>
+          <TeamWeightFormation players={filteredSquad} />
         </div>
       </section>
     </div>
