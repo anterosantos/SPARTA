@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { listTeamCoaches, listTeams, listClubProfiles, listRosters, assignCoachToTeam, removeCoachFromTeam, inviteCoach } from "@/lib/actions/admin";
+import { listTeamCoaches, listTeams, listClubProfiles, listRosters, assignCoachToTeam, removeCoachFromTeam, inviteCoach, resendCoachInvite } from "@/lib/actions/admin";
 import { requireAdminRole } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 import { AssignCoachForm } from "./AssignCoachForm";
+import { CopyCoachInviteLinkButton } from "./CopyCoachInviteLinkButton";
 
 export default async function CoachesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invited?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string; resent?: string }>;
 }) {
   const authResult = await requireAdminRole();
   if (!authResult.ok) redirect("/login");
@@ -57,6 +58,18 @@ export default async function CoachesPage({
     redirect("/admin/coaches");
   }
 
+  async function handleResend(formData: FormData) {
+    "use server";
+    const profileId = formData.get("profile_id") as string;
+    if (!profileId) return;
+    const result = await resendCoachInvite(profileId);
+    if (!result.ok) {
+      const msg = encodeURIComponent(result.error?.message ?? "Erro ao reenviar convite");
+      return redirect(`/admin/coaches?error=${msg}`);
+    }
+    redirect("/admin/coaches?resent=1");
+  }
+
   return (
     <div className="space-y-6">
       {params.error && (
@@ -67,6 +80,11 @@ export default async function CoachesPage({
       {params.invited && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
           ✓ Convite enviado. A pessoa aparecerá na lista para atribuição assim que aceitar o convite.
+        </div>
+      )}
+      {params.resent && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
+          ✓ Convite reenviado.
         </div>
       )}
 
@@ -149,10 +167,17 @@ export default async function CoachesPage({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <form action={handleRemove} className="inline">
-                      <input type="hidden" name="id" value={c.id} />
-                      <button type="submit" className="text-red-600 hover:text-red-800 text-sm font-medium">Remover</button>
-                    </form>
+                    <div className="flex items-center gap-3">
+                      <form action={handleResend} className="inline">
+                        <input type="hidden" name="profile_id" value={c.profile_id} />
+                        <button type="submit" className="text-blue-600 hover:text-blue-800 text-sm font-medium">Reenviar</button>
+                      </form>
+                      <CopyCoachInviteLinkButton profileId={c.profile_id} />
+                      <form action={handleRemove} className="inline">
+                        <input type="hidden" name="id" value={c.id} />
+                        <button type="submit" className="text-red-600 hover:text-red-800 text-sm font-medium">Remover</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))

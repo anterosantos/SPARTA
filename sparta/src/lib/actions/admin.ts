@@ -1586,6 +1586,106 @@ export async function inviteCoach(
   return { ok: true, data: { id: inviteData.user.id } };
 }
 
+interface InviteLinkResult {
+  ok: boolean;
+  data?: { link: string };
+  error?: { code: string; message: string };
+}
+
+async function getInvitedCoachEmail(
+  serviceRole: ReturnType<typeof getServiceRoleClient>,
+  clubId: string,
+  profileId: string
+): Promise<{ ok: true; email: string; role: string } | { ok: false; error: { code: string; message: string } }> {
+  const { data: profile } = await serviceRole
+    .from("profiles")
+    .select("id, club_id, role")
+    .eq("id", profileId)
+    .eq("club_id", clubId)
+    .in("role", ["coach", "analyst"])
+    .maybeSingle();
+
+  if (!profile) {
+    return { ok: false, error: { code: "NOT_FOUND", message: "Treinador não encontrado" } };
+  }
+
+  const { data: userData, error: userError } = await serviceRole.auth.admin.getUserById(profileId);
+  if (userError || !userData?.user?.email) {
+    return { ok: false, error: { code: "NOT_FOUND", message: "Email do treinador não encontrado" } };
+  }
+
+  return { ok: true, email: userData.user.email, role: profile.role as string };
+}
+
+/**
+ * Reenvia o email de convite a um treinador/analista já criado.
+ */
+export async function resendCoachInvite(profileId: string): Promise<CreateRosterResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return { ok: false, error: { code: "UNAUTHORIZED", message: "Staff access required" } };
+  }
+  const { clubId } = authResult.data;
+
+  const serviceRole = getServiceRoleClient();
+  const lookup = await getInvitedCoachEmail(serviceRole, clubId, profileId);
+  if (!lookup.ok) return lookup;
+
+  const { error: inviteError } = await serviceRole.auth.admin.inviteUserByEmail(lookup.email, {
+    data: { club_id: clubId, role: lookup.role },
+  });
+  if (inviteError) {
+    return { ok: false, error: { code: "INTERNAL_ERROR", message: inviteError.message } };
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: clubId,
+    actor_id: authResult.data.userId,
+    action: "profiles.invite_resent",
+    target_kind: "profiles",
+    target_id: profileId,
+    payload: { role: lookup.role },
+  });
+
+  return { ok: true, data: { id: profileId } };
+}
+
+/**
+ * Gera o mesmo link de convite que seria enviado por email, para o admin
+ * copiar e partilhar manualmente. Não reenvia o email.
+ */
+export async function getCoachInviteLink(profileId: string): Promise<InviteLinkResult> {
+  const authResult = await requireAdminRole();
+  if (!authResult.ok) {
+    return { ok: false, error: { code: "UNAUTHORIZED", message: "Staff access required" } };
+  }
+  const { clubId } = authResult.data;
+
+  const serviceRole = getServiceRoleClient();
+  const lookup = await getInvitedCoachEmail(serviceRole, clubId, profileId);
+  if (!lookup.ok) return lookup;
+
+  const { data: linkData, error: linkError } = await serviceRole.auth.admin.generateLink({
+    type: "invite",
+    email: lookup.email,
+    options: { data: { club_id: clubId, role: lookup.role } },
+  });
+  if (linkError) {
+    return { ok: false, error: { code: "INTERNAL_ERROR", message: linkError.message } };
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: clubId,
+    actor_id: authResult.data.userId,
+    action: "profiles.invite_link_copied",
+    target_kind: "profiles",
+    target_id: profileId,
+    payload: { role: lookup.role },
+  });
+
+  return { ok: true, data: { link: linkData.properties.action_link } };
+}
+
 /**
  * Assign coach to team with role
  */
