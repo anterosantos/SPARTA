@@ -19,12 +19,12 @@ function makePlayer(overrides: Partial<PlayerFormationItem> = {}): PlayerFormati
 }
 
 describe("heightToSizePx", () => {
-  it("devolve o tamanho mínimo no limite inferior (100cm)", () => {
-    expect(heightToSizePx(100)).toBe(24);
+  it("devolve o tamanho mínimo no limite inferior (130cm)", () => {
+    expect(heightToSizePx(130)).toBe(24);
   });
 
-  it("devolve o tamanho máximo no limite superior (220cm)", () => {
-    expect(heightToSizePx(220)).toBe(64);
+  it("devolve o tamanho máximo no limite superior (210cm)", () => {
+    expect(heightToSizePx(210)).toBe(64);
   });
 
   it("é monótono crescente com a altura", () => {
@@ -32,28 +32,28 @@ describe("heightToSizePx", () => {
     expect(heightToSizePx(170)).toBeLessThan(heightToSizePx(200));
   });
 
-  it("faz clamp de alturas fora do intervalo [100, 220]", () => {
-    expect(heightToSizePx(50)).toBe(heightToSizePx(100));
-    expect(heightToSizePx(300)).toBe(heightToSizePx(220));
+  it("faz clamp de alturas fora do intervalo [130, 210]", () => {
+    expect(heightToSizePx(50)).toBe(heightToSizePx(130));
+    expect(heightToSizePx(300)).toBe(heightToSizePx(210));
   });
 });
 
 describe("heightToColor", () => {
   it("devolve a cor azul (baixo) no limite inferior", () => {
-    expect(heightToColor(100)).toBe("rgb(37, 99, 235)");
+    expect(heightToColor(130)).toBe("rgb(37, 99, 235)");
   });
 
   it("devolve a cor vermelha (alto) no limite superior", () => {
-    expect(heightToColor(220)).toBe("rgb(220, 38, 38)");
+    expect(heightToColor(210)).toBe("rgb(220, 38, 38)");
   });
 
   it("devolve a cor âmbar (médio) a meio da escala", () => {
-    expect(heightToColor(160)).toBe("rgb(245, 158, 11)");
+    expect(heightToColor(170)).toBe("rgb(245, 158, 11)");
   });
 
-  it("faz clamp de alturas fora do intervalo [100, 220]", () => {
-    expect(heightToColor(50)).toBe(heightToColor(100));
-    expect(heightToColor(300)).toBe(heightToColor(220));
+  it("faz clamp de alturas fora do intervalo [130, 210]", () => {
+    expect(heightToColor(50)).toBe(heightToColor(130));
+    expect(heightToColor(300)).toBe(heightToColor(210));
   });
 });
 
@@ -121,9 +121,9 @@ describe("TeamHeightFormation", () => {
 
   it("a cor de fundo da bola segue a escala de cor da altura", () => {
     const { container } = render(
-      <TeamHeightFormation players={[makePlayer({ heightCm: 100 })]} />
+      <TeamHeightFormation players={[makePlayer({ heightCm: 130 })]} />
     );
-    const ball = container.querySelector('[aria-label*="100 cm"]') as HTMLElement;
+    const ball = container.querySelector('[aria-label*="130 cm"]') as HTMLElement;
     expect(ball.style.backgroundColor).toBe("rgb(37, 99, 235)");
   });
 
@@ -137,7 +137,7 @@ describe("TeamHeightFormation", () => {
 
   it("mostra legenda da escala com os limites min/max", () => {
     render(<TeamHeightFormation players={[makePlayer()]} />);
-    expect(screen.getByText("100 cm")).toBeInTheDocument();
-    expect(screen.getByText("220 cm")).toBeInTheDocument();
+    expect(screen.getByText("130 cm")).toBeInTheDocument();
+    expect(screen.getByText("210 cm")).toBeInTheDocument();
   });
 });

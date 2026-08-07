@@ -23,18 +23,18 @@ describe("weightToSizePx", () => {
     expect(weightToSizePx(30)).toBe(24);
   });
 
-  it("devolve o tamanho máximo no limite superior (150kg)", () => {
-    expect(weightToSizePx(150)).toBe(64);
+  it("devolve o tamanho máximo no limite superior (110kg)", () => {
+    expect(weightToSizePx(110)).toBe(64);
   });
 
   it("é monótono crescente com o peso", () => {
     expect(weightToSizePx(50)).toBeLessThan(weightToSizePx(80));
-    expect(weightToSizePx(80)).toBeLessThan(weightToSizePx(110));
+    expect(weightToSizePx(80)).toBeLessThan(weightToSizePx(100));
   });
 
-  it("faz clamp de pesos fora do intervalo [30, 150]", () => {
+  it("faz clamp de pesos fora do intervalo [30, 110]", () => {
     expect(weightToSizePx(10)).toBe(weightToSizePx(30));
-    expect(weightToSizePx(500)).toBe(weightToSizePx(150));
+    expect(weightToSizePx(500)).toBe(weightToSizePx(110));
   });
 });
 
@@ -44,16 +44,16 @@ describe("weightToColor", () => {
   });
 
   it("devolve a cor vermelha (pesado) no limite superior", () => {
-    expect(weightToColor(150)).toBe("rgb(220, 38, 38)");
+    expect(weightToColor(110)).toBe("rgb(220, 38, 38)");
   });
 
   it("devolve a cor âmbar (médio) a meio da escala", () => {
-    expect(weightToColor(90)).toBe("rgb(245, 158, 11)");
+    expect(weightToColor(70)).toBe("rgb(245, 158, 11)");
   });
 
-  it("faz clamp de pesos fora do intervalo [30, 150]", () => {
+  it("faz clamp de pesos fora do intervalo [30, 110]", () => {
     expect(weightToColor(10)).toBe(weightToColor(30));
-    expect(weightToColor(500)).toBe(weightToColor(150));
+    expect(weightToColor(500)).toBe(weightToColor(110));
   });
 });
 
@@ -138,6 +138,6 @@ describe("TeamWeightFormation", () => {
   it("mostra legenda da escala com os limites min/max", () => {
     render(<TeamWeightFormation players={[makePlayer()]} />);
     expect(screen.getByText("30 kg")).toBeInTheDocument();
-    expect(screen.getByText("150 kg")).toBeInTheDocument();
+    expect(screen.getByText("110 kg")).toBeInTheDocument();
   });
 });

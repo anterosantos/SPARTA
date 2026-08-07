@@ -10,9 +10,11 @@ export interface TeamWeightFormationProps {
 }
 
 // Intervalo de peso (kg) usado para escalar o tamanho e a cor das bolas —
-// alinhado com os limites min/max aceites em PlayerMetricCreateSchema.
+// gama visual (não a validação de PlayerMetricCreateSchema, que aceita até
+// 150 kg) escolhida para diferenciar melhor os pesos reais do plantel.
+// Valores fora do intervalo ficam com o tamanho/cor do limite mais próximo.
 const MIN_WEIGHT_KG = 30;
-const MAX_WEIGHT_KG = 150;
+const MAX_WEIGHT_KG = 110;
 
 const WEIGHT_SCALE = makeHeatScale(MIN_WEIGHT_KG, MAX_WEIGHT_KG);
 export const weightToSizePx = WEIGHT_SCALE.toSizePx;

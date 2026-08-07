@@ -10,9 +10,11 @@ export interface TeamHeightFormationProps {
 }
 
 // Intervalo de altura (cm) usado para escalar o tamanho e a cor das bolas —
-// alinhado com os limites min/max aceites em PlayerMetricCreateSchema.
-const MIN_HEIGHT_CM = 100;
-const MAX_HEIGHT_CM = 220;
+// gama visual (não a validação de PlayerMetricCreateSchema, que aceita
+// 100–220 cm) escolhida para diferenciar melhor as alturas reais do plantel.
+// Valores fora do intervalo ficam com o tamanho/cor do limite mais próximo.
+const MIN_HEIGHT_CM = 130;
+const MAX_HEIGHT_CM = 210;
 
 const HEIGHT_SCALE = makeHeatScale(MIN_HEIGHT_CM, MAX_HEIGHT_CM);
 export const heightToSizePx = HEIGHT_SCALE.toSizePx;
