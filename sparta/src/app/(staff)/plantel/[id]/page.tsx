@@ -36,6 +36,9 @@ const CopyInviteLinkButton = dynamicImport(() =>
 const InitiateConsentSheet = dynamicImport(() =>
   import("./initiate-consent-sheet").then(m => ({ default: m.InitiateConsentSheet }))
 );
+const CopyConsentLinkSheet = dynamicImport(() =>
+  import("./copy-consent-link-sheet").then(m => ({ default: m.CopyConsentLinkSheet }))
+);
 const ResendConsentButton = dynamicImport(() =>
   import("../resend-consent-button").then(m => ({ default: m.ResendConsentButton }))
 );
@@ -362,7 +365,10 @@ export default async function PlayerDetailPage({
             {!consent && (
               <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
                 <p className="text-sm text-muted-foreground">Sem consentimento registado</p>
-                <InitiateConsentSheet playerId={player.id} />
+                <div className="flex flex-wrap justify-end gap-1">
+                  <CopyConsentLinkSheet playerId={player.id} />
+                  <InitiateConsentSheet playerId={player.id} />
+                </div>
               </div>
             )}
             {consent?.status === "pending" && (
@@ -370,17 +376,21 @@ export default async function PlayerDetailPage({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Aguarda resposta de</p>
-                    <p className="text-sm font-medium">{consent.parent_email as string}</p>
+                    <p className="text-sm font-medium">
+                      {(consent.parent_name as string | null) ?? (consent.parent_email as string)}
+                    </p>
                   </div>
                   <span className="text-xs text-signal-alert font-medium">Pendente</span>
                 </div>
-                <ResendConsentButton playerId={player.id} />
+                {consent.parent_email && <ResendConsentButton playerId={player.id} />}
               </div>
             )}
             {consent?.status === "confirmed" && (
               <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
                 <p className="text-sm text-muted-foreground">Consentido por</p>
-                <span className="text-sm font-medium text-signal-ok">{consent.parent_email as string}</span>
+                <span className="text-sm font-medium text-signal-ok">
+                  {(consent.parent_name as string | null) ?? (consent.parent_email as string)}
+                </span>
               </div>
             )}
           </section>

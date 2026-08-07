@@ -850,7 +850,8 @@ export type Database = {
           created_at: string
           id: string
           last_manual_resend_at: string | null
-          parent_email: string
+          parent_email: string | null
+          parent_name: string | null
           player_id: string
           policy_version_id: string
           status: string
@@ -864,7 +865,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_manual_resend_at?: string | null
-          parent_email: string
+          parent_email?: string | null
+          parent_name?: string | null
           player_id: string
           policy_version_id: string
           status: string
@@ -878,7 +880,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_manual_resend_at?: string | null
-          parent_email?: string
+          parent_email?: string | null
+          parent_name?: string | null
           player_id?: string
           policy_version_id?: string
           status?: string

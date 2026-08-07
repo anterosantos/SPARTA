@@ -30,7 +30,7 @@ global.fetch = vi.fn((url: string, options?: RequestInit) => {
 
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { createServerClient } from "@/lib/supabase/server";
-import { initiateParentalConsent, resendConsentEmail, processConsentDecision } from "@/lib/actions/consent";
+import { initiateParentalConsent, resendConsentEmail, processConsentDecision, getParentalConsentLink } from "@/lib/actions/consent";
 
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
 const mockCreateServerClient = createServerClient as ReturnType<typeof vi.fn>;
@@ -552,5 +552,201 @@ describe("processConsentDecision — confirm", () => {
     expect(body.htmlContent).toContain("Gerir direitos RGPD");
     expect(body.htmlContent).toContain("SPARTA &middot; Gestão desportiva");
     expect(body.textContent).toContain("Rodrigo Silva");
+  });
+
+  it("consentimento sem email (iniciado por link) é confirmado sem tentar enviar email", async () => {
+    // Objectos estáveis (não literais inline por chamada) — .from() é chamado
+    // mais que uma vez para a mesma tabela (select depois update) e precisamos
+    // de inspeccionar o mesmo mock de "update" usado na chamada real.
+    const consentChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: CONSENT_UUID,
+          player_id: PLAYER_UUID,
+          club_id: CLUB_UUID,
+          parent_email: null,
+          parent_name: "Encarregado Teste",
+          token_expires_at: new Date(Date.now() + 86400000).toISOString(),
+          token: "tok-link",
+        },
+        error: null,
+      }),
+      update: vi.fn().mockReturnThis(),
+    };
+    const playerChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { profile_id: PROFILE_UUID, full_name: "Rodrigo Silva" },
+        error: null,
+      }),
+    };
+    const genericChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+    };
+
+    const serviceRole = {
+      from: vi.fn((table: string) => {
+        if (table === "parental_consents") return consentChain;
+        if (table === "players") return playerChain;
+        return genericChain;
+      }),
+    };
+    mockGetServiceRoleClient.mockReturnValue(serviceRole);
+
+    await processConsentDecision("tok-link", "confirm", "127.0.0.1");
+
+    // Regressão: o guard antigo (`if (!consent?.parent_email) return`) fazia
+    // esta chamada ser um no-op silencioso — status nunca era actualizado.
+    expect(consentChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "confirmed" })
+    );
+    expect(mockBrevoFetch).not.toHaveBeenCalled();
+  });
+});
+
+// ─── getParentalConsentLink ──────────────────────────────────────────────────
+
+function buildLinkServiceRole(overrides: {
+  player?: unknown;
+  existing?: unknown;
+  policy?: unknown;
+  consentInsert?: unknown;
+  profileUpdate?: unknown;
+  auditInsert?: unknown;
+} = {}) {
+  const playerChain = makeQueryChain(
+    overrides.player ?? {
+      data: { id: PLAYER_UUID, profile_id: PROFILE_UUID, age_group: "u14", club_id: CLUB_UUID },
+    }
+  );
+  const existingChain = makeQueryChain(overrides.existing ?? { data: null });
+  const policyChain = makeQueryChain(overrides.policy ?? { data: { id: POLICY_UUID } });
+  const consentChain = makeQueryChain(overrides.consentInsert ?? { data: { id: CONSENT_UUID }, error: null });
+  const profileChain = makeQueryChain(overrides.profileUpdate ?? { error: null });
+  const auditChain = makeQueryChain(overrides.auditInsert ?? { error: null });
+
+  let consentCallCount = 0;
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table === "players") return playerChain;
+      if (table === "privacy_policies") return policyChain;
+      if (table === "parental_consents") {
+        consentCallCount++;
+        return consentCallCount === 1 ? existingChain : consentChain;
+      }
+      if (table === "profiles") return profileChain;
+      if (table === "audit_logs") return auditChain;
+      return makeQueryChain({ data: null });
+    }),
+  };
+}
+
+function mockStaffAuth(role = "coach") {
+  mockCreateServerClient.mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: "staff-id" } } }),
+    },
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { role, club_id: CLUB_UUID } }),
+    }),
+  });
+}
+
+describe("getParentalConsentLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("retorna erro de validação quando o nome está vazio", async () => {
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "  " });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation");
+  });
+
+  it("retorna unauthorized quando não autenticado", async () => {
+    mockCreateServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    });
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("unauthorized");
+  });
+
+  it("retorna forbidden quando o role não é coach/analyst", async () => {
+    mockStaffAuth("admin");
+    mockGetServiceRoleClient.mockReturnValue(buildLinkServiceRole());
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("forbidden");
+  });
+
+  it("retorna not_found quando o jogador não existe no clube", async () => {
+    mockStaffAuth();
+    mockGetServiceRoleClient.mockReturnValue(buildLinkServiceRole({ player: { data: null } }));
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("not_found");
+  });
+
+  it("retorna validation quando o jogador não é u14/u15", async () => {
+    mockStaffAuth();
+    mockGetServiceRoleClient.mockReturnValue(
+      buildLinkServiceRole({
+        player: { data: { id: PLAYER_UUID, profile_id: null, age_group: "senior", club_id: CLUB_UUID } },
+      })
+    );
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation");
+  });
+
+  it("retorna conflict quando já existe consentimento pending/confirmed", async () => {
+    mockStaffAuth();
+    mockGetServiceRoleClient.mockReturnValue(
+      buildLinkServiceRole({ existing: { data: { id: CONSENT_UUID, status: "pending" } } })
+    );
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("conflict");
+  });
+
+  it("happy path: cria o registo com parent_name (sem email), regista audit_logs e devolve o link", async () => {
+    mockStaffAuth();
+    const serviceRole = buildLinkServiceRole();
+    mockGetServiceRoleClient.mockReturnValue(serviceRole);
+
+    const result = await getParentalConsentLink({ playerId: PLAYER_UUID, parentName: "Maria Encarregada" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.link).toContain("/consentimento/token-uuid-12345");
+    }
+
+    const insertChain = serviceRole.from("parental_consents") as unknown as {
+      insert: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parent_name: "Maria Encarregada",
+        player_id: PLAYER_UUID,
+        status: "pending",
+      })
+    );
+    // Nenhum email deve ser enviado — o Brevo não é chamado neste fluxo.
+    expect(mockBrevoFetch).not.toHaveBeenCalled();
   });
 });

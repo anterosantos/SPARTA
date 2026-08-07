@@ -293,6 +293,122 @@ export async function initiateParentalConsent(
   return ok({ consentId: consent.id });
 }
 
+const ConsentLinkSchema = z.object({
+  playerId: z.string().uuid(),
+  parentName: z.string().trim().min(1, "Nome obrigatório").max(255, "Nome demasiado longo"),
+});
+
+/**
+ * Gera um pedido de consentimento parental sem enviar email — para o staff
+ * copiar o link e partilhar por outro canal (ex.: WhatsApp). Como não há
+ * email, o nome do encarregado é guardado em vez disso (parent_email fica
+ * nulo) para identificar "quem autorizou" quando o consentimento for confirmado.
+ */
+export async function getParentalConsentLink(
+  input: unknown
+): Promise<Result<{ link: string }, AppError>> {
+  const parsed = ConsentLinkSchema.safeParse(input);
+  if (!parsed.success) {
+    return err({ code: "validation", message: parsed.error.issues[0]?.message ?? "Dados inválidos" });
+  }
+  const { playerId, parentName } = parsed.data;
+
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
+
+  const { data: staffProfile } = await supabase
+    .from("profiles")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+  if (!staffProfile || !["coach", "analyst"].includes(staffProfile.role)) {
+    return err({ code: "forbidden", message: "Sem permissão para iniciar consentimento" });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const { data: player } = await serviceRole
+    .from("players")
+    .select("id, profile_id, age_group, club_id")
+    .eq("id", playerId)
+    .eq("club_id", staffProfile.club_id)
+    .maybeSingle();
+
+  if (!player) {
+    return err({ code: "not_found", message: "Jogador não encontrado" });
+  }
+  if (!["u14", "u15"].includes(player.age_group)) {
+    return err({ code: "validation", message: "Consentimento parental apenas para grupos u14 e u15" });
+  }
+
+  const { data: existing } = await serviceRole
+    .from("parental_consents")
+    .select("id, status")
+    .eq("player_id", playerId)
+    .in("status", ["pending", "confirmed"])
+    .maybeSingle();
+
+  if (existing) {
+    return err({ code: "conflict", message: `Já existe um registo de consentimento ${existing.status} para este jogador` });
+  }
+
+  const { data: policy } = await serviceRole
+    .from("privacy_policies")
+    .select("id")
+    .eq("is_current", true)
+    .single();
+
+  if (!policy) {
+    return err({ code: "not_found", message: "Política de privacidade activa não encontrada" });
+  }
+
+  const token = newId();
+  const ttlDays = parseInt(process.env.PARENTAL_CONSENT_TOKEN_TTL_DAYS || "90", 10);
+  const tokenExpiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: consent, error: insertError } = await serviceRole
+    .from("parental_consents")
+    .insert({
+      club_id: player.club_id,
+      player_id: playerId,
+      parent_name: parentName,
+      token,
+      token_expires_at: tokenExpiresAt,
+      status: "pending",
+      policy_version_id: policy.id,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !consent) {
+    return err({ code: "internal", message: "Erro ao criar registo de consentimento" });
+  }
+
+  if (player.profile_id) {
+    const { error: profileError } = await serviceRole
+      .from("profiles")
+      .update({ consent_status: "pending" })
+      .eq("id", player.profile_id);
+
+    if (profileError) {
+      return err({ code: "internal", message: "Erro ao actualizar estado de consentimento" });
+    }
+  }
+
+  await serviceRole.from("audit_logs").insert({
+    club_id: player.club_id,
+    actor_id: user.id,
+    action: "consent.link_generated",
+    target_kind: "player",
+    target_id: playerId,
+    payload: { consent_id: consent.id, parent_name: parentName },
+  });
+
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sparta-webapp.vercel.app";
+  return ok({ link: `${siteUrl}/consentimento/${token}` });
+}
+
 const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutos
 
 export async function resendConsentEmail(
@@ -480,7 +596,7 @@ export async function getConsentByPlayerId(playerId: string) {
   const serviceRole = getServiceRoleClient();
   const { data } = await serviceRole
     .from("parental_consents")
-    .select("status, parent_email, token_expires_at")
+    .select("status, parent_email, parent_name, token_expires_at")
     .eq("player_id", playerId)
     .in("status", ["pending", "confirmed"])
     .maybeSingle();
@@ -544,7 +660,10 @@ export async function processConsentDecision(
     .eq("status", "pending")
     .maybeSingle();
 
-  if (!consent?.parent_email) return;
+  // Sem registo (token inválido) ou já não pendente — no-op silencioso.
+  // Nota: parent_email pode ser nulo (consentimento iniciado por link, sem
+  // email) — isso é válido e não deve impedir a confirmação/retirada.
+  if (!consent) return;
 
   if (new Date(consent.token_expires_at as string) < new Date()) {
     await serviceRole
@@ -591,7 +710,10 @@ export async function processConsentDecision(
       payload: { consent_id: consent.id, confirmed_ip: ip, had_profile: !!player?.profile_id },
     });
 
-    await sendConsentConfirmationEmail(consent.parent_email as string, playerName, token);
+    // Sem email (consentimento iniciado por link) — nada a enviar.
+    if (consent.parent_email) {
+      await sendConsentConfirmationEmail(consent.parent_email as string, playerName, token);
+    }
     return;
   }
 
@@ -695,7 +817,7 @@ export async function getPlayerConsentStatus(profileId: string) {
 
   const { data: consent } = await serviceRole
     .from("parental_consents")
-    .select("status, parent_email, token_expires_at")
+    .select("status, parent_email, parent_name, token_expires_at")
     .eq("player_id", player.id)
     .in("status", ["pending", "confirmed"])
     .maybeSingle();

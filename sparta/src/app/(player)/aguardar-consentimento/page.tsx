@@ -24,9 +24,7 @@ export default async function AguardarConsentimentoPage() {
       ? "data inválida"
       : expiresDate.toLocaleDateString("pt-PT");
 
-    const parentEmailMasked = consent.parent_email
-      ? maskEmail(consent.parent_email)
-      : "email não disponível";
+    const parentEmailMasked = consent.parent_email ? maskEmail(consent.parent_email) : null;
 
     return (
       <main id="main-content" className="flex flex-col items-center justify-center min-h-screen gap-6 px-4">
@@ -35,14 +33,21 @@ export default async function AguardarConsentimentoPage() {
           <p className="text-sm text-muted-foreground">
             O teu encarregado de educação ainda precisa de confirmar os teus dados.
           </p>
-          <p className="text-sm">
-            Foi enviado um email para{" "}
-            <span className="font-medium">{parentEmailMasked}</span>.
-          </p>
+          {parentEmailMasked ? (
+            <p className="text-sm">
+              Foi enviado um email para{" "}
+              <span className="font-medium">{parentEmailMasked}</span>.
+            </p>
+          ) : (
+            <p className="text-sm">
+              O pedido foi enviado directamente ao teu encarregado de educação
+              {consent.parent_name ? <> (<span className="font-medium">{consent.parent_name}</span>)</> : null}.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             O link de confirmação é válido até {expiresAt}.
           </p>
-          <ResendButton />
+          {parentEmailMasked && <ResendButton />}
         </div>
       </main>
     );
