@@ -12,6 +12,8 @@ function makePlayer(overrides: Partial<PlayerFormationItem> = {}): PlayerFormati
     jerseyNum: 8,
     weightKg: 50,
     hasWeightReading: true,
+    heightCm: 170,
+    hasHeightReading: true,
     ...overrides,
   };
 }

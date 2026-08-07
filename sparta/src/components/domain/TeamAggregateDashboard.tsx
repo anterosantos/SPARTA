@@ -19,6 +19,7 @@ import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { TooltipExplain } from "@/components/ui/tooltip-explain";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TeamWeightFormation } from "@/components/domain/TeamWeightFormation";
+import { TeamHeightFormation } from "@/components/domain/TeamHeightFormation";
 import { TeamAggregateFiltersSheet, DEFAULT_FILTERS } from "@/components/domain/TeamAggregateFiltersSheet";
 import type { TeamAggregateFilters } from "@/components/domain/TeamAggregateFiltersSheet";
 import type {
@@ -364,18 +365,34 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
       </section>
 
       {/* Equipa por posição — tamanho e cor da bola representam o último peso registado */}
-      <section aria-labelledby="squad-formation-heading">
+      <section aria-labelledby="squad-formation-weight-heading">
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <h2
-            id="squad-formation-heading"
+            id="squad-formation-weight-heading"
             className="text-sm font-semibold text-foreground flex items-center gap-1"
           >
             <TooltipExplain
-              term="Equipa por posição"
+              term="Equipa por posição — Peso"
               definition="Cada jogador é colocado no campo pela sua posição primária. O tamanho e a cor da bola representam o último peso registado (Métricas físicas). Sem leitura, assume-se a média dos pesos registados no plantel menos 1 kg."
             />
           </h2>
           <TeamWeightFormation players={filteredSquad} />
+        </div>
+      </section>
+
+      {/* Equipa por posição — tamanho e cor da bola representam a última altura registada */}
+      <section aria-labelledby="squad-formation-height-heading">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <h2
+            id="squad-formation-height-heading"
+            className="text-sm font-semibold text-foreground flex items-center gap-1"
+          >
+            <TooltipExplain
+              term="Equipa por posição — Altura"
+              definition="Cada jogador é colocado no campo pela sua posição primária. O tamanho e a cor da bola representam a última altura registada (Métricas físicas). Sem leitura, assume-se a média das alturas registadas no plantel menos 1 cm."
+            />
+          </h2>
+          <TeamHeightFormation players={filteredSquad} />
         </div>
       </section>
     </div>

@@ -531,6 +531,8 @@ describe("getTeamAggregateData", () => {
           jerseyNum: 7,
           weightKg: 50,
           hasWeightReading: false,
+          heightCm: 160,
+          hasHeightReading: false,
         });
       }
     });
@@ -591,6 +593,89 @@ describe("getTeamAggregateData", () => {
       if (result.ok) {
         expect(result.data.squadFormation[0]?.weightKg).toBe(72.5);
         expect(result.data.squadFormation[0]?.hasWeightReading).toBe(true);
+      }
+    });
+
+    it("jogador sem leitura de altura recebe a média das alturas registadas no plantel menos 1cm", async () => {
+      setupAuth("coach", CLUB_A);
+      setupServiceRole({
+        players: [
+          { id: PLAYER_1, full_name: "Tem leitura A", age_group: "senior" },
+          { id: PLAYER_2, full_name: "Tem leitura B", age_group: "senior" },
+          { id: PLAYER_3, full_name: "Sem leitura", age_group: "senior" },
+        ],
+        positions: [
+          { player_id: PLAYER_1, position: "DEF", is_primary: true },
+          { player_id: PLAYER_2, position: "DEF", is_primary: true },
+          { player_id: PLAYER_3, position: "MC", is_primary: true },
+        ],
+        // média de 170 e 180 = 175; default esperado = 175 - 1 = 174
+        weight: [
+          { player_id: PLAYER_1, height_cm: 170, recorded_at: new Date().toISOString() },
+          { player_id: PLAYER_2, height_cm: 180, recorded_at: new Date().toISOString() },
+        ],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const withoutReading = result.data.squadFormation.find((p) => p.playerId === PLAYER_3);
+        expect(withoutReading?.heightCm).toBe(174);
+        expect(withoutReading?.hasHeightReading).toBe(false);
+
+        const p1 = result.data.squadFormation.find((p) => p.playerId === PLAYER_1);
+        expect(p1?.heightCm).toBe(170);
+        expect(p1?.hasHeightReading).toBe(true);
+      }
+    });
+
+    it("usa a leitura de altura mais recente por jogador quando há várias", async () => {
+      setupAuth("coach", CLUB_A);
+      const now = new Date();
+      const older = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const newer = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString();
+
+      setupServiceRole({
+        players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+        positions: [{ player_id: PLAYER_1, position: "DEF", is_primary: true }],
+        weight: [
+          { player_id: PLAYER_1, height_cm: 182, recorded_at: newer },
+          { player_id: PLAYER_1, height_cm: 179, recorded_at: older },
+        ],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.squadFormation[0]?.heightCm).toBe(182);
+        expect(result.data.squadFormation[0]?.hasHeightReading).toBe(true);
+      }
+    });
+
+    it("uma leitura com só peso e outra com só altura são combinadas correctamente por jogador", async () => {
+      setupAuth("coach", CLUB_A);
+      setupServiceRole({
+        players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+        positions: [{ player_id: PLAYER_1, position: "DEF", is_primary: true }],
+        // Duas leituras distintas: uma só com peso, outra só com altura
+        // (permitido desde o fix de "Nova leitura" — ver add-metric-sheet.tsx)
+        weight: [
+          { player_id: PLAYER_1, weight_kg: 75, height_cm: null, recorded_at: new Date().toISOString() },
+          { player_id: PLAYER_1, weight_kg: null, height_cm: 178, recorded_at: new Date().toISOString() },
+        ],
+      });
+
+      const result = await getTeamAggregateData();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const p1 = result.data.squadFormation[0];
+        expect(p1?.weightKg).toBe(75);
+        expect(p1?.hasWeightReading).toBe(true);
+        expect(p1?.heightCm).toBe(178);
+        expect(p1?.hasHeightReading).toBe(true);
       }
     });
   });

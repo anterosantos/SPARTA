@@ -44,6 +44,14 @@ export type MatchEventsPoint = {
  */
 const DEFAULT_WEIGHT_KG = 50;
 
+/**
+ * Altura (cm) de último recurso, usado apenas quando NENHUM jogador do plantel
+ * tem leitura de altura (não há média possível). Normalmente a altura por
+ * omissão é a média das alturas registadas no plantel menos 1 cm — mesmo
+ * racional que o peso, ver squadFormation.
+ */
+const DEFAULT_HEIGHT_CM = 160;
+
 export type PlayerFormationItem = {
   playerId: string;
   playerName: string;
@@ -52,6 +60,8 @@ export type PlayerFormationItem = {
   jerseyNum: number | null;
   weightKg: number;
   hasWeightReading: boolean;
+  heightCm: number;
+  hasHeightReading: boolean;
 };
 
 export type TeamAggregateData = {
@@ -157,7 +167,7 @@ export async function getTeamAggregateData(): Promise<
     });
   }
 
-  const [fatigueResult, attendanceResult, metricsResult, eventsResult, weightResult] =
+  const [fatigueResult, attendanceResult, metricsResult, eventsResult, bodyMetricsResult] =
     await Promise.allSettled([
       // fatigue_responses — dados de saúde, obrigatório auditedRead (FR50)
       auditedRead<FatigueRow[]>(
@@ -210,13 +220,14 @@ export async function getTeamAggregateData(): Promise<
         .in("sessions.type", ["jogo", "amigavel"])
         .order("sessions.date", { ascending: false })
         .limit(10),
-      // player_metrics — última leitura de peso por jogador (para a vista "Equipa por posição")
+      // player_metrics — última leitura de peso/altura por jogador (vista "Equipa por posição").
+      // Uma leitura pode ter só peso ou só altura (não ambos obrigatórios), por isso não
+      // filtramos por coluna aqui — cada dimensão é extraída à parte mais abaixo.
       serviceRole
         .from("player_metrics")
-        .select("player_id, weight_kg, recorded_at")
+        .select("player_id, weight_kg, height_cm, recorded_at")
         .eq("club_id", clubId)
         .in("player_id", playerIds)
-        .not("weight_kg", "is", null)
         .order("recorded_at", { ascending: false }),
     ]);
 
@@ -394,33 +405,39 @@ export async function getTeamAggregateData(): Promise<
     .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
     .slice(-10);
 
-  // Última leitura de peso por jogador — linhas já vêm ordenadas por
-  // recorded_at DESC, por isso a primeira ocorrência de cada player_id é a mais recente.
-  type WeightRow = { player_id: string; weight_kg: number; recorded_at: string };
-  const weightRows: WeightRow[] =
-    weightResult.status === "fulfilled" && !weightResult.value.error
-      ? ((weightResult.value.data ?? []) as unknown as WeightRow[])
+  // Última leitura de peso/altura por jogador — linhas já vêm ordenadas por
+  // recorded_at DESC, por isso a primeira ocorrência de cada player_id (por
+  // dimensão) é a mais recente. Uma leitura pode só ter uma das duas colunas.
+  type BodyMetricRow = { player_id: string; weight_kg: number | null; height_cm: number | null; recorded_at: string };
+  const bodyMetricRows: BodyMetricRow[] =
+    bodyMetricsResult.status === "fulfilled" && !bodyMetricsResult.value.error
+      ? ((bodyMetricsResult.value.data ?? []) as unknown as BodyMetricRow[])
       : [];
   const lastWeightByPlayer = new Map<string, number>();
-  for (const row of weightRows) {
-    if (row.player_id && !lastWeightByPlayer.has(row.player_id)) {
+  const lastHeightByPlayer = new Map<string, number>();
+  for (const row of bodyMetricRows) {
+    if (!row.player_id) continue;
+    if (typeof row.weight_kg === "number" && !lastWeightByPlayer.has(row.player_id)) {
       lastWeightByPlayer.set(row.player_id, row.weight_kg);
+    }
+    if (typeof row.height_cm === "number" && !lastHeightByPlayer.has(row.player_id)) {
+      lastHeightByPlayer.set(row.player_id, row.height_cm);
     }
   }
 
-  // Peso por omissão para jogadores sem nenhuma leitura: média dos pesos
-  // registados no plantel menos 1 kg. Sem nenhuma leitura no plantel inteiro,
-  // usa-se DEFAULT_WEIGHT_KG como último recurso (não há média para calcular).
-  const registeredWeights = Array.from(lastWeightByPlayer.values());
-  const defaultWeightKg =
-    registeredWeights.length > 0
-      ? Math.round(
-          (registeredWeights.reduce((sum, w) => sum + w, 0) / registeredWeights.length - 1) * 10
-        ) / 10
-      : DEFAULT_WEIGHT_KG;
+  // Peso/altura por omissão para jogadores sem leitura: média dos valores
+  // registados no plantel menos 1 (kg ou cm). Sem nenhuma leitura no plantel
+  // inteiro, usa-se o valor de último recurso (não há média para calcular).
+  function averageMinusOne(values: number[], fallback: number): number {
+    if (values.length === 0) return fallback;
+    return Math.round((values.reduce((sum, v) => sum + v, 0) / values.length - 1) * 10) / 10;
+  }
+  const defaultWeightKg = averageMinusOne(Array.from(lastWeightByPlayer.values()), DEFAULT_WEIGHT_KG);
+  const defaultHeightCm = averageMinusOne(Array.from(lastHeightByPlayer.values()), DEFAULT_HEIGHT_CM);
 
   const squadFormation: PlayerFormationItem[] = playersArr.map((p) => {
     const weightKg = lastWeightByPlayer.get(p.id);
+    const heightCm = lastHeightByPlayer.get(p.id);
     return {
       playerId: p.id,
       playerName: p.full_name?.trim() || "—",
@@ -429,6 +446,8 @@ export async function getTeamAggregateData(): Promise<
       jerseyNum: p.jersey_num ?? null,
       weightKg: weightKg ?? defaultWeightKg,
       hasWeightReading: weightKg !== undefined,
+      heightCm: heightCm ?? defaultHeightCm,
+      hasHeightReading: heightCm !== undefined,
     };
   });
 
