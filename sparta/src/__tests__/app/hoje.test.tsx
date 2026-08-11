@@ -44,6 +44,7 @@ vi.mock("@/lib/actions/fatigue", () => ({
 
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
+import { getSessionFatigueStatus } from "@/lib/actions/fatigue";
 import HojePage from "@/app/(player)/hoje/page";
 
 function makeSupabaseMock(role = "player") {
@@ -78,8 +79,49 @@ describe("HojePage — vista do jogador", () => {
     const jsx = await HojePage();
     render(jsx);
 
-    expect(screen.getByText("Próxima sessão")).toBeInTheDocument();
+    expect(screen.getByText("Próximos 7 dias")).toBeInTheDocument();
     expect(screen.getByText(/campo municipal/i)).toBeInTheDocument();
+  });
+
+  it("renderiza todas as sessões dos próximos 7 dias, não só a mais próxima", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    const secondSession = {
+      ...mockSession,
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      location: "Campo Secundário",
+      scheduled_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    vi.mocked(getSessionsForClub).mockResolvedValue({
+      ok: true,
+      data: [mockSession, secondSession],
+    });
+
+    const jsx = await HojePage();
+    render(jsx);
+
+    expect(screen.getByText(/campo municipal/i)).toBeInTheDocument();
+    expect(screen.getByText(/campo secundário/i)).toBeInTheDocument();
+  });
+
+  it("sessão do tipo palestra aparece na lista mas sem link para o questionário", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    const lectureSession = {
+      ...mockSession,
+      id: "550e8400-e29b-41d4-a716-446655440003",
+      type: "lecture" as const,
+      location: "Auditório",
+    };
+    vi.mocked(getSessionsForClub).mockResolvedValue({
+      ok: true,
+      data: [lectureSession],
+    });
+
+    const jsx = await HojePage();
+    render(jsx);
+
+    const link = screen.getByRole("link", { name: /Palestra/i });
+    expect(link).toHaveAttribute("href", `/agenda/${lectureSession.id}`);
+    expect(getSessionFatigueStatus).not.toHaveBeenCalled();
   });
 
   it("renderiza EmptyState quando não há sessão nos próximos 7 dias", async () => {

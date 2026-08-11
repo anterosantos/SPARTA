@@ -7,6 +7,7 @@ import { Dumbbell, Trophy, Handshake, Presentation, CheckCircle2 } from "lucide-
 import { cn } from "@/lib/utils";
 import { sessionLabelWithOpponent } from "@/lib/constants/session-colors";
 import { sessionEndDate } from "@/lib/session-time";
+import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 import type { Session, SessionType } from "@/lib/schemas/sessions";
 
 const TYPE_CONFIG: Record<
@@ -36,7 +37,8 @@ export function SessionCard({
   const Icon = config.Icon;
   const label = sessionLabelWithOpponent(config.label, session);
   const isCancelled = session.status === "cancelled";
-  const isAnswered = userRole === "player" && answered === true;
+  const needsQuestionnaire = requiresFatigueQuestionnaire(session.type);
+  const isAnswered = userRole === "player" && needsQuestionnaire && answered === true;
 
   const scheduledDate = new Date(session.scheduled_at);
   const datePart = format(scheduledDate, "dd/MM", { locale: pt });
@@ -47,13 +49,16 @@ export function SessionCard({
   const formattedDate = `${datePart} às ${startTime} - ${endTime}`;
 
   // Jogadores vão para responder questionário; staff/analistas vão para gestão
+  // Palestras não têm questionário de fadiga — vai para o detalhe da sessão
   // Phase prop permite especificar 'post' para post-session flow (AC #4, Story 4.9)
   // Se respondido, volta a /hoje em vez de abrir o questionário novamente (AC #1, Story 4.10)
   const href =
     userRole === "player"
-      ? isAnswered
-        ? "/hoje"
-        : `/questionario/${session.id}/${phase ?? "pre"}`
+      ? !needsQuestionnaire
+        ? `/agenda/${session.id}`
+        : isAnswered
+          ? "/hoje"
+          : `/questionario/${session.id}/${phase ?? "pre"}`
       : `/sessoes/${session.id}`;
 
   return (

@@ -3,9 +3,10 @@
  * AC #4, AC #5 — Story 4.10
  *
  * Cobre:
- * - nextSessionAnswered=true → card com indicador
- * - allDoneToday=true + nextSession=null → "Tudo registado" empty state
- * - Combinação: nextSession + recentSession (Story 4.9) ambos visíveis
+ * - answeredMap[id]=true → card com indicador
+ * - allDoneToday=true + upcomingSessions=[] → "Tudo registado" empty state
+ * - Combinação: upcomingSessions + recentSession (Story 4.9) ambos visíveis
+ * - Lista de várias sessões nos próximos 7 dias (não só a mais próxima)
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -33,6 +34,15 @@ const mockSession: Session = {
   notes: null,
   created_by: "950e8400-e29b-41d4-a716-446655440005",
   created_at: "2026-05-24T00:00:00Z",
+  concentration_time: null,
+  opponent_name: null,
+};
+
+const mockLectureSession: Session = {
+  ...mockSession,
+  id: "550e8400-e29b-41d4-a716-446655440077",
+  type: "lecture",
+  scheduled_at: "2026-05-26T10:00:00Z",
 };
 
 const mockRecentSession: Session = {
@@ -43,11 +53,11 @@ const mockRecentSession: Session = {
 };
 
 describe("TodayPageContent with answered state (Story 4.10)", () => {
-  it("shows nextSessionAnswered indicator when nextSessionAnswered=true", () => {
+  it("shows answered indicator when answeredMap[id]=true", () => {
     render(
       <TodayPageContent
-        nextSession={mockSession}
-        nextSessionAnswered={true}
+        upcomingSessions={[mockSession]}
+        answeredMap={{ [mockSession.id]: true }}
         userRole="player"
       />
     );
@@ -55,10 +65,10 @@ describe("TodayPageContent with answered state (Story 4.10)", () => {
     expect(screen.getByText("Respondido")).toBeInTheDocument();
   });
 
-  it("shows empty state 'Tudo registado' when allDoneToday=true and no nextSession", () => {
+  it("shows empty state 'Tudo registado' when allDoneToday=true and no upcoming sessions", () => {
     render(
       <TodayPageContent
-        nextSession={null}
+        upcomingSessions={[]}
         allDoneToday={true}
         userRole="player"
       />
@@ -70,23 +80,23 @@ describe("TodayPageContent with answered state (Story 4.10)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows both nextSession and recentSession when both exist", () => {
+  it("shows both upcoming sessions and recentSession when both exist", () => {
     render(
       <TodayPageContent
-        nextSession={mockSession}
+        upcomingSessions={[mockSession]}
         recentSession={mockRecentSession}
         userRole="player"
       />
     );
 
-    expect(screen.getByText("Próxima sessão")).toBeInTheDocument();
+    expect(screen.getByText("Próximos 7 dias")).toBeInTheDocument();
     expect(screen.getByText("Sessão recente")).toBeInTheDocument();
   });
 
   it("shows 'Sem sessões' empty state when no sessions and not allDoneToday", () => {
     render(
       <TodayPageContent
-        nextSession={null}
+        upcomingSessions={[]}
         recentSession={null}
         allDoneToday={false}
         userRole="player"
@@ -102,7 +112,7 @@ describe("TodayPageContent with answered state (Story 4.10)", () => {
     // Quando allDoneToday=true, recentSession é null porque post foi respondido (lógica do /hoje)
     render(
       <TodayPageContent
-        nextSession={null}
+        upcomingSessions={[]}
         recentSession={null}
         allDoneToday={true}
         userRole="player"
@@ -113,16 +123,47 @@ describe("TodayPageContent with answered state (Story 4.10)", () => {
     expect(screen.queryByText("Sessão recente")).not.toBeInTheDocument();
   });
 
-  it("passes answered prop to SessionCard for nextSession", () => {
+  it("passes answered prop to SessionCard for each upcoming session", () => {
     render(
       <TodayPageContent
-        nextSession={mockSession}
-        nextSessionAnswered={true}
+        upcomingSessions={[mockSession]}
+        answeredMap={{ [mockSession.id]: true }}
         userRole="player"
       />
     );
 
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/hoje");
+  });
+
+  it("mostra todas as sessões dos próximos 7 dias, não só a mais próxima", () => {
+    const secondSession: Session = {
+      ...mockSession,
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      scheduled_at: "2026-05-27T10:00:00Z",
+    };
+
+    render(
+      <TodayPageContent
+        upcomingSessions={[mockSession, secondSession]}
+        userRole="player"
+      />
+    );
+
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("sessão do tipo palestra não tem indicador de resposta nem link para questionário", () => {
+    render(
+      <TodayPageContent
+        upcomingSessions={[mockLectureSession]}
+        answeredMap={{ [mockLectureSession.id]: true }}
+        userRole="player"
+      />
+    );
+
+    expect(screen.queryByText("Respondido")).not.toBeInTheDocument();
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", `/agenda/${mockLectureSession.id}`);
   });
 });

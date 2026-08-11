@@ -80,6 +80,13 @@ export type SessionUpdate = z.infer<typeof SessionUpdateSchema>;
 export type SessionType = (typeof SESSION_TYPES)[number];
 export type SessionStatus = "scheduled" | "cancelled" | "completed";
 
+// Palestras não têm questionário de fadiga — apenas Treino, Jogo e Jogo amigável.
+const FATIGUE_QUESTIONNAIRE_SESSION_TYPES: readonly SessionType[] = ["training", "match", "friendly"];
+
+export function requiresFatigueQuestionnaire(type: SessionType): boolean {
+  return FATIGUE_QUESTIONNAIRE_SESSION_TYPES.includes(type);
+}
+
 export type Session = {
   id: string;
   club_id: string;

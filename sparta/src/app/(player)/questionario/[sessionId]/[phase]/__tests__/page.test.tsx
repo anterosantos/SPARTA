@@ -14,6 +14,19 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
+
+describe("QuestionarioPage — guard de tipo de sessão (palestra não tem questionário)", () => {
+  it("bloqueia acesso quando a sessão é do tipo 'lecture'", () => {
+    expect(requiresFatigueQuestionnaire("lecture")).toBe(false);
+  });
+
+  it("permite acesso para treino/jogo/amigável", () => {
+    expect(requiresFatigueQuestionnaire("training")).toBe(true);
+    expect(requiresFatigueQuestionnaire("match")).toBe(true);
+    expect(requiresFatigueQuestionnaire("friendly")).toBe(true);
+  });
+});
 
 describe("QuestionarioPage phase-aware guard logic", () => {
   // Helper para testar a guard lógica

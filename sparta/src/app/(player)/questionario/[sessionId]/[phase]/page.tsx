@@ -18,6 +18,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
+import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 import { FatigueQuestionnaire } from "@/components/ui/fatigue-questionnaire";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 
@@ -86,6 +87,23 @@ export default async function QuestionarioPage({
         <main id="main-content">
           <div className="px-4 py-6 sm:px-6">
             <p className="text-red-600 font-mono text-sm">{errMsg}</p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // Guard: palestras não têm questionário de fadiga (apenas treino/jogo/amigável)
+  if (!requiresFatigueQuestionnaire(sessionResult.data.type)) {
+    console.error("[questionario] ERROR: sessão do tipo 'lecture' não tem questionário de fadiga");
+    return (
+      <>
+        <StickyHeader title="Erro" backHref="/hoje" />
+        <main id="main-content">
+          <div className="px-4 py-6 sm:px-6">
+            <p className="text-red-600 font-mono text-sm">
+              Palestras não têm questionário de fadiga.
+            </p>
           </div>
         </main>
       </>

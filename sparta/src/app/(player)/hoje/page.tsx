@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getSessionFatigueStatus } from "@/lib/actions/fatigue";
 import { getPlayerNotifications } from "@/lib/actions/player-notifications";
+import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { TodayPageContent } from "@/components/app/today-page-content";
 
@@ -29,7 +30,7 @@ export default async function HojePage() {
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  // AC #2 + AC #3 — Query sessões (próxima e recente)
+  // Sessões dos próximos 7 dias (todas — não só a mais próxima) + sessão recente (post)
   const [result, recentResult] = await Promise.all([
     getSessionsForClub({
       from: now.toISOString(),
@@ -43,17 +44,19 @@ export default async function HojePage() {
     }),
   ]);
 
-  const nextSession = result.ok ? (result.data?.[0] ?? null) : null;
+  const upcomingSessions = result.ok ? (result.data ?? []) : [];
 
   let recentSession = null;
   if (recentResult.ok && (recentResult.data ?? []).length > 0) {
-    // Filtrar para excluir 'cancelled' e sessões com scheduled_at >= now (limite estrito < now)
+    // Filtrar para excluir 'cancelled', palestras (sem questionário de fadiga) e
+    // sessões com scheduled_at >= now (limite estrito < now).
     // Nota: getSessionsForClub usa lte no limite superior — excluir a fronteira exacta para
-    // evitar que uma sessão apareça simultaneamente em "Próxima sessão" e "Sessão recente".
+    // evitar que uma sessão apareça simultaneamente em "Próximos 7 dias" e "Sessão recente".
     const nowMs = now.getTime();
     const recentSessions = (recentResult.data ?? []).filter(
       (s) =>
         s.status !== "cancelled" &&
+        requiresFatigueQuestionnaire(s.type) &&
         new Date(s.scheduled_at).getTime() < nowMs
     );
     // Pegar a mais recente (query ordenada ascending — último elemento = mais recente)
@@ -62,21 +65,30 @@ export default async function HojePage() {
     }
   }
 
-  // AC #2 — Chamar getSessionFatigueStatus em paralelo para ambas as sessões + notificações
-  const [nextFatigueStatus, recentFatigueStatus, notificationsResult] = await Promise.all([
-    nextSession ? getSessionFatigueStatus(nextSession.id) : Promise.resolve(null),
+  // Estado do questionário pré-sessão para cada sessão futura que o exige
+  // (palestras ficam de fora — não têm questionário de fadiga)
+  const fatigueEligibleSessions = upcomingSessions.filter((s) =>
+    requiresFatigueQuestionnaire(s.type)
+  );
+
+  const [fatigueResults, recentFatigueStatus, notificationsResult] = await Promise.all([
+    Promise.all(fatigueEligibleSessions.map((s) => getSessionFatigueStatus(s.id))),
     recentSession ? getSessionFatigueStatus(recentSession.id) : Promise.resolve(null),
     getPlayerNotifications(),
   ]);
 
+  const answeredMap: Record<string, boolean> = {};
+  fatigueEligibleSessions.forEach((s, i) => {
+    const fatigueResult = fatigueResults[i];
+    answeredMap[s.id] = fatigueResult?.ok ? fatigueResult.data.pre : false;
+  });
+
   const notifications = notificationsResult.ok ? notificationsResult.data : [];
 
-  // Derivar props para TodayPageContent
-  const nextSessionAnswered = nextFatigueStatus?.ok ? nextFatigueStatus.data.pre : false;
   const recentPostAnswered = recentFatigueStatus?.ok ? recentFatigueStatus.data.post : false;
   const recentPreAnswered = recentFatigueStatus?.ok ? recentFatigueStatus.data.pre : false;
 
-  // AC #3 — "Tudo em dia" se houver sessão recente com AMBAS as fases respondidas
+  // "Tudo em dia" se houver sessão recente com AMBAS as fases respondidas
   const allDoneToday =
     recentSession !== null && recentPreAnswered && recentPostAnswered;
 
@@ -88,8 +100,8 @@ export default async function HojePage() {
       <StickyHeader title="Hoje" />
       <main id="main-content">
         <TodayPageContent
-          nextSession={nextSession}
-          nextSessionAnswered={nextSessionAnswered}
+          upcomingSessions={upcomingSessions}
+          answeredMap={answeredMap}
           recentSession={showRecentSession ? recentSession : null}
           allDoneToday={allDoneToday}
           userRole={profile.role}

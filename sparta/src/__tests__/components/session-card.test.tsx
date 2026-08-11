@@ -132,4 +132,12 @@ describe("SessionCard", () => {
     const end = format(sessionEndDate(BASE_SESSION.scheduled_at, BASE_SESSION.duration_min), "HH:mm");
     expect(screen.getByRole("link")).toHaveTextContent(`${start} - ${end}`);
   });
+
+  it("palestra: jogador vai para o detalhe da sessão, não para o questionário", () => {
+    const lecture: Session = { ...BASE_SESSION, type: "lecture" };
+    render(<SessionCard session={lecture} userRole="player" answered={true} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", `/agenda/${lecture.id}`);
+    expect(screen.queryByText("Respondido")).not.toBeInTheDocument();
+  });
 });

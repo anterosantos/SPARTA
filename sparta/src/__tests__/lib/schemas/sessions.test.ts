@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { SessionCreateSchema, SessionUpdateSchema } from "@/lib/schemas/sessions";
+import { SessionCreateSchema, SessionUpdateSchema, requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 
 const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -176,5 +176,23 @@ describe("SessionUpdateSchema", () => {
     const r2 = SessionUpdateSchema.safeParse({ ...valid, durationMin: 300 });
     expect(r1.success).toBe(false);
     expect(r2.success).toBe(false);
+  });
+});
+
+describe("requiresFatigueQuestionnaire", () => {
+  it("devolve true para treino", () => {
+    expect(requiresFatigueQuestionnaire("training")).toBe(true);
+  });
+
+  it("devolve true para jogo", () => {
+    expect(requiresFatigueQuestionnaire("match")).toBe(true);
+  });
+
+  it("devolve true para jogo amigável", () => {
+    expect(requiresFatigueQuestionnaire("friendly")).toBe(true);
+  });
+
+  it("devolve false para palestra", () => {
+    expect(requiresFatigueQuestionnaire("lecture")).toBe(false);
   });
 });

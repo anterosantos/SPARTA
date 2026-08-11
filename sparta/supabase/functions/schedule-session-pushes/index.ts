@@ -30,10 +30,12 @@ const handler = async (req: Request): Promise<Response> => {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+    // Palestras não têm questionário de fadiga — apenas treino/jogo/amigável
     const { data: sessions, error: sessionsError } = await supabase
       .from("sessions")
       .select("id, club_id, scheduled_at, duration_min")
       .eq("status", "scheduled")
+      .neq("type", "lecture")
       .gte("scheduled_at", now.toISOString())
       .lte("scheduled_at", tomorrow.toISOString());
 
