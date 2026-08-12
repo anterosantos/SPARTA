@@ -84,7 +84,7 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
               onClick={() => onSelectDay(day)}
               aria-label={`${format(day, "d 'de' MMMM", { locale: pt })}, ${daySessions.length} ${daySessions.length === 1 ? "sessão" : "sessões"}`}
               className={[
-                "flex flex-col items-center py-1.5 px-0.5 min-h-[84px] rounded transition-colors hover:bg-surface",
+                "flex flex-col items-center py-1.5 px-0.5 min-h-[112px] rounded transition-colors hover:bg-surface",
                 !isCurrentMonth && "opacity-30",
                 today && "ring-1 ring-foreground ring-inset",
               ]
@@ -92,7 +92,7 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
                 .join(" ")}
             >
               <span className="text-xs font-medium leading-none mb-1">{dayNum}</span>
-              <div className="flex flex-col gap-0.5 w-full px-1">
+              <div className="flex flex-col gap-1 w-full px-1">
                 {/* Sessões ordenadas por hora — a mais cedo fica em cima */}
                 {visibleSessions.map((s) => {
                   const config = SESSION_TYPE_COLORS[s.type]
@@ -100,11 +100,11 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
                   return (
                     <div
                       key={s.id}
-                      className="w-full rounded-sm px-1 py-px overflow-hidden"
+                      className="w-full rounded-sm px-1.5 py-1 overflow-hidden"
                       style={{ backgroundColor: config?.bg }}
                       aria-hidden="true"
                     >
-                      <span className="block truncate text-[8px] leading-tight font-medium text-white">
+                      <span className="block truncate text-[11px] leading-tight font-medium text-white">
                         {time} {config?.label}
                       </span>
                     </div>
