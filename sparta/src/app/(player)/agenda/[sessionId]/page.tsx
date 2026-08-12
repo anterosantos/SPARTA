@@ -79,6 +79,16 @@ export default async function PlayerSessionDetailPage({
           </div>
         </div>
 
+        {/* Notas da sessão (se existirem) */}
+        {session.notes && (
+          <div className="rounded-lg border border-border bg-card p-4 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Notas
+            </p>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{session.notes}</p>
+          </div>
+        )}
+
         {/* Current status (if any) */}
         {attendance && (
           <div className="rounded-lg border border-border bg-card p-4 space-y-1">
