@@ -140,4 +140,22 @@ describe("SessionCard", () => {
     expect(link).toHaveAttribute("href", `/agenda/${lecture.id}`);
     expect(screen.queryByText("Respondido")).not.toBeInTheDocument();
   });
+
+  it("médico/fisio: jogador vai para o detalhe da sessão, não para o questionário", () => {
+    const medical: Session = { ...BASE_SESSION, type: "medical" };
+    render(<SessionCard session={medical} userRole="player" answered={true} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", `/agenda/${medical.id}`);
+    expect(link).toHaveTextContent("Médico/Fisio");
+    expect(screen.queryByText("Respondido")).not.toBeInTheDocument();
+  });
+
+  it("outros: jogador vai para o detalhe da sessão, não para o questionário", () => {
+    const other: Session = { ...BASE_SESSION, type: "other" };
+    render(<SessionCard session={other} userRole="player" answered={true} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", `/agenda/${other.id}`);
+    expect(link).toHaveTextContent("Outros");
+    expect(screen.queryByText("Respondido")).not.toBeInTheDocument();
+  });
 });

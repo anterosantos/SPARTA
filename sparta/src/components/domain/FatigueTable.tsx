@@ -46,6 +46,8 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
   match: "Jogo",
   friendly: "Jogo amigável",
   lecture: "Palestra",
+  medical: "Médico/Fisio",
+  other: "Outros",
 };
 
 interface DeltaProps {

@@ -16,9 +16,17 @@
 import { describe, it, expect } from "vitest";
 import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 
-describe("QuestionarioPage — guard de tipo de sessão (palestra não tem questionário)", () => {
+describe("QuestionarioPage — guard de tipo de sessão (palestra/médico/outros não têm questionário)", () => {
   it("bloqueia acesso quando a sessão é do tipo 'lecture'", () => {
     expect(requiresFatigueQuestionnaire("lecture")).toBe(false);
+  });
+
+  it("bloqueia acesso quando a sessão é do tipo 'medical'", () => {
+    expect(requiresFatigueQuestionnaire("medical")).toBe(false);
+  });
+
+  it("bloqueia acesso quando a sessão é do tipo 'other'", () => {
+    expect(requiresFatigueQuestionnaire("other")).toBe(false);
   });
 
   it("permite acesso para treino/jogo/amigável", () => {

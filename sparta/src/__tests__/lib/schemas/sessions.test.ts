@@ -195,4 +195,27 @@ describe("requiresFatigueQuestionnaire", () => {
   it("devolve false para palestra", () => {
     expect(requiresFatigueQuestionnaire("lecture")).toBe(false);
   });
+
+  it("devolve false para médico/fisio", () => {
+    expect(requiresFatigueQuestionnaire("medical")).toBe(false);
+  });
+
+  it("devolve false para outros", () => {
+    expect(requiresFatigueQuestionnaire("other")).toBe(false);
+  });
+});
+
+describe("SessionCreateSchema — tipos médico/fisio e outros", () => {
+  const base = {
+    scheduledAt: futureISO(),
+    durationMin: 90,
+  };
+
+  it("aceita tipo 'medical'", () => {
+    expect(SessionCreateSchema.safeParse({ ...base, type: "medical" }).success).toBe(true);
+  });
+
+  it("aceita tipo 'other'", () => {
+    expect(SessionCreateSchema.safeParse({ ...base, type: "other" }).success).toBe(true);
+  });
 });

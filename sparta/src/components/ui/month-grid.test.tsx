@@ -103,4 +103,24 @@ describe("MonthGrid", () => {
     screen.getByRole("gridcell", { name: /^5 de agosto.*0 sessões/i }).click()
     expect(onSelectDay).toHaveBeenCalledTimes(1)
   })
+
+  it("mostra Médico/Fisio e Outros com a cor e label correctos", () => {
+    render(
+      <MonthGrid
+        sessions={[
+          makeSession({ id: "sess-medical", type: "medical", scheduled_at: "2026-08-05T09:00:00.000Z" }),
+          makeSession({ id: "sess-other", type: "other", scheduled_at: "2026-08-05T11:00:00.000Z" }),
+        ]}
+        month={MONTH}
+        onSelectDay={vi.fn()}
+      />
+    )
+    const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*2 sessões/i })
+    const chips = cell.querySelectorAll("div[aria-hidden]")
+    expect(chips).toHaveLength(2)
+    expect(chips[0]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.medical.bg })
+    expect(chips[0]).toHaveTextContent("Médico/Fisio")
+    expect(chips[1]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.other.bg })
+    expect(chips[1]).toHaveTextContent("Outros")
+  })
 })

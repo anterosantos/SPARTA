@@ -101,7 +101,9 @@ export default async function SessoesPage({
   if (activeFilter === "matches") {
     sessions = result.data.filter((s) => s.type === "match" || s.type === "friendly");
   } else if (activeFilter === "training") {
-    sessions = result.data.filter((s) => s.type === "training" || s.type === "lecture");
+    sessions = result.data.filter(
+      (s) => s.type === "training" || s.type === "lecture" || s.type === "medical" || s.type === "other"
+    );
   } else {
     sessions = result.data;
   }

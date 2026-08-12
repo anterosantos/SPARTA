@@ -57,8 +57,8 @@ export default async function ConvocatoriaPage({
 
   const session = sessionResult.data;
 
-  // Redirect if training (or lecture) session
-  if (session.type === "training" || session.type === "lecture") {
+  // Redirect if not a match/friendly session (convocatória só faz sentido para jogos)
+  if (session.type !== "match" && session.type !== "friendly") {
     redirect(`/sessoes/${id}?toast=training-no-lineup`);
   }
 

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { Dumbbell, Trophy, Handshake, Presentation } from "lucide-react";
+import { Dumbbell, Trophy, Handshake, Presentation, Stethoscope, MoreHorizontal } from "lucide-react";
 import { SessionDateDisplay } from "./session-date-display";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
@@ -18,6 +18,8 @@ const TYPE_CONFIG: Record<
   match: { label: "Jogo", Icon: Trophy },
   friendly: { label: "Jogo amigável", Icon: Handshake },
   lecture: { label: "Palestra", Icon: Presentation },
+  medical: { label: "Médico/Fisio", Icon: Stethoscope },
+  other: { label: "Outros", Icon: MoreHorizontal },
 };
 
 const STATUS_LABELS: Record<SessionStatus, string> = {
