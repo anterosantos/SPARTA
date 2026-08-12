@@ -6,15 +6,17 @@ interface CalendarViewParams {
 /**
  * Builds the `?vista=&mes=` query string for the current `/calendario` view
  * state, so it can be round-tripped through "Nova sessão" and back. Returns
- * "" at the default (semana). Malformed `mes` values are forwarded as-is —
- * `/calendario`'s own parsing already falls back safely to the current month
- * for anything that doesn't match `yyyy-MM`.
+ * "" at the default (mês, sem `mes` alvo). Malformed `mes` values are
+ * forwarded as-is — `/calendario`'s own parsing já cai em segurança para o
+ * mês actual para o que não corresponder a `yyyy-MM`.
  */
 export function buildCalendarViewQuery(params: CalendarViewParams): string {
   const qs = new URLSearchParams();
-  if (params.vista === "mes") {
-    qs.set("vista", "mes");
-    if (params.mes) qs.set("mes", params.mes);
+  if (params.vista === "semana") {
+    qs.set("vista", "semana");
+  } else if (params.mes) {
+    // vista "mes" é o default — omitimos o parâmetro, mas mantemos o mês alvo
+    qs.set("mes", params.mes);
   }
   const s = qs.toString();
   return s ? `?${s}` : "";

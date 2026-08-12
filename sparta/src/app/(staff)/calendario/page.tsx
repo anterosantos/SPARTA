@@ -33,7 +33,7 @@ export default async function CalendarioPage({
   searchParams?: Promise<{ vista?: string; mes?: string }>;
 }) {
   const params = await searchParams;
-  const vista = params?.vista === "mes" ? "mes" : "semana";
+  const vista = params?.vista === "semana" ? "semana" : "mes";
 
   // Parse target month from ?mes=YYYY-MM; default to current month
   const today = new Date();

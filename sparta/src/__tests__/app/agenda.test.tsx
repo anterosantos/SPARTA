@@ -98,4 +98,35 @@ describe("PlayerAgendaPage — vista do jogador", () => {
 
     expect(screen.getByText(/sem sessões agendadas/i)).toBeInTheDocument();
   });
+
+  it("abre por defeito na vista de Mês (sem ?vista= na URL)", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    vi.mocked(getSessionsForClub).mockResolvedValue({
+      ok: true,
+      data: [mockSession1],
+    });
+
+    const jsx = await PlayerAgendaPage({ searchParams: Promise.resolve({}) });
+    render(jsx);
+
+    expect(screen.getByRole("tab", { name: "Mês" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Semana" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("mostra a vista de Semana quando ?vista=semana está na URL", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    vi.mocked(getSessionsForClub).mockResolvedValue({
+      ok: true,
+      data: [mockSession1],
+    });
+
+    const jsx = await PlayerAgendaPage({ searchParams: Promise.resolve({ vista: "semana" }) });
+    render(jsx);
+
+    // Nota: CalendarViewToggle é client component e lê o seu próprio
+    // useSearchParams() (mockado à parte) — aqui confirmamos apenas que o
+    // Server Component escolheu a vista de semana (sem grelha de mês).
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
 });

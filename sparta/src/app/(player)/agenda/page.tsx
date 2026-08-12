@@ -30,7 +30,7 @@ export default async function PlayerAgendaPage({
   searchParams?: Promise<{ vista?: string; mes?: string }>;
 }) {
   const params = await searchParams;
-  const vista = params?.vista === "mes" ? "mes" : "semana";
+  const vista = params?.vista === "semana" ? "semana" : "mes";
 
   const today = new Date();
   const targetMonth = (() => {

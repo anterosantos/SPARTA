@@ -8,7 +8,7 @@ type Vista = "semana" | "mes"
 export function CalendarViewToggle() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const current = (searchParams.get("vista") ?? "semana") as Vista
+  const current = (searchParams.get("vista") === "semana" ? "semana" : "mes") as Vista
 
   const setVista = useCallback(
     (vista: Vista) => {

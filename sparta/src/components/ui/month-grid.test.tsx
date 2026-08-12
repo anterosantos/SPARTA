@@ -26,7 +26,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
 const MONTH = new Date("2026-08-01T00:00:00.000Z")
 
 describe("MonthGrid", () => {
-  it("mostra uma linha grossa (barra) por sessão, não um pontinho", () => {
+  it("mostra um retângulo preenchido a cor por sessão, com hora e tipo, não uma linha ou pontinho", () => {
     render(
       <MonthGrid
         sessions={[makeSession({ scheduled_at: "2026-08-05T10:00:00.000Z" })]}
@@ -35,14 +35,30 @@ describe("MonthGrid", () => {
       />
     )
     const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*1 sessão/i })
-    const bar = cell.querySelector("span[aria-hidden]")
-    expect(bar).not.toBeNull()
-    expect(bar).toHaveClass("h-1", "w-full", "rounded-sm")
-    // Não deve restar nenhum pontinho circular do design anterior
+    const chip = cell.querySelector("div[aria-hidden]")
+    expect(chip).not.toBeNull()
+    expect(chip).toHaveClass("w-full", "rounded-sm")
+    expect(chip).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.training.bg })
+    expect(chip).toHaveTextContent("Treino")
+    // Não deve restar nenhum pontinho circular nem barra fina do design anterior
     expect(cell.querySelector(".rounded-full")).toBeNull()
+    expect(cell.querySelector(".h-1")).toBeNull()
   })
 
-  it("ordena as barras por hora — a sessão mais cedo fica em cima", () => {
+  it("mostra a hora local dentro do retângulo", () => {
+    render(
+      <MonthGrid
+        sessions={[makeSession({ scheduled_at: "2026-08-05T10:00:00.000Z" })]}
+        month={MONTH}
+        onSelectDay={vi.fn()}
+      />
+    )
+    const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*1 sessão/i })
+    const chip = cell.querySelector("div[aria-hidden]")
+    expect(chip?.textContent).toMatch(/^\d{2}:\d{2} Treino$/)
+  })
+
+  it("ordena os retângulos por hora — a sessão mais cedo fica em cima", () => {
     const morning = makeSession({
       id: "sess-morning",
       type: "training",
@@ -59,13 +75,13 @@ describe("MonthGrid", () => {
     )
 
     const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*2 sessões/i })
-    const bars = cell.querySelectorAll("span[aria-hidden]")
-    expect(bars).toHaveLength(2)
-    expect(bars[0]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.training.bg })
-    expect(bars[1]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.match.bg })
+    const chips = cell.querySelectorAll("div[aria-hidden]")
+    expect(chips).toHaveLength(2)
+    expect(chips[0]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.training.bg })
+    expect(chips[1]).toHaveStyle({ backgroundColor: SESSION_TYPE_COLORS.match.bg })
   })
 
-  it("mostra no máximo 3 barras e um indicador '+N' para o resto", () => {
+  it("mostra no máximo 3 retângulos e um indicador '+N' para o resto", () => {
     const sessions = Array.from({ length: 5 }, (_, i) =>
       makeSession({
         id: `sess-${i}`,
@@ -75,8 +91,8 @@ describe("MonthGrid", () => {
     render(<MonthGrid sessions={sessions} month={MONTH} onSelectDay={vi.fn()} />)
 
     const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*5 sessões/i })
-    const bars = cell.querySelectorAll("span[aria-hidden]")
-    expect(bars).toHaveLength(3)
+    const chips = cell.querySelectorAll("div[aria-hidden]")
+    expect(chips).toHaveLength(3)
     expect(cell).toHaveTextContent("+2")
   })
 
