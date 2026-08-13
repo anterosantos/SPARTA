@@ -10,7 +10,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
-  within,
   fireEvent,
   waitFor,
   act,
@@ -70,11 +69,6 @@ async function renderAndSettle(props: FatigueQuestionnaireProps = BASE_PROPS) {
 }
 
 const DIMS = ["dim_energy", "dim_focus", "dim_sleep", "dim_soreness", "dim_mood"] as const;
-
-/** Escopo do grupo Sim/Não da pergunta de presença — ExamsToggle usa o mesmo par de labels */
-function attendanceGroup() {
-  return screen.getByRole("group", { name: "Vais participar nesta sessão?" });
-}
 
 /** Seleciona o emoji de valor `value` (1–5) em todas as 5 dimensões */
 async function setAllRequiredEmojis(value: 1 | 2 | 3 | 4 | 5 = 3) {
@@ -311,17 +305,28 @@ describe("FatigueQuestionnaire — submissão", () => {
 // ─── Presença (fase pre) ────────────────────────────────────────────────────
 
 describe("FatigueQuestionnaire — presença (fase pre)", () => {
-  it("mostra a pergunta de presença na fase pre", async () => {
+  it("mostra o toggle de ausência na fase pre, desmarcado por omissão", async () => {
     await renderAndSettle();
-    expect(screen.getByText("Vais participar nesta sessão?")).toBeInTheDocument();
+    const toggle = screen.getByRole("checkbox", { name: /não vou estar presente/i });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-checked", "false");
   });
 
-  it("NÃO mostra a pergunta de presença na fase post", async () => {
+  it("NÃO mostra o toggle de ausência na fase post", async () => {
     await renderAndSettle({ ...BASE_PROPS, phase: "post" });
-    expect(screen.queryByText("Vais participar nesta sessão?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /não vou estar presente/i })).not.toBeInTheDocument();
   });
 
-  it("não chama declarePlayerAbsence nem cancelPlayerAbsence quando a pergunta não é respondida", async () => {
+  it("pré-marca o toggle quando initialAbsent=true", async () => {
+    await renderAndSettle({ ...BASE_PROPS, initialAbsent: true });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", { name: /não vou estar presente/i })
+      ).toHaveAttribute("aria-checked", "true");
+    });
+  });
+
+  it("desmarcado (por omissão) e submeter chama cancelPlayerAbsence", async () => {
     vi.mocked(submitFatigueResponse).mockResolvedValue({
       ok: true,
       data: { id: "0190a000-0000-7000-a000-000000000001" },
@@ -339,14 +344,12 @@ describe("FatigueQuestionnaire — presença (fase pre)", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(cancelPlayerAbsence).toHaveBeenCalledWith({ session_id: SESSION_ID });
     });
-
     expect(declarePlayerAbsence).not.toHaveBeenCalled();
-    expect(cancelPlayerAbsence).not.toHaveBeenCalled();
   });
 
-  it("responder 'Não' e submeter chama declarePlayerAbsence e não bloqueia o questionário pré", async () => {
+  it("marcar o toggle e submeter chama declarePlayerAbsence e não bloqueia o questionário pré", async () => {
     vi.mocked(submitFatigueResponse).mockResolvedValue({
       ok: true,
       data: { id: "0190a000-0000-7000-a000-000000000001" },
@@ -356,7 +359,7 @@ describe("FatigueQuestionnaire — presença (fase pre)", () => {
     await setAllRequiredEmojis(3);
 
     await act(async () => {
-      fireEvent.click(within(attendanceGroup()).getByRole("button", { name: "Não" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: /não vou estar presente/i }));
     });
 
     await waitFor(() => {
@@ -380,33 +383,6 @@ describe("FatigueQuestionnaire — presença (fase pre)", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Ausência assinalada");
     });
-  });
-
-  it("responder 'Sim' e submeter chama cancelPlayerAbsence", async () => {
-    vi.mocked(submitFatigueResponse).mockResolvedValue({
-      ok: true,
-      data: { id: "0190a000-0000-7000-a000-000000000001" },
-    });
-
-    await renderAndSettle();
-    await setAllRequiredEmojis(3);
-
-    await act(async () => {
-      fireEvent.click(within(attendanceGroup()).getByRole("button", { name: "Sim" }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
-    });
-
-    await waitFor(() => {
-      expect(cancelPlayerAbsence).toHaveBeenCalledWith({ session_id: SESSION_ID });
-    });
-    expect(declarePlayerAbsence).not.toHaveBeenCalled();
   });
 });
 

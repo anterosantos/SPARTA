@@ -1,65 +1,58 @@
 "use client";
 
 export interface AttendanceToggleProps {
-  value: boolean | null;
-  onChange: (value: boolean) => void;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
   disabled?: boolean;
 }
 
+/** Mesmo padrão visual do toggle de ausência em /agenda/[sessionId] (absence-form.tsx). */
 export function AttendanceToggle({
-  value,
+  checked,
   onChange,
   disabled = false,
 }: AttendanceToggleProps) {
-  const label = "Vais participar nesta sessão?";
-
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-foreground">{label}</span>
-          <span className="text-xs text-[var(--color-ink-3,theme(colors.gray.500))]">
-            Se não puderes comparecer, o staff é notificado e o questionário pós-sessão fica indisponível.
-          </span>
-        </div>
-
-        <div
-          role="group"
-          aria-label={label}
-          className="flex shrink-0 gap-1"
-        >
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(true)}
-            aria-pressed={value === true}
-            className={[
-              "min-h-[44px] min-w-[56px] rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-              value === true
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-foreground hover:bg-muted",
-              disabled ? "cursor-not-allowed opacity-60" : "",
-            ].join(" ")}
-          >
-            Sim
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(false)}
-            aria-pressed={value === false}
-            className={[
-              "min-h-[44px] min-w-[56px] rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-              value === false
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-foreground hover:bg-muted",
-              disabled ? "cursor-not-allowed opacity-60" : "",
-            ].join(" ")}
-          >
-            Não
-          </button>
-        </div>
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={[
+        "w-full flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-colors",
+        checked
+          ? "border-red-400 bg-red-50 dark:border-red-600 dark:bg-red-900/20"
+          : "border-border bg-card hover:bg-muted/40",
+        disabled ? "cursor-not-allowed opacity-60" : "",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+          checked ? "border-red-500 bg-red-500 text-white" : "border-muted-foreground",
+        ].join(" ")}
+        aria-hidden="true"
+      >
+        {checked && (
+          <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="currentColor">
+            <path
+              d="M10 3L5 8.5 2 5.5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
+        )}
+      </span>
+      <div>
+        <p className="text-sm font-semibold text-foreground">Não vou estar presente</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Informa o staff que não podes comparecer a esta sessão. O questionário pós-sessão fica indisponível.
+        </p>
       </div>
-    </div>
+    </button>
   );
 }

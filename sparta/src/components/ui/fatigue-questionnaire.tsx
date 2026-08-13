@@ -47,6 +47,8 @@ export interface FatigueQuestionnaireProps {
    * Default: "senior" (para não quebrar testes e chamadas existentes sem esta prop).
    */
   ageGroup?: "senior" | "u14";
+  /** Estado de presença já registado (fase pre) — pré-marca o toggle de ausência. Default: false. */
+  initialAbsent?: boolean;
 }
 
 interface DraftValues {
@@ -60,8 +62,8 @@ interface DraftValues {
   // Sprint 1.5 (T1.5.9)
   muscle_pain_zones: MusclePainZone[] | null;
   has_exams_this_week: boolean | null;
-  // Presença — apenas fase pre (null = não respondido, não altera presença ao submeter)
-  will_attend: boolean | null;
+  // Presença — apenas fase pre. true = jogador declarou que não vai à sessão.
+  is_absent: boolean;
 }
 
 // Schema para validar draft restaurado de IndexedDB
@@ -75,7 +77,7 @@ const DraftValuesSchema = z.object({
   srpe_value: z.number().int().min(1).max(10).nullable(),
   muscle_pain_zones: z.array(z.string()).nullable().optional().transform((v) => v ?? null),
   has_exams_this_week: z.boolean().nullable().optional().transform((v) => v ?? null),
-  will_attend: z.boolean().nullable().optional().transform((v) => v ?? null),
+  is_absent: z.boolean().optional().transform((v) => v ?? false),
 });
 
 // ─── Configuração das dimensões (Story 4.3: substituída por getFatigueCopy) ───
@@ -117,6 +119,7 @@ export function FatigueQuestionnaire({
   phase,
   playerId,
   ageGroup = "senior",
+  initialAbsent = false,
 }: FatigueQuestionnaireProps) {
   const router = useRouter();
   const { isOnline } = useOnlineStatus();
@@ -136,7 +139,7 @@ export function FatigueQuestionnaire({
     srpe_value: null,
     muscle_pain_zones: null,
     has_exams_this_week: null,
-    will_attend: null,
+    is_absent: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -160,16 +163,16 @@ export function FatigueQuestionnaire({
           });
         } else {
           // Payload corrompido — gerar novo id
-          setValues((prev) => ({ ...prev, id: newId() }));
+          setValues((prev) => ({ ...prev, id: newId(), is_absent: initialAbsent }));
         }
       } else {
-        setValues((prev) => ({ ...prev, id: newId() }));
+        setValues((prev) => ({ ...prev, id: newId(), is_absent: initialAbsent }));
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [draftKey]);
+  }, [draftKey, initialAbsent]);
 
   // ─── Autosave: debounce 800ms ────────────────────────────────────────────
 
@@ -273,11 +276,11 @@ export function FatigueQuestionnaire({
             return;
           }
 
-          // Sincronizar presença — só na fase pre e só se a pergunta foi respondida.
+          // Sincronizar presença — só na fase pre.
           // Falha aqui não bloqueia a confirmação: o questionário já foi gravado.
-          if (phase === "pre" && values.will_attend !== null) {
+          if (phase === "pre") {
             try {
-              if (values.will_attend === false) {
+              if (values.is_absent) {
                 await declarePlayerAbsence({ session_id: sessionId });
                 setConfirmationMessage(
                   "Questionário registado. Ausência assinalada para esta sessão — o staff foi notificado."
@@ -324,8 +327,8 @@ export function FatigueQuestionnaire({
       {/* Presença — só na fase pre. Responder "Não" não impede o preenchimento deste questionário. */}
       {phase === "pre" && (
         <AttendanceToggle
-          value={values.will_attend}
-          onChange={(v) => setValues((prev) => ({ ...prev, will_attend: v }))}
+          checked={values.is_absent}
+          onChange={(v) => setValues((prev) => ({ ...prev, is_absent: v }))}
           disabled={isSubmitting}
         />
       )}

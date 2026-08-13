@@ -35,7 +35,9 @@ vi.mock("@/lib/actions/player-attendance", () => ({
 }));
 
 vi.mock("@/components/ui/fatigue-questionnaire", () => ({
-  FatigueQuestionnaire: () => <div data-testid="fatigue-questionnaire" />,
+  FatigueQuestionnaire: ({ initialAbsent }: { initialAbsent?: boolean }) => (
+    <div data-testid="fatigue-questionnaire" data-initial-absent={String(initialAbsent)} />
+  ),
 }));
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -163,7 +165,7 @@ describe("QuestionarioPage — guard de ausência (fase post)", () => {
     expect(screen.queryByTestId("fatigue-questionnaire")).not.toBeInTheDocument();
   });
 
-  it("NÃO bloqueia o questionário pré-sessão quando o jogador declarou ausência", async () => {
+  it("NÃO bloqueia o questionário pré-sessão quando o jogador declarou ausência, mas pré-marca o toggle", async () => {
     mockAuthenticatedPlayer();
     vi.mocked(getSessionById).mockResolvedValue({ ok: true, data: BASE_SESSION });
     vi.mocked(getPlayerAttendanceForSession).mockResolvedValue({
@@ -176,8 +178,9 @@ describe("QuestionarioPage — guard de ausência (fase post)", () => {
     });
     render(jsx);
 
-    expect(screen.getByTestId("fatigue-questionnaire")).toBeInTheDocument();
-    expect(getPlayerAttendanceForSession).not.toHaveBeenCalled();
+    const questionnaire = screen.getByTestId("fatigue-questionnaire");
+    expect(questionnaire).toBeInTheDocument();
+    expect(questionnaire).toHaveAttribute("data-initial-absent", "true");
   });
 
   it("permite o questionário pós-sessão quando o jogador não declarou ausência", async () => {

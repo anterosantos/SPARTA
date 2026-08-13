@@ -111,25 +111,25 @@ export default async function QuestionarioPage({
     );
   }
 
-  // Guard: ausência declarada bloqueia o questionário pós-sessão (não bloqueia o pré)
-  if (phase === "post") {
-    const attendanceResult = await getPlayerAttendanceForSession(sessionId);
-    const attendanceStatus = attendanceResult.ok ? (attendanceResult.data?.status ?? null) : null;
-    if (attendanceStatus === "absent") {
-      console.error("[questionario] ERROR: jogador declarou ausência — questionário pós-sessão indisponível");
-      return (
-        <>
-          <StickyHeader title="Erro" backHref="/hoje" />
-          <main id="main-content">
-            <div className="px-4 py-6 sm:px-6">
-              <p className="text-red-600 font-mono text-sm">
-                Declaraste ausência nesta sessão — o questionário pós-sessão não está disponível.
-              </p>
-            </div>
-          </main>
-        </>
-      );
-    }
+  // Estado de presença: bloqueia o questionário pós-sessão se ausência declarada (não bloqueia o pré);
+  // no pré, é usado apenas para pré-marcar o toggle de ausência com o estado já registado.
+  const attendanceResult = await getPlayerAttendanceForSession(sessionId);
+  const attendanceStatus = attendanceResult.ok ? (attendanceResult.data?.status ?? null) : null;
+
+  if (phase === "post" && attendanceStatus === "absent") {
+    console.error("[questionario] ERROR: jogador declarou ausência — questionário pós-sessão indisponível");
+    return (
+      <>
+        <StickyHeader title="Erro" backHref="/hoje" />
+        <main id="main-content">
+          <div className="px-4 py-6 sm:px-6">
+            <p className="text-red-600 font-mono text-sm">
+              Declaraste ausência nesta sessão — o questionário pós-sessão não está disponível.
+            </p>
+          </div>
+        </main>
+      </>
+    );
   }
 
   // Phase-aware status guard (Story 4.9, AC #1):
@@ -175,6 +175,7 @@ export default async function QuestionarioPage({
             phase={phase as "pre" | "post"}
             playerId={player.id}
             ageGroup={ageGroup}
+            initialAbsent={attendanceStatus === "absent"}
           />
         </div>
       </main>
