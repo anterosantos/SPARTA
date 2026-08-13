@@ -20,6 +20,7 @@ import { z } from "zod";
 import { db } from "@/lib/outbox/db";
 import { newId } from "@/lib/uuid";
 import { submitFatigueResponse } from "@/lib/actions/fatigue";
+import { declarePlayerAbsence, cancelPlayerAbsence } from "@/lib/actions/player-attendance";
 import { enqueueFatigueSubmit } from "@/lib/outbox/enqueue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
@@ -28,6 +29,7 @@ import { FatigueSlider } from "@/components/ui/fatigue-slider";
 import { getFatigueCopy } from "@/lib/i18n/pt-PT/fatigue";
 import { BodyDiagram } from "@/components/domain/body-diagram";
 import { ExamsToggle } from "@/components/domain/exams-toggle";
+import { AttendanceToggle } from "@/components/domain/attendance-toggle";
 import type { MusclePainZone } from "@/lib/schemas/fatigue";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -58,6 +60,8 @@ interface DraftValues {
   // Sprint 1.5 (T1.5.9)
   muscle_pain_zones: MusclePainZone[] | null;
   has_exams_this_week: boolean | null;
+  // Presença — apenas fase pre (null = não respondido, não altera presença ao submeter)
+  will_attend: boolean | null;
 }
 
 // Schema para validar draft restaurado de IndexedDB
@@ -71,6 +75,7 @@ const DraftValuesSchema = z.object({
   srpe_value: z.number().int().min(1).max(10).nullable(),
   muscle_pain_zones: z.array(z.string()).nullable().optional().transform((v) => v ?? null),
   has_exams_this_week: z.boolean().nullable().optional().transform((v) => v ?? null),
+  will_attend: z.boolean().nullable().optional().transform((v) => v ?? null),
 });
 
 // ─── Configuração das dimensões (Story 4.3: substituída por getFatigueCopy) ───
@@ -131,6 +136,7 @@ export function FatigueQuestionnaire({
     srpe_value: null,
     muscle_pain_zones: null,
     has_exams_this_week: null,
+    will_attend: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -266,6 +272,24 @@ export function FatigueQuestionnaire({
             setIsSubmitting(false);
             return;
           }
+
+          // Sincronizar presença — só na fase pre e só se a pergunta foi respondida.
+          // Falha aqui não bloqueia a confirmação: o questionário já foi gravado.
+          if (phase === "pre" && values.will_attend !== null) {
+            try {
+              if (values.will_attend === false) {
+                await declarePlayerAbsence({ session_id: sessionId });
+                setConfirmationMessage(
+                  "Questionário registado. Ausência assinalada para esta sessão — o staff foi notificado."
+                );
+              } else {
+                await cancelPlayerAbsence({ session_id: sessionId });
+              }
+            } catch (attendanceErr) {
+              console.warn("[fatigue-questionnaire] Falha ao atualizar presença:", attendanceErr);
+            }
+          }
+
           // Usar mensagem do i18n para online submission
           setShowConfirmation(true);
         } else {
@@ -295,6 +319,15 @@ export function FatigueQuestionnaire({
         <p className="text-sm text-[var(--color-ink-2,theme(colors.gray.600))]">
           {copy.helpText}
         </p>
+      )}
+
+      {/* Presença — só na fase pre. Responder "Não" não impede o preenchimento deste questionário. */}
+      {phase === "pre" && (
+        <AttendanceToggle
+          value={values.will_attend}
+          onChange={(v) => setValues((prev) => ({ ...prev, will_attend: v }))}
+          disabled={isSubmitting}
+        />
       )}
 
       {/* 5 dimensões com emoji picker — copy vem do i18n (Story 4.3) */}

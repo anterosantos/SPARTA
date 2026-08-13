@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
+  within,
   fireEvent,
   waitFor,
   act,
@@ -20,6 +21,11 @@ import { axe } from "vitest-axe";
 
 vi.mock("@/lib/actions/fatigue", () => ({
   submitFatigueResponse: vi.fn(),
+}));
+
+vi.mock("@/lib/actions/player-attendance", () => ({
+  declarePlayerAbsence: vi.fn(),
+  cancelPlayerAbsence: vi.fn(),
 }));
 
 vi.mock("@/lib/uuid", () => ({
@@ -35,6 +41,7 @@ vi.mock("next/navigation", () => ({
 
 import { FatigueQuestionnaire, type FatigueQuestionnaireProps } from "@/components/ui/fatigue-questionnaire";
 import { submitFatigueResponse } from "@/lib/actions/fatigue";
+import { declarePlayerAbsence, cancelPlayerAbsence } from "@/lib/actions/player-attendance";
 import { db } from "@/lib/outbox/db";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -63,6 +70,11 @@ async function renderAndSettle(props: FatigueQuestionnaireProps = BASE_PROPS) {
 }
 
 const DIMS = ["dim_energy", "dim_focus", "dim_sleep", "dim_soreness", "dim_mood"] as const;
+
+/** Escopo do grupo Sim/Não da pergunta de presença — ExamsToggle usa o mesmo par de labels */
+function attendanceGroup() {
+  return screen.getByRole("group", { name: "Vais participar nesta sessão?" });
+}
 
 /** Seleciona o emoji de valor `value` (1–5) em todas as 5 dimensões */
 async function setAllRequiredEmojis(value: 1 | 2 | 3 | 4 | 5 = 3) {
@@ -293,6 +305,108 @@ describe("FatigueQuestionnaire — submissão", () => {
       );
       expect(errorAlert).toBeDefined();
     });
+  });
+});
+
+// ─── Presença (fase pre) ────────────────────────────────────────────────────
+
+describe("FatigueQuestionnaire — presença (fase pre)", () => {
+  it("mostra a pergunta de presença na fase pre", async () => {
+    await renderAndSettle();
+    expect(screen.getByText("Vais participar nesta sessão?")).toBeInTheDocument();
+  });
+
+  it("NÃO mostra a pergunta de presença na fase post", async () => {
+    await renderAndSettle({ ...BASE_PROPS, phase: "post" });
+    expect(screen.queryByText("Vais participar nesta sessão?")).not.toBeInTheDocument();
+  });
+
+  it("não chama declarePlayerAbsence nem cancelPlayerAbsence quando a pergunta não é respondida", async () => {
+    vi.mocked(submitFatigueResponse).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    await renderAndSettle();
+    await setAllRequiredEmojis(3);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(declarePlayerAbsence).not.toHaveBeenCalled();
+    expect(cancelPlayerAbsence).not.toHaveBeenCalled();
+  });
+
+  it("responder 'Não' e submeter chama declarePlayerAbsence e não bloqueia o questionário pré", async () => {
+    vi.mocked(submitFatigueResponse).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    await renderAndSettle();
+    await setAllRequiredEmojis(3);
+
+    await act(async () => {
+      fireEvent.click(within(attendanceGroup()).getByRole("button", { name: "Não" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    // O questionário pré foi submetido normalmente, apesar da ausência
+    expect(submitFatigueResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "pre" })
+    );
+
+    await waitFor(() => {
+      expect(declarePlayerAbsence).toHaveBeenCalledWith({ session_id: SESSION_ID });
+    });
+    expect(cancelPlayerAbsence).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Ausência assinalada");
+    });
+  });
+
+  it("responder 'Sim' e submeter chama cancelPlayerAbsence", async () => {
+    vi.mocked(submitFatigueResponse).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    await renderAndSettle();
+    await setAllRequiredEmojis(3);
+
+    await act(async () => {
+      fireEvent.click(within(attendanceGroup()).getByRole("button", { name: "Sim" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    await waitFor(() => {
+      expect(cancelPlayerAbsence).toHaveBeenCalledWith({ session_id: SESSION_ID });
+    });
+    expect(declarePlayerAbsence).not.toHaveBeenCalled();
   });
 });
 

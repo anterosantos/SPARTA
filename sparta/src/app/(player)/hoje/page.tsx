@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getSessionFatigueStatus } from "@/lib/actions/fatigue";
+import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
 import { getPlayerNotifications } from "@/lib/actions/player-notifications";
 import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
@@ -71,9 +72,10 @@ export default async function HojePage() {
     requiresFatigueQuestionnaire(s.type)
   );
 
-  const [fatigueResults, recentFatigueStatus, notificationsResult] = await Promise.all([
+  const [fatigueResults, recentFatigueStatus, recentAttendance, notificationsResult] = await Promise.all([
     Promise.all(fatigueEligibleSessions.map((s) => getSessionFatigueStatus(s.id))),
     recentSession ? getSessionFatigueStatus(recentSession.id) : Promise.resolve(null),
+    recentSession ? getPlayerAttendanceForSession(recentSession.id) : Promise.resolve(null),
     getPlayerNotifications(),
   ]);
 
@@ -87,13 +89,15 @@ export default async function HojePage() {
 
   const recentPostAnswered = recentFatigueStatus?.ok ? recentFatigueStatus.data.post : false;
   const recentPreAnswered = recentFatigueStatus?.ok ? recentFatigueStatus.data.pre : false;
+  const recentIsAbsent = recentAttendance?.ok && recentAttendance.data?.status === "absent";
 
-  // "Tudo em dia" se houver sessão recente com AMBAS as fases respondidas
+  // "Tudo em dia" se houver sessão recente com AMBAS as fases respondidas, ou se o
+  // jogador declarou ausência (questionário pós-sessão fica indisponível nesse caso)
   const allDoneToday =
-    recentSession !== null && recentPreAnswered && recentPostAnswered;
+    recentSession !== null && (recentIsAbsent || (recentPreAnswered && recentPostAnswered));
 
-  // Secção recente visível apenas se post por responder
-  const showRecentSession = recentSession !== null && !recentPostAnswered;
+  // Secção recente visível apenas se post por responder e o jogador não declarou ausência
+  const showRecentSession = recentSession !== null && !recentPostAnswered && !recentIsAbsent;
 
   return (
     <>

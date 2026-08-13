@@ -18,6 +18,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionById } from "@/lib/actions/sessions";
+import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
 import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
 import { FatigueQuestionnaire } from "@/components/ui/fatigue-questionnaire";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
@@ -108,6 +109,27 @@ export default async function QuestionarioPage({
         </main>
       </>
     );
+  }
+
+  // Guard: ausência declarada bloqueia o questionário pós-sessão (não bloqueia o pré)
+  if (phase === "post") {
+    const attendanceResult = await getPlayerAttendanceForSession(sessionId);
+    const attendanceStatus = attendanceResult.ok ? (attendanceResult.data?.status ?? null) : null;
+    if (attendanceStatus === "absent") {
+      console.error("[questionario] ERROR: jogador declarou ausência — questionário pós-sessão indisponível");
+      return (
+        <>
+          <StickyHeader title="Erro" backHref="/hoje" />
+          <main id="main-content">
+            <div className="px-4 py-6 sm:px-6">
+              <p className="text-red-600 font-mono text-sm">
+                Declaraste ausência nesta sessão — o questionário pós-sessão não está disponível.
+              </p>
+            </div>
+          </main>
+        </>
+      );
+    }
   }
 
   // Phase-aware status guard (Story 4.9, AC #1):

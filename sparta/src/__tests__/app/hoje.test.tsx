@@ -20,6 +20,8 @@ const mockSession = {
   notes: null,
   created_by: USER_UUID,
   created_at: "2026-05-19T00:00:00Z",
+  concentration_time: null,
+  opponent_name: null,
 };
 
 vi.mock("next/navigation", () => ({
@@ -42,9 +44,14 @@ vi.mock("@/lib/actions/fatigue", () => ({
     .mockResolvedValue({ ok: true, data: { pre: false, post: false } }),
 }));
 
+vi.mock("@/lib/actions/player-attendance", () => ({
+  getPlayerAttendanceForSession: vi.fn().mockResolvedValue({ ok: true, data: null }),
+}));
+
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getSessionFatigueStatus } from "@/lib/actions/fatigue";
+import { getPlayerAttendanceForSession } from "@/lib/actions/player-attendance";
 import HojePage from "@/app/(player)/hoje/page";
 
 function makeSupabaseMock(role = "player") {
@@ -164,5 +171,47 @@ describe("HojePage — vista do jogador", () => {
     expect(
       screen.getByText(/sem sessões nos próximos 7 dias/i)
     ).toBeInTheDocument();
+  });
+
+  it("esconde a sessão recente do questionário pós quando o jogador declarou ausência", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    const pastSession = {
+      ...mockSession,
+      id: "550e8400-e29b-41d4-a716-446655440009",
+      scheduled_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      status: "completed" as const,
+    };
+    vi.mocked(getSessionsForClub)
+      .mockResolvedValueOnce({ ok: true, data: [] })
+      .mockResolvedValueOnce({ ok: true, data: [pastSession] });
+    vi.mocked(getPlayerAttendanceForSession).mockResolvedValue({
+      ok: true,
+      data: { status: "absent", note: null },
+    });
+
+    const jsx = await HojePage();
+    render(jsx);
+
+    expect(screen.queryByText("Sessão recente")).not.toBeInTheDocument();
+    expect(screen.getByText("Tudo registado")).toBeInTheDocument();
+  });
+
+  it("mostra a sessão recente por responder quando o jogador não declarou ausência", async () => {
+    vi.mocked(createServerClient).mockResolvedValue(makeSupabaseMock() as never);
+    const pastSession = {
+      ...mockSession,
+      id: "550e8400-e29b-41d4-a716-446655440009",
+      scheduled_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      status: "completed" as const,
+    };
+    vi.mocked(getSessionsForClub)
+      .mockResolvedValueOnce({ ok: true, data: [] })
+      .mockResolvedValueOnce({ ok: true, data: [pastSession] });
+    vi.mocked(getPlayerAttendanceForSession).mockResolvedValue({ ok: true, data: null });
+
+    const jsx = await HojePage();
+    render(jsx);
+
+    expect(screen.getByText("Sessão recente")).toBeInTheDocument();
   });
 });
