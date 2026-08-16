@@ -110,10 +110,10 @@ export function PlayerRow({
     declaredAbsent ? `Declarou ausência${sessionLabel ? ` — ${sessionLabel}` : ""}` : null,
     lateRiskState === "missing" ? "Horário de saída em falta" : null,
     lateRiskState === "alert"
-      ? `Risco de atraso na chegada${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}${sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}`
+      ? `Risco de atraso na chegada${sessionTimeLabel ? ` à sessão das ${sessionTimeLabel}` : ""}${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}`
       : null,
     lateRiskState === "caution"
-      ? `Chegada prevista à hora de início${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}${sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}`
+      ? `Chegada prevista à hora de início${sessionTimeLabel ? ` à sessão das ${sessionTimeLabel}` : ""}${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}`
       : null,
   ]
     .filter(Boolean)
@@ -223,11 +223,13 @@ export function PlayerRow({
                   Chegada à hora
                 </span>
               )}
+              {(lateRiskState === "alert" || lateRiskState === "caution") && sessionTimeLabel && (
+                <span className="text-[10px] text-muted-foreground">à sessão das {sessionTimeLabel}</span>
+              )}
             </div>
             {(lateRiskState === "alert" || lateRiskState === "caution") && lateRiskExitTime && (
-              <p className="text-[10px] text-muted-foreground pl-0.5">
+              <p className="text-xs text-muted-foreground pl-0.5">
                 Horário de saída: {lateRiskExitTime}
-                {sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}
               </p>
             )}
           </div>
