@@ -27,7 +27,7 @@ import type { Result, AppError } from "@/lib/types";
 import type { ReadinessSnapshot, PlayerReadinessData, SessionHistoryEntry, PlayerSessionHistory } from "@/types/supabase";
 import type { FatigueResponse, SessionInfo } from "@/lib/actions/fatigue-staff";
 import { READINESS_STATE_PRIORITY } from "@/lib/readiness/thresholds";
-import { computeLateRiskState } from "@/lib/readiness/late-risk";
+import { getLateRiskDetails } from "@/lib/readiness/late-risk";
 import type { WeeklySchedule, SchoolTerm } from "@/lib/schemas/school-schedule";
 
 export interface FormationEntry {
@@ -574,13 +574,13 @@ export async function getReadinessPanelData(
 
       const wellness = wellnessMap.get(snapshot.player_id);
       const absence = absenceMap.get(snapshot.player_id);
-      const lateRiskState = sessionScheduledAt
-        ? computeLateRiskState(
+      const { state: lateRiskState, exitTime: lateRiskExitTime } = sessionScheduledAt
+        ? getLateRiskDetails(
             scheduleMap.get(snapshot.player_id) ?? null,
             termsMap.get(snapshot.player_id) ?? [],
             sessionScheduledAt
           )
-        : null;
+        : { state: null, exitTime: null };
       return {
         ...snapshot,
         // P-11: trim + fallback para full_name vazio
@@ -592,6 +592,7 @@ export async function getReadinessPanelData(
         declaredAbsent: absence?.absent ?? false,
         absenceNote: absence?.note ?? null,
         lateRiskState,
+        lateRiskExitTime,
       };
     })
     .sort((a, b) => {

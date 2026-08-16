@@ -112,6 +112,56 @@ function isWithinAnyTerm(dateStr: string, terms: SchoolTerm[]): boolean {
   return terms.some((t) => dateStr >= t.startDate && dateStr <= t.endDate);
 }
 
+/** Resultado detalhado do cálculo — inclui a hora de saída usada, para exibição na UI. */
+export interface LateRiskDetails {
+  state: LateRiskState;
+  /** Hora de saída (HH:mm) do dia da semana da sessão, quando existiu dado para calcular o estado. */
+  exitTime: string | null;
+}
+
+function computeLateRiskDetails(
+  weekly: WeeklySchedule | null,
+  terms: SchoolTerm[],
+  sessionScheduledAtISO: string
+): LateRiskDetails {
+  if (weekly === null) {
+    return { state: "missing", exitTime: null };
+  }
+
+  // Validar que sessionScheduledAtISO é não-null e é uma string válida.
+  if (!sessionScheduledAtISO || typeof sessionScheduledAtISO !== "string") {
+    return { state: null, exitTime: null };
+  }
+
+  let session: LisbonParts;
+  try {
+    session = getLisbonParts(sessionScheduledAtISO);
+  } catch {
+    return { state: null, exitTime: null };
+  }
+
+  if (!isWithinAnyTerm(session.dateStr, terms)) {
+    return { state: null, exitTime: null };
+  }
+
+  const field = WEEKDAY_FIELD[session.weekday];
+  const exitTime = field ? weekly[field] : null;
+  if (!exitTime) {
+    return { state: null, exitTime: null };
+  }
+
+  let arrivalMinutes: number;
+  try {
+    arrivalMinutes = timeStringToMinutes(exitTime) + TRAVEL_MINUTES;
+  } catch {
+    return { state: null, exitTime: null };
+  }
+
+  if (arrivalMinutes > session.minutesOfDay) return { state: "alert", exitTime };
+  if (arrivalMinutes === session.minutesOfDay) return { state: "caution", exitTime };
+  return { state: null, exitTime: null };
+}
+
 /**
  * computeLateRiskState — Calcula o estado de risco de atraso para uma sessão.
  *
@@ -125,40 +175,17 @@ export function computeLateRiskState(
   terms: SchoolTerm[],
   sessionScheduledAtISO: string
 ): LateRiskState {
-  if (weekly === null) {
-    return "missing";
-  }
+  return computeLateRiskDetails(weekly, terms, sessionScheduledAtISO).state;
+}
 
-  // Validar que sessionScheduledAtISO é não-null e é uma string válida.
-  if (!sessionScheduledAtISO || typeof sessionScheduledAtISO !== "string") {
-    return null;
-  }
-
-  let session: LisbonParts;
-  try {
-    session = getLisbonParts(sessionScheduledAtISO);
-  } catch {
-    return null;
-  }
-
-  if (!isWithinAnyTerm(session.dateStr, terms)) {
-    return null;
-  }
-
-  const field = WEEKDAY_FIELD[session.weekday];
-  const exitTime = field ? weekly[field] : null;
-  if (!exitTime) {
-    return null;
-  }
-
-  let arrivalMinutes: number;
-  try {
-    arrivalMinutes = timeStringToMinutes(exitTime) + TRAVEL_MINUTES;
-  } catch {
-    return null;
-  }
-
-  if (arrivalMinutes > session.minutesOfDay) return "alert";
-  if (arrivalMinutes === session.minutesOfDay) return "caution";
-  return null;
+/**
+ * getLateRiskDetails — Como computeLateRiskState, mas também devolve a hora de saída
+ * usada no cálculo (para mostrar "Horário de saída: HH:mm" junto ao badge na UI).
+ */
+export function getLateRiskDetails(
+  weekly: WeeklySchedule | null,
+  terms: SchoolTerm[],
+  sessionScheduledAtISO: string
+): LateRiskDetails {
+  return computeLateRiskDetails(weekly, terms, sessionScheduledAtISO);
 }

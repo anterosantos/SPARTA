@@ -360,7 +360,9 @@ describe('getReadinessPanelData (Story 5.4)', () => {
       }),
     } as any);
 
-    // players + positions return empty (fallback names used)
+    // players + positions return empty (fallback names used); sessions.scheduled_at (risco de
+    // atraso) resolves via maybeSingle() on the same shared mock object — null data is fine,
+    // getReadinessPanelData() treats a missing scheduled_at as "no late-risk computation".
     vi.mocked(createServerClient).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }) },
       from: vi.fn().mockReturnValue({
@@ -370,6 +372,7 @@ describe('getReadinessPanelData (Story 5.4)', () => {
         is: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
         then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       }),
     } as any);

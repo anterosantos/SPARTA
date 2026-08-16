@@ -52,6 +52,8 @@ export interface PlayerReadinessData extends ReadinessSnapshot {
    * null = fora de período letivo, sem dado para esse dia, ou chegada com folga.
    */
   lateRiskState: 'missing' | 'alert' | 'caution' | null;
+  /** Hora de saída (HH:mm) do dia da semana da sessão usada no cálculo de lateRiskState. Null quando lateRiskState é 'missing' ou null. */
+  lateRiskExitTime: string | null;
 }
 
 /** One entry in the per-player session history bar (last N past sessions). */

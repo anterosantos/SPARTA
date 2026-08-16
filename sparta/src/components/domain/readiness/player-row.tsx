@@ -88,12 +88,13 @@ export function PlayerRow({
   flashed = false,
   scheduledAt,
 }: PlayerRowProps) {
-  const { playerName, jerseyNum, state, acwr, derived_age_group, player_id, recentMusclePainZones, hasExamsThisWeek, declaredAbsent, absenceNote, lateRiskState } = snapshot;
+  const { playerName, jerseyNum, state, acwr, derived_age_group, player_id, recentMusclePainZones, hasExamsThisWeek, declaredAbsent, absenceNote, lateRiskState, lateRiskExitTime } = snapshot;
   const hasPain = recentMusclePainZones != null && recentMusclePainZones.length > 0;
 
   const sessionLabel = scheduledAt
     ? format(parseISO(scheduledAt), "EEE d MMM · HH:mm", { locale: pt })
     : null;
+  const sessionTimeLabel = scheduledAt ? format(parseISO(scheduledAt), "HH:mm") : null;
 
   const acwrLabel = acwr != null ? `ACWR ${acwr.toFixed(2)}` : null;
   const categoryLabel = ageGroupLabel(derived_age_group);
@@ -108,8 +109,12 @@ export function PlayerRow({
     hasExamsThisWeek === true ? "Tem exames esta semana" : null,
     declaredAbsent ? `Declarou ausência${sessionLabel ? ` — ${sessionLabel}` : ""}` : null,
     lateRiskState === "missing" ? "Horário de saída em falta" : null,
-    lateRiskState === "alert" ? "Risco de atraso na chegada" : null,
-    lateRiskState === "caution" ? "Chegada prevista à hora de início" : null,
+    lateRiskState === "alert"
+      ? `Risco de atraso na chegada${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}${sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}`
+      : null,
+    lateRiskState === "caution"
+      ? `Chegada prevista à hora de início${lateRiskExitTime ? ` — horário de saída ${lateRiskExitTime}` : ""}${sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}`
+      : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -198,24 +203,32 @@ export function PlayerRow({
 
         {/* Risco de atraso — horário de saída da escola (spec-horario-saida-risco-atraso) */}
         {lateRiskState != null && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-hidden="true">
-            {lateRiskState === "missing" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
-                <Clock size={10} />
-                Horário de saída em falta
-              </span>
-            )}
-            {lateRiskState === "alert" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-alert-bg,#FEF2F2)] px-2 py-0.5 text-[10px] font-medium text-[var(--signal-alert-ink,#991B1B)] ring-1 ring-inset ring-[var(--signal-alert-ink,#991B1B)]/20">
-                <Clock size={10} />
-                Risco de atraso
-              </span>
-            )}
-            {lateRiskState === "caution" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-caution-bg,#FEFCE8)] px-2 py-0.5 text-[10px] font-medium text-[var(--signal-caution-ink,#854D0E)] ring-1 ring-inset ring-[var(--signal-caution-ink,#854D0E)]/20">
-                <Clock size={10} />
-                Chegada à hora
-              </span>
+          <div className="mt-2 space-y-1" aria-hidden="true">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {lateRiskState === "missing" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
+                  <Clock size={10} />
+                  Horário de saída em falta
+                </span>
+              )}
+              {lateRiskState === "alert" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-alert-bg,#FEF2F2)] px-2 py-0.5 text-[10px] font-medium text-[var(--signal-alert-ink,#991B1B)] ring-1 ring-inset ring-[var(--signal-alert-ink,#991B1B)]/20">
+                  <Clock size={10} />
+                  Risco de atraso
+                </span>
+              )}
+              {lateRiskState === "caution" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-caution-bg,#FEFCE8)] px-2 py-0.5 text-[10px] font-medium text-[var(--signal-caution-ink,#854D0E)] ring-1 ring-inset ring-[var(--signal-caution-ink,#854D0E)]/20">
+                  <Clock size={10} />
+                  Chegada à hora
+                </span>
+              )}
+            </div>
+            {(lateRiskState === "alert" || lateRiskState === "caution") && lateRiskExitTime && (
+              <p className="text-[10px] text-muted-foreground pl-0.5">
+                Horário de saída: {lateRiskExitTime}
+                {sessionTimeLabel ? ` à sessão ${sessionTimeLabel}` : ""}
+              </p>
             )}
           </div>
         )}
