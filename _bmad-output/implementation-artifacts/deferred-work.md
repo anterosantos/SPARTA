@@ -2,6 +2,13 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: bmad-quick-dev intent split — horário de saída na Prontidão (2026-08-16)
+
+User intent (from brainstorming session `_bmad-output/brainstorming/brainstorming-session-2026-08-16-2012.md`) covered a core alert feature plus two independently shippable extensions. Split per user decision: core goal (school-exit-time input + risco-de-atraso badge on Prontidão) tackled first in its own spec; these two deferred to future specs once the core data model exists.
+
+- **Extensão de dashboard de Analista com tendência de risco de atraso** [dashboard de tendências já existente, ex. `sparta/src/app/(staff)/tendencias/`]: Mostrar, ao longo da época, quantas vezes e em que dias da semana um jogador teve risco de atraso — reaproveitando a infraestrutura de dashboards de tendências já construída (fadiga, carga). Depende da tabela/cálculo de risco de atraso do núcleo estarem implementados primeiro.
+- **Ligação ao registo/relatório de presenças** [`sparta/src/app/(staff)/sessoes/[id]/presencas`, relatórios PDF existentes]: Dar contexto — distinguir "atrasou por causa do horário da escola" de outras causas — quando um atraso real é registado na presença da sessão. Depende do núcleo (dado de risco de atraso por jogador/dia) já existir.
+
 ## Deferred from: code review of spec-staff-mediated-consent-withdrawal (2026-08-05)
 
 - **No idempotency/concurrency guard across all three `subject.withdrew` paths** [`withdrawConsent`, `withdrawConsentByToken`, `withdrawConsentByStaff` in `sparta/src/lib/actions/data-rights.ts`]: None of the three withdrawal entry points check whether a player was already erased before proceeding, nor guard against two concurrent calls for the same player racing the erasure cascade. Systemic across all three (not introduced by the new staff-mediated path) — worth a dedicated hardening pass (e.g. a `WHERE status != 'erased'` guard or advisory lock) if double-submission is ever observed in practice.

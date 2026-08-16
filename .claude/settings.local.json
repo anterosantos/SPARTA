@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 \"c:\\\\Users\\\\anter\\\\Project R\\\\_bmad\\\\scripts\\\\resolve_customization.py\" --skill \"c:\\\\Users\\\\anter\\\\Project R\\\\.claude\\\\skills\\\\bmad-market-research\" --key workflow)"
+      "Bash(python3 \"c:\\\\Users\\\\anter\\\\Project R\\\\_bmad\\\\scripts\\\\resolve_customization.py\" --skill \"c:\\\\Users\\\\anter\\\\Project R\\\\.claude\\\\skills\\\\bmad-market-research\" --key workflow)",
+      "PowerShell(python3 \"_bmad/scripts/resolve_customization.py\" --skill \".claude/skills/bmad-quick-dev\" --key workflow)",
+      "PowerShell(& \"C:\\\\Users\\\\anter\\\\AppData\\\\Local\\\\GitHubDesktop\\\\bin\\\\git.exe\" status --short --branch 2>&1)",
+      "PowerShell($content = Get-Content -Raw \"_bmad-output\\\\implementation-artifacts\\\\spec-horario-saida-risco-atraso.md\"; $chars = $content.Length; $words = \\($content -split '\\\\s+'\\).Count; \"Chars: $chars`nWords: $words`nEst. tokens \\(chars/4\\): $\\([math]::Round\\($chars/4\\)\\)\")",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command npm -ErrorAction SilentlyContinue)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)"
     ]
   }
 }

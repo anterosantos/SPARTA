@@ -27,6 +27,8 @@ import type { Result, AppError } from "@/lib/types";
 import type { ReadinessSnapshot, PlayerReadinessData, SessionHistoryEntry, PlayerSessionHistory } from "@/types/supabase";
 import type { FatigueResponse, SessionInfo } from "@/lib/actions/fatigue-staff";
 import { READINESS_STATE_PRIORITY } from "@/lib/readiness/thresholds";
+import { computeLateRiskState } from "@/lib/readiness/late-risk";
+import type { WeeklySchedule, SchoolTerm } from "@/lib/schemas/school-schedule";
 
 export interface FormationEntry {
   player_id: string;
@@ -445,6 +447,96 @@ export async function getReadinessPanelData(
     wellnessMap.set(row.player_id, existing);
   }
 
+  // Risco de atraso — horário de saída da escola (spec-horario-saida-risco-atraso).
+  // Não é dado de saúde: fora do escopo de auditedRead()/no-direct-health-data-read.
+  const { data: sessionRow, error: sessionFetchError } = await supabase
+    .from('sessions')
+    .select('scheduled_at')
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+    .maybeSingle();
+
+  if (sessionFetchError) {
+    logger.error('readiness.late_risk.session_fetch_failed', {
+      session_id: sessionId,
+      error: sessionFetchError.message,
+    });
+    return err({ code: 'db_error', message: 'Erro ao carregar sessão' });
+  }
+
+  const sessionScheduledAt = sessionRow?.scheduled_at ?? null;
+  // Validar que sessionScheduledAt é uma string ISO datetime válida (não apenas null).
+  if (sessionScheduledAt && typeof sessionScheduledAt !== "string") {
+    logger.error('readiness.late_risk.invalid_scheduled_at_type', {
+      session_id: sessionId,
+      type: typeof sessionScheduledAt,
+    });
+    return err({ code: 'internal', message: 'Tipo de data da sessão inválido' });
+  }
+
+  interface SchoolScheduleRow {
+    player_id: string;
+    mon_time: string | null;
+    tue_time: string | null;
+    wed_time: string | null;
+    thu_time: string | null;
+    fri_time: string | null;
+  }
+  interface SchoolTermRow {
+    player_id: string;
+    start_date: string;
+    end_date: string;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tables not yet in generated database.types
+  const { data: rawScheduleRows } = await (serviceRole as any)
+    .from('player_school_schedule')
+    .select('player_id, mon_time, tue_time, wed_time, thu_time, fri_time')
+    .eq('club_id', clubId)
+    .in('player_id', playerIds);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tables not yet in generated database.types
+  const { data: rawTermRows } = await (serviceRole as any)
+    .from('player_school_terms')
+    .select('player_id, start_date, end_date')
+    .eq('club_id', clubId)
+    .in('player_id', playerIds);
+
+  const scheduleMap = new Map<string, WeeklySchedule>(
+    ((rawScheduleRows ?? []) as SchoolScheduleRow[]).map((r) => {
+      const normalize = (timeStr: string | null): string | null => {
+        if (!timeStr) return null;
+        const normalized = timeStr.slice(0, 5);
+        // Validar formato HH:mm
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized)) {
+          logger.warn('readiness.invalid_time_format', {
+            player_id: r.player_id,
+            time: timeStr,
+          });
+          return null;
+        }
+        return normalized;
+      };
+      return [
+        r.player_id,
+        {
+          mon_time: normalize(r.mon_time),
+          tue_time: normalize(r.tue_time),
+          wed_time: normalize(r.wed_time),
+          thu_time: normalize(r.thu_time),
+          fri_time: normalize(r.fri_time),
+        },
+      ];
+    })
+  );
+
+  const termsMap = new Map<string, SchoolTerm[]>();
+  for (const row of (rawTermRows ?? []) as SchoolTermRow[]) {
+    const existing = termsMap.get(row.player_id) ?? [];
+    existing.push({ startDate: row.start_date, endDate: row.end_date });
+    termsMap.set(row.player_id, existing);
+  }
+
   // P-22: usar READINESS_STATE_PRIORITY partilhado (DRY)
   const players: PlayerReadinessData[] = snapshots
     .map((snapshot) => {
@@ -482,6 +574,13 @@ export async function getReadinessPanelData(
 
       const wellness = wellnessMap.get(snapshot.player_id);
       const absence = absenceMap.get(snapshot.player_id);
+      const lateRiskState = sessionScheduledAt
+        ? computeLateRiskState(
+            scheduleMap.get(snapshot.player_id) ?? null,
+            termsMap.get(snapshot.player_id) ?? [],
+            sessionScheduledAt
+          )
+        : null;
       return {
         ...snapshot,
         // P-11: trim + fallback para full_name vazio
@@ -492,6 +591,7 @@ export async function getReadinessPanelData(
         hasExamsThisWeek: wellness?.exams ?? null,
         declaredAbsent: absence?.absent ?? false,
         absenceNote: absence?.note ?? null,
+        lateRiskState,
       };
     })
     .sort((a, b) => {

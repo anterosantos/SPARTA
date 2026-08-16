@@ -45,6 +45,13 @@ export interface PlayerReadinessData extends ReadinessSnapshot {
   declaredAbsent: boolean;
   /** Justificação de ausência fornecida pelo jogador (pode ser null). */
   absenceNote: string | null;
+  /**
+   * Risco de atraso calculado a partir do horário de saída da escola + 60min de deslocação
+   * (spec-horario-saida-risco-atraso). 'missing' = jogador nunca preencheu o horário;
+   * 'alert'/'caution' = chegada calculada depois/exatamente à hora de início da sessão;
+   * null = fora de período letivo, sem dado para esse dia, ou chegada com folga.
+   */
+  lateRiskState: 'missing' | 'alert' | 'caution' | null;
 }
 
 /** One entry in the per-player session history bar (last N past sessions). */
