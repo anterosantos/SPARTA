@@ -450,3 +450,86 @@ O ecrã "Hoje" do jogador combina duas fontes no `getPlayerNotifications()`:
 **Dismiss:** `player_inbox_dismissals` (convocado) e `broadcast_dismissals` (broadcast) — RLS: `profile_id = auth.uid()`.
 
 **RLS de match_lineups para jogadores:** A policy `match_lineups_player_own_read` permite ao jogador ler as suas próprias linhas (`player_id = players.id WHERE profile_id = auth.uid()`). Sem esta policy, o inbox de convocatórias fica sempre vazio.
+
+---
+
+### 14. React Hook Form + Zod — `valueAsNumber` transforma vazio em `NaN`, não `undefined`
+
+**Regra:** Em inputs numéricos opcionais registados com `register(name, { valueAsNumber: true })`, um campo vazio produz `NaN` — não `undefined`. `z.number().optional()` rejeita `NaN` com o erro genérico "Invalid input", bloqueando o submit mesmo quando o schema aceita o campo em falta.
+
+**Solução:** Usar `setValueAs` para converter string vazia em `undefined` explicitamente, em vez de `valueAsNumber`.
+
+```typescript
+// ✅ Correcto — campo vazio vira undefined, aceite por z.number().optional()
+{...register("weight_kg", {
+  setValueAs: (v) => (v === "" ? undefined : Number(v)),
+})}
+
+// ❌ Errado — campo vazio vira NaN, rejeitado por z.number().optional()
+{...register("weight_kg", { valueAsNumber: true })}
+```
+
+Descoberto em `PlayerMetricCreateSchema` (Nova leitura) — bloqueava gravar peso OU altura isoladamente mesmo o schema já suportando ambos como opcionais.
+
+---
+
+### 15. Funções staff-only partilhadas com jogadores — resolução dual de club/team
+
+**Regra:** Antes de "endurecer" uma função de leitura partilhada com `requireStaffRole()`, verificar todos os chamadores. Se jogadores também a chamam (directa ou indirectamente via ecrãs como `/agenda` ou `/hoje`), a função precisa de um caminho de resolução alternativo para jogadores — não pode assumir staff em todos os casos.
+
+**Porquê:** `getSessionsForClub()` foi endurecida para `requireStaffRole()` (coach/analyst apenas), o que partiu silenciosamente `/agenda` (erro genérico) e `/hoje` (perdeu o card "Próxima sessão") para todos os jogadores.
+
+**Solução:** Resolver `clubId`/`teamIds` via os próprios registos do jogador (`players` + `team_players`) quando o chamador não é staff, mantendo o comportamento de staff inalterado.
+
+```typescript
+// ✅ Correcto — caminho dual
+export async function getSessionsForClub() {
+  const staffResult = await requireStaffRole();
+  if (staffResult.ok) {
+    return getSessionsViaStaffPath(staffResult.data);
+  }
+  return getSessionsViaPlayerPath(); // resolve clubId/teamIds a partir de players+team_players
+}
+```
+
+---
+
+### 16. Comportamento condicional por tipo de sessão — auditar TODOS os pontos de entrada
+
+**Regra:** Quando um tipo de sessão (ex: "Palestra", "Médico/Fisio") deve ser excluído de um comportamento (ex: questionário de fadiga), essa exclusão tem de ser replicada em **todos** os pontos de entrada — nunca assumir que um único guard central cobre tudo.
+
+**Porquê:** `requiresFatigueQuestionnaire` já era uma allowlist restrita a treino/jogo/amigável, mas "Palestra" continuava a gerar questionário de fadiga porque 3 pontos de entrada distintos não reutilizavam essa allowlist: `SessionCard` (link ia para o questionário), a página `/questionario` (sem guard próprio — vulnerável a links de notificação já enviados), e a edge function `schedule-session-pushes` (continuava a agendar pushes `fatigue_pre`/`fatigue_post`).
+
+**Checklist ao adicionar/alterar um tipo de sessão:** cores/ícones, formulário de criação/edição, filtros de listagem, `SessionCard`, guard da página `/questionario`, scheduler de pushes (edge function), e qualquer redirect de convocatória. Preferir inverter para allowlist (`match`/`friendly`) em vez de blocklist — mais robusto a tipos futuros.
+
+---
+
+### 17. Templates de email duplicados entre Server Actions e Edge Functions
+
+**Regra:** O mesmo email (ex: consentimento parental) pode ter até 3 pontos de envio em runtimes diferentes que **não partilham import**: Server Actions (`lib/actions/consent.ts`, runtime Next.js) para o envio inicial e reenvio manual, e uma Edge Function (`send-parental-consent/index.ts`, runtime Deno) para lembretes automáticos dia-7/dia-14. Alterar o template num só local deixa os outros dessincronizados silenciosamente.
+
+**Solução:** Extrair o HTML do template como helper partilhado *dentro de cada runtime* (ex: `parentalConsentEmailHtml()` em `consent.ts`, usado por `initiateParentalConsent` e `resendConsentEmail`), e manter os dois runtimes em paridade manual. Adicionar testes de conteúdo (nome, bullets, footer) para cada site de envio, para que uma futura edição que esqueça um dos três falhe um teste em vez de ser reportada por um encarregado de educação.
+
+---
+
+### 18. Rollback compensatório em escritas multi-passo sem transações DB
+
+**Regra:** Quando uma operação exige múltiplas escritas sequenciais sem suporte a transacção explícita do SDK do Supabase (ex: arquivar uma linha antes de inserir a substituta), e a segunda escrita pode falhar depois da primeira ter sucedido, implementar rollback compensatório manual — reverter a primeira escrita se a segunda falhar.
+
+**Exemplo:** `movePlayerToRoster()` arquiva a linha `roster_players` do roster de origem e depois activa/insere a linha do roster de destino; se a segunda escrita falhar, o rollback reactiva a linha arquivada, evitando que o jogador fique sem roster nenhum. Mesmo padrão já usado em `createPlayerForRoster`.
+
+**Cuidado relacionado:** ao arquivar linhas por `player_id`, filtrar sempre também pelo roster/registo específico a sair — nunca arquivar todas as linhas activas do jogador quando o schema permite pertença a múltiplos rosters em simultâneo (bug real encontrado e corrigido nesta função).
+
+---
+
+### 19. Risco de Atraso (Horário de Saída da Escola) — visão geral
+
+Sistema que avisa o treinador quando um jogador pode chegar atrasado a uma sessão, a partir do horário de saída da escola que o próprio preenche uma vez por época.
+
+**Tabelas:** `player_school_schedule` (horário semanal Seg–Sex, um registo por jogador) e `player_school_terms` (intervalos de datas/período letivo em que esse horário é válido — sem sobreposição entre intervalos do mesmo jogador).
+
+**Cálculo:** função pura `computeLateRiskState()` em `lib/readiness/late-risk.ts` — `TRAVEL_MINUTES = 60` fixo (sem geolocalização), comparação exacta (sem margem de tolerância) entre hora de saída + deslocação e o início da sessão, sempre em `Europe/Lisbon`. Consumida em `getReadinessPanelData()` e mostrada como badge/chip em `/prontidao`.
+
+**Regra:** não é dado de saúde — fora do escopo de `auditedRead()`/`no-direct-health-data-read`.
+
+Ver `_bmad-output/implementation-artifacts/spec-horario-saida-risco-atraso.md` para o spec completo e review findings.

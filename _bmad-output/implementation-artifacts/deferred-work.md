@@ -2,6 +2,12 @@
 
 Items deferred from code reviews — pre-existing issues, out-of-scope work, or items blocked by future stories.
 
+## Deferred from: code review of spec-horario-saida-risco-atraso (2026-08-16)
+
+- **Hardcoded Europe/Lisbon timezone prevents multi-region deployment** [`sparta/src/lib/readiness/late-risk.ts:24`]: `TZ = "Europe/Lisbon"` está fixo, sem mecanismo de configuração. Decisão de design deliberada para v1 (clube único, Portugal); revisitar apenas se o produto expandir para clubes noutros fusos horários.
+- **Sem cobertura de teste para transições DST (hora de Verão/Inverno)** [`sparta/src/lib/readiness/late-risk.test.ts`]: Os 11 testes existentes usam datas fixas de Agosto 2026; nenhum cobre a fronteira exacta de mudança de hora (finais de Março/Outubro). Melhoria de cobertura, não um bug funcional conhecido — adicionar quando a suite de testes for revista.
+- **`club_id` do jogador pode mudar entre fetch e upsert em `saveMySchoolSchedule`** [`sparta/src/lib/actions/school-schedule.ts`]: Race condition teórica se uma transferência de clube ocorrer a meio da gravação do horário; mitigado parcialmente com uma re-verificação de `club_id` antes do upsert, mas sem transacção real (SDK do Supabase não suporta). Padrão pré-existente noutras acções do projecto sem transacções; resolver apenas se o Supabase SDK vier a suportar transacções multi-tabela.
+
 ## Deferred from: bmad-quick-dev intent split — horário de saída na Prontidão (2026-08-16)
 
 User intent (from brainstorming session `_bmad-output/brainstorming/brainstorming-session-2026-08-16-2012.md`) covered a core alert feature plus two independently shippable extensions. Split per user decision: core goal (school-exit-time input + risco-de-atraso badge on Prontidão) tackled first in its own spec; these two deferred to future specs once the core data model exists.
