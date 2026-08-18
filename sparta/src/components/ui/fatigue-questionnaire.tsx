@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/outbox/db";
 import { newId } from "@/lib/uuid";
-import { submitFatigueResponse } from "@/lib/actions/fatigue";
+import { submitFatigueResponse, submitFatigueResponseByStaff } from "@/lib/actions/fatigue";
 import { declarePlayerAbsence, cancelPlayerAbsence } from "@/lib/actions/player-attendance";
 import { enqueueFatigueSubmit } from "@/lib/outbox/enqueue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -49,6 +49,35 @@ export interface FatigueQuestionnaireProps {
   ageGroup?: "senior" | "u14";
   /** Estado de presença já registado (fase pre) — pré-marca o toggle de ausência. Default: false. */
   initialAbsent?: boolean;
+  /**
+   * Modo de submissão (spec-staff-mediated-fatigue-questionnaire.md).
+   * "self" (default) — o próprio jogador, comportamento inalterado.
+   * "staff" — treinador a preencher em nome de um jogador: esconde o toggle de ausência,
+   * não chama declarePlayerAbsence/cancelPlayerAbsence, submete via submitFatigueResponseByStaff,
+   * e não usa o outbox offline (mostra erro inline se !navigator.onLine).
+   */
+  mode?: "self" | "staff";
+  /** Rota para onde navegar ao dispensar a confirmação. Default: "/hoje". */
+  redirectOnDismiss?: string;
+  /**
+   * Valores já existentes na BD para pré-preencher o formulário em caso de edição
+   * (staff reabre uma fase já respondida). Quando fornecido, têm SEMPRE prioridade
+   * sobre um eventual draft local em IndexedDB para a mesma chave (loopback #2 — nunca
+   * deixar um rascunho antigo/abandonado sobrepor-se à resposta real da BD).
+   */
+  initialValues?: Partial<
+    Pick<
+      DraftValues,
+      | "dim_energy"
+      | "dim_focus"
+      | "dim_sleep"
+      | "dim_soreness"
+      | "dim_mood"
+      | "srpe_value"
+      | "muscle_pain_zones"
+      | "has_exams_this_week"
+    >
+  >;
 }
 
 interface DraftValues {
@@ -120,6 +149,9 @@ export function FatigueQuestionnaire({
   playerId,
   ageGroup = "senior",
   initialAbsent = false,
+  mode = "self",
+  redirectOnDismiss = "/hoje",
+  initialValues,
 }: FatigueQuestionnaireProps) {
   const router = useRouter();
   const { isOnline } = useOnlineStatus();
@@ -129,17 +161,41 @@ export function FatigueQuestionnaire({
 
   const draftKey = `draft:questionnaire:${sessionId}:${phase}:${playerId}`;
 
-  const [values, setValues] = useState<DraftValues>({
-    id: "",
-    dim_energy: null,
-    dim_focus: null,
-    dim_sleep: null,
-    dim_soreness: null,
-    dim_mood: null,
-    srpe_value: null,
-    muscle_pain_zones: null,
-    has_exams_this_week: null,
-    is_absent: false,
+  // Estado inicial: quando initialValues é fornecido (edição de resposta já existente,
+  // vinda da BD), semeia o estado directamente via lazy initializer — SEM passar por um
+  // setState assíncrono dentro de um efeito. Isto garante, por construção, que initialValues
+  // tem SEMPRE prioridade sobre um eventual draft local em IndexedDB para a mesma chave
+  // (loopback #2 — nunca deixar um rascunho antigo/abandonado sobrepor-se silenciosamente
+  // à resposta real da BD). Quando initialValues não é fornecido (caso normal self-serve,
+  // ou staff a abrir uma fase nunca respondida), o restauro de draft continua a acontecer
+  // no efeito de montagem abaixo, exactamente como antes.
+  const [values, setValues] = useState<DraftValues>(() => {
+    if (initialValues) {
+      return {
+        id: newId(),
+        dim_energy: initialValues.dim_energy ?? null,
+        dim_focus: initialValues.dim_focus ?? null,
+        dim_sleep: initialValues.dim_sleep ?? null,
+        dim_soreness: initialValues.dim_soreness ?? null,
+        dim_mood: initialValues.dim_mood ?? null,
+        srpe_value: initialValues.srpe_value ?? null,
+        muscle_pain_zones: initialValues.muscle_pain_zones ?? null,
+        has_exams_this_week: initialValues.has_exams_this_week ?? null,
+        is_absent: initialAbsent,
+      };
+    }
+    return {
+      id: "",
+      dim_energy: null,
+      dim_focus: null,
+      dim_sleep: null,
+      dim_soreness: null,
+      dim_mood: null,
+      srpe_value: null,
+      muscle_pain_zones: null,
+      has_exams_this_week: null,
+      is_absent: false,
+    };
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -147,8 +203,12 @@ export function FatigueQuestionnaire({
   const [error, setError] = useState<string | null>(null);
 
   // ─── Mount: restaurar draft ou gerar id novo ─────────────────────────────
+  // Só corre quando initialValues NÃO foi fornecido — nesse caso o estado já foi
+  // semeado directamente acima (lazy initializer), sem tocar em IndexedDB.
 
   useEffect(() => {
+    if (initialValues) return;
+
     let cancelled = false;
     db.cache.get(draftKey).then((entry) => {
       if (cancelled) return;
@@ -172,11 +232,14 @@ export function FatigueQuestionnaire({
     return () => {
       cancelled = true;
     };
-  }, [draftKey, initialAbsent]);
+  }, [draftKey, initialAbsent, initialValues]);
 
   // ─── Autosave: debounce 800ms ────────────────────────────────────────────
+  // Desativado em modo staff: dados de bem-estar de outro jogador nunca devem persistir
+  // localmente num dispositivo do staff (potencialmente partilhado) — loopback #3.
 
   useEffect(() => {
+    if (mode === "staff") return;
     if (!values.id) return; // aguardar mount
     const timer = setTimeout(() => {
       db.cache.put({
@@ -190,7 +253,7 @@ export function FatigueQuestionnaire({
       });
     }, 800);
     return () => clearTimeout(timer);
-  }, [values, draftKey]);
+  }, [values, draftKey, mode]);
 
   // ─── Handler de slider ───────────────────────────────────────────────────
 
@@ -220,6 +283,17 @@ export function FatigueQuestionnaire({
       const currentOnline = typeof window !== 'undefined' ? window.navigator.onLine : true;
 
       if (!currentOnline) {
+        if (mode === "staff") {
+          // Modo staff: sem submissão offline via outbox — erro claro em vez de enfileirar
+          // (spec-staff-mediated-fatigue-questionnaire.md — "Ask First" resolvido: nunca
+          // enfileirar em nome de outro jogador sem confirmação online do próprio staff).
+          setError(
+            "Sem ligação à internet. Não é possível submeter em nome do jogador agora — tenta novamente quando tiveres rede."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
         // Modo offline — enfileirar no outbox (Story 4.4)
         await enqueueFatigueSubmit({
           player_id: playerId,
@@ -249,8 +323,8 @@ export function FatigueQuestionnaire({
         setConfirmationMessage("Em modo offline. Os teus dados estão seguros e vão ser enviados quando voltares a ter rede.");
         setShowConfirmation(true);
       } else {
-        // Modo online — submeter directo ao servidor
-        const result = await submitFatigueResponse({
+        // Modo online — submeter directo ao servidor (self-serve ou staff-mediado)
+        const submitPayload = {
           id: values.id,
           player_id: playerId,
           session_id: sessionId,
@@ -263,8 +337,13 @@ export function FatigueQuestionnaire({
           srpe_value: phase === "post" ? (values.srpe_value ?? null) : null,
           muscle_pain_zones: phase === "post" ? (values.muscle_pain_zones ?? null) : null,
           has_exams_this_week: phase === "pre" ? (values.has_exams_this_week ?? null) : null,
-          submitted_via: "online",
-        });
+          submitted_via: "online" as const,
+        };
+
+        const result =
+          mode === "staff"
+            ? await submitFatigueResponseByStaff(submitPayload)
+            : await submitFatigueResponse(submitPayload);
 
         if (result.ok) {
           try {
@@ -276,9 +355,11 @@ export function FatigueQuestionnaire({
             return;
           }
 
-          // Sincronizar presença — só na fase pre.
+          // Sincronizar presença — só na fase pre, e apenas em modo self-serve.
+          // Em modo staff, a ausência é gerida exclusivamente via o ecrã de presenças
+          // existente — nunca chamar declarePlayerAbsence/cancelPlayerAbsence aqui.
           // Falha aqui não bloqueia a confirmação: o questionário já foi gravado.
-          if (phase === "pre") {
+          if (phase === "pre" && mode === "self") {
             try {
               if (values.is_absent) {
                 await declarePlayerAbsence({ session_id: sessionId });
@@ -324,8 +405,10 @@ export function FatigueQuestionnaire({
         </p>
       )}
 
-      {/* Presença — só na fase pre. Responder "Não" não impede o preenchimento deste questionário. */}
-      {phase === "pre" && (
+      {/* Presença — só na fase pre e em modo self-serve. Em modo staff, a ausência é
+          gerida exclusivamente via o ecrã de presenças existente. Responder "Não" não
+          impede o preenchimento deste questionário. */}
+      {phase === "pre" && mode === "self" && (
         <AttendanceToggle
           checked={values.is_absent}
           onChange={(v) => setValues((prev) => ({ ...prev, is_absent: v }))}
@@ -411,11 +494,11 @@ export function FatigueQuestionnaire({
           onDismiss={() => {
             void (async () => {
               try {
-                await router.push("/hoje");
+                await router.push(redirectOnDismiss);
               } catch (err) {
-                console.error("[navigation] Failed to navigate to /hoje:", err);
+                console.error(`[navigation] Failed to navigate to ${redirectOnDismiss}:`, err);
                 // Fallback: reload page
-                window.location.href = "/hoje";
+                window.location.href = redirectOnDismiss;
               }
             })();
           }}

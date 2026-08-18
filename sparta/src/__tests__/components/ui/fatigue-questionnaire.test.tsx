@@ -20,11 +20,16 @@ import { axe } from "vitest-axe";
 
 vi.mock("@/lib/actions/fatigue", () => ({
   submitFatigueResponse: vi.fn(),
+  submitFatigueResponseByStaff: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/player-attendance", () => ({
   declarePlayerAbsence: vi.fn(),
   cancelPlayerAbsence: vi.fn(),
+}));
+
+vi.mock("@/lib/outbox/enqueue", () => ({
+  enqueueFatigueSubmit: vi.fn(),
 }));
 
 vi.mock("@/lib/uuid", () => ({
@@ -39,8 +44,9 @@ vi.mock("next/navigation", () => ({
 // ─── Imports após mocks ───────────────────────────────────────────────────────
 
 import { FatigueQuestionnaire, type FatigueQuestionnaireProps } from "@/components/ui/fatigue-questionnaire";
-import { submitFatigueResponse } from "@/lib/actions/fatigue";
+import { submitFatigueResponse, submitFatigueResponseByStaff } from "@/lib/actions/fatigue";
 import { declarePlayerAbsence, cancelPlayerAbsence } from "@/lib/actions/player-attendance";
+import { enqueueFatigueSubmit } from "@/lib/outbox/enqueue";
 import { db } from "@/lib/outbox/db";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -551,5 +557,252 @@ describe("variante sub-14 (ageGroup='u14')", () => {
     ).not.toBeInTheDocument();
     // Verifica que botão diz "Submeter" (não "Pronto, terminámos")
     expect(screen.getByRole("button", { name: /^Submeter$/i })).toBeInTheDocument();
+  });
+});
+
+// ─── Modo staff (spec-staff-mediated-fatigue-questionnaire.md) ────────────────
+
+describe("FatigueQuestionnaire — mode='staff'", () => {
+  it("esconde o toggle de ausência em modo staff (fase pre)", async () => {
+    await renderAndSettle({ ...BASE_PROPS, mode: "staff" });
+    expect(
+      screen.queryByRole("checkbox", { name: /não vou estar presente/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("continua a mostrar o toggle de ausência em modo self (comportamento inalterado)", async () => {
+    await renderAndSettle({ ...BASE_PROPS, mode: "self" });
+    expect(
+      screen.getByRole("checkbox", { name: /não vou estar presente/i })
+    ).toBeInTheDocument();
+  });
+
+  it("chama submitFatigueResponseByStaff (não submitFatigueResponse) em modo staff", async () => {
+    vi.mocked(submitFatigueResponseByStaff).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    await renderAndSettle({ ...BASE_PROPS, mode: "staff" });
+    await setAllRequiredEmojis(3);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    expect(submitFatigueResponseByStaff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        player_id: PLAYER_ID,
+        session_id: SESSION_ID,
+        phase: "pre",
+      })
+    );
+    expect(submitFatigueResponse).not.toHaveBeenCalled();
+  });
+
+  it("NUNCA chama declarePlayerAbsence/cancelPlayerAbsence em modo staff (presença gerida só via ecrã de presenças)", async () => {
+    vi.mocked(submitFatigueResponseByStaff).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    await renderAndSettle({ ...BASE_PROPS, mode: "staff", phase: "pre" });
+    await setAllRequiredEmojis(3);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(declarePlayerAbsence).not.toHaveBeenCalled();
+    expect(cancelPlayerAbsence).not.toHaveBeenCalled();
+  });
+
+  it("usa redirectOnDismiss em vez de /hoje ao dispensar a confirmação", async () => {
+    vi.mocked(submitFatigueResponseByStaff).mockResolvedValue({
+      ok: true,
+      data: { id: "0190a000-0000-7000-a000-000000000001" },
+    });
+
+    const REDIRECT = "/prontidao/questionarios?sessionId=" + SESSION_ID;
+
+    await renderAndSettle({
+      ...BASE_PROPS,
+      mode: "staff",
+      redirectOnDismiss: REDIRECT,
+    });
+    await setAllRequiredEmojis(3);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    // CalmConfirmation dispensa-se sozinha após `duration` (default 1500ms) —
+    // não há botão de dispensa manual; aguardar o timer real.
+    await waitFor(
+      () => {
+        expect(mockPush).toHaveBeenCalledWith(REDIRECT);
+      },
+      { timeout: 3000 }
+    );
+    expect(mockPush).not.toHaveBeenCalledWith("/hoje");
+  });
+
+  it("modo staff offline: mostra erro inline, NÃO enfileira no outbox", async () => {
+    const originalOnLine = window.navigator.onLine;
+    Object.defineProperty(window.navigator, "onLine", {
+      value: false,
+      configurable: true,
+    });
+
+    try {
+      await renderAndSettle({ ...BASE_PROPS, mode: "staff" });
+      await setAllRequiredEmojis(3);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/sem ligação/i);
+      });
+
+      expect(enqueueFatigueSubmit).not.toHaveBeenCalled();
+      expect(submitFatigueResponseByStaff).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window.navigator, "onLine", {
+        value: originalOnLine,
+        configurable: true,
+      });
+    }
+  });
+
+  it("modo self offline: continua a enfileirar no outbox (comportamento inalterado)", async () => {
+    vi.mocked(enqueueFatigueSubmit).mockResolvedValue({
+      id: "0190a000-0000-7000-a000-000000000002",
+      status: "queued",
+    });
+
+    const originalOnLine = window.navigator.onLine;
+    Object.defineProperty(window.navigator, "onLine", {
+      value: false,
+      configurable: true,
+    });
+
+    try {
+      await renderAndSettle({ ...BASE_PROPS, mode: "self" });
+      await setAllRequiredEmojis(3);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /submeter/i })).not.toBeDisabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /submeter/i }));
+      });
+
+      await waitFor(() => {
+        expect(enqueueFatigueSubmit).toHaveBeenCalled();
+      });
+    } finally {
+      Object.defineProperty(window.navigator, "onLine", {
+        value: originalOnLine,
+        configurable: true,
+      });
+    }
+  });
+});
+
+// ─── initialValues — prioridade sobre draft local (loopback #2) ──────────────
+
+describe("FatigueQuestionnaire — initialValues tem prioridade sobre draft local", () => {
+  it("quando initialValues é fornecido, sobrepõe-se a um draft local existente para a mesma chave", async () => {
+    const draftKey = `draft:questionnaire:${SESSION_ID}:pre:${PLAYER_ID}`;
+    // Rascunho local antigo/abandonado — valores diferentes dos que vêm da BD
+    await db.cache.put({
+      key: draftKey,
+      payload: {
+        id: "0190a000-0000-7000-a000-000000000099",
+        dim_energy: 1,
+        dim_focus: 1,
+        dim_sleep: 1,
+        dim_soreness: 1,
+        dim_mood: 1,
+        srpe_value: null,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+
+    await renderAndSettle({
+      ...BASE_PROPS,
+      mode: "staff",
+      initialValues: {
+        dim_energy: 5,
+        dim_focus: 4,
+        dim_sleep: 3,
+        dim_soreness: 2,
+        dim_mood: 5,
+      },
+    });
+
+    // Os valores mostrados devem ser os de initialValues (resposta real da BD),
+    // não os do draft local desactualizado.
+    await waitFor(() => {
+      expect(screen.getByTestId("emoji-dim_energy-5")).toHaveAttribute("aria-checked", "true");
+    });
+    expect(screen.getByTestId("emoji-dim_focus-4")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("emoji-dim_sleep-3")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("emoji-dim_soreness-2")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("emoji-dim_mood-5")).toHaveAttribute("aria-checked", "true");
+
+    // Os valores do draft antigo (1) NÃO devem estar seleccionados
+    expect(screen.getByTestId("emoji-dim_energy-1")).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("sem initialValues, mantém o comportamento de restauro de draft inalterado (self-serve)", async () => {
+    const draftKey = `draft:questionnaire:${SESSION_ID}:pre:${PLAYER_ID}`;
+    await db.cache.put({
+      key: draftKey,
+      payload: {
+        id: "0190a000-0000-7000-a000-000000000099",
+        dim_energy: 4,
+        dim_focus: null,
+        dim_sleep: null,
+        dim_soreness: null,
+        dim_mood: null,
+        srpe_value: null,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Sem initialValues — comportamento idêntico ao existente
+    await renderAndSettle({ ...BASE_PROPS });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("emoji-dim_energy-4")).toHaveAttribute("aria-checked", "true");
+    });
   });
 });

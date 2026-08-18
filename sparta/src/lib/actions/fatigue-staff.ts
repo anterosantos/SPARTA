@@ -5,6 +5,10 @@ import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { auditedRead } from "@/lib/data/audited";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
+import { requireStaffRole, getPlayerIdsForTeams } from "@/lib/actions/auth";
+import { getSessionById } from "@/lib/actions/sessions";
+import { requiresFatigueQuestionnaire } from "@/lib/schemas/sessions";
+import type { MusclePainZone } from "@/lib/schemas/fatigue";
 
 export interface FatigueResponse {
   id: string;
@@ -187,4 +191,322 @@ export async function getPlayerFatigueData(
     playerName: player.full_name,
     playerId: player.id,
   });
+}
+
+// =============================================================================
+// spec-staff-mediated-fatigue-questionnaire.md — leituras de suporte à
+// submissão de questionário de fadiga em nome de um jogador pelo staff.
+// =============================================================================
+
+export interface QuestionnaireListEntry {
+  playerId: string;
+  fullName: string;
+  jerseyNum: number | null;
+  answeredPre: boolean;
+  answeredPost: boolean;
+}
+
+export interface QuestionnaireEntryListResult {
+  requiresQuestionnaire: boolean;
+  /** Mensagem a mostrar quando requiresQuestionnaire=false (tipo de sessão OU sessão cancelada). */
+  blockedMessage?: string;
+  entries: QuestionnaireListEntry[];
+}
+
+/**
+ * getQuestionnaireEntryList — Lista de jogadores do âmbito do staff para uma sessão,
+ * indicando se já responderam às fases pré/pós (para o indicador ✓ na lista).
+ *
+ * - sessionId vazio/whitespace → erro 'validation' (não 'not_found')
+ * - requireStaffRole() + getPlayerIdsForTeams(): apenas jogadores das equipas do staff
+ * - Sessões que não requerem questionário (Palestra/Médico/Outros) → requiresQuestionnaire: false
+ * - players e fatigue_responses filtrados por club_id (defesa em profundidade, mesmo
+ *   padrão de getPlayerFatigueData) e archived_at IS NULL
+ * - fatigue_responses lido apenas para derivar booleans (answeredPre/answeredPost) —
+ *   nunca devolve valores de dimensões, por isso não passa por auditedRead()/health-data lint
+ *   (mesmo padrão de getSessionFatigueStatus em fatigue.ts)
+ */
+export async function getQuestionnaireEntryList(
+  sessionId: string
+): Promise<Result<QuestionnaireEntryListResult, AppError>> {
+  if (!sessionId?.trim()) {
+    return err({ code: "validation", message: "sessionId é obrigatório" });
+  }
+
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, teamIds } = authResult.data;
+
+  const sessionResult = await getSessionById(sessionId);
+  if (!sessionResult.ok) return sessionResult;
+
+  if (!requiresFatigueQuestionnaire(sessionResult.data.type)) {
+    return ok({
+      requiresQuestionnaire: false,
+      blockedMessage: "Esta sessão não tem questionário de fadiga.",
+      entries: [],
+    });
+  }
+
+  // Sessão cancelada bloqueia ambas as fases — refletir isto já na lista, em vez de só
+  // ao clicar num jogador (loopback #3: a guarda de estado existe na página/ação, mas a
+  // lista continuava a mostrar botões clicáveis para um beco sem saída).
+  if (sessionResult.data.status === "cancelled") {
+    return ok({
+      requiresQuestionnaire: false,
+      blockedMessage: "Sessão cancelada — não é possível responder ao questionário.",
+      entries: [],
+    });
+  }
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (playerIds.length === 0) {
+    return ok({ requiresQuestionnaire: true, entries: [] });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const { data: players, error: playersError } = await serviceRole
+    .from("players")
+    .select("id, full_name, jersey_num")
+    .in("id", playerIds)
+    .eq("club_id", clubId)
+    .is("archived_at", null);
+
+  if (playersError) {
+    return err({ code: "internal", message: "Erro ao carregar jogadores" });
+  }
+
+  // eslint-disable-next-line custom/no-direct-health-data-read -- boolean-only derivation (answered/not); no dimension values read, mirrors getSessionFatigueStatus
+  const { data: responses, error: responsesError } = await serviceRole
+    .from("fatigue_responses")
+    .select("player_id, phase")
+    .eq("session_id", sessionId)
+    .eq("club_id", clubId)
+    .in("player_id", playerIds);
+
+  if (responsesError) {
+    return err({ code: "internal", message: "Erro ao carregar respostas de fadiga" });
+  }
+
+  const answeredMap = new Map<string, { pre: boolean; post: boolean }>();
+  for (const r of responses ?? []) {
+    const entry = answeredMap.get(r.player_id) ?? { pre: false, post: false };
+    if (r.phase === "pre") entry.pre = true;
+    if (r.phase === "post") entry.post = true;
+    answeredMap.set(r.player_id, entry);
+  }
+
+  const entries: QuestionnaireListEntry[] = (players ?? [])
+    .map((p) => ({
+      playerId: p.id as string,
+      fullName: p.full_name as string,
+      jerseyNum: (p.jersey_num as number | null) ?? null,
+      answeredPre: answeredMap.get(p.id as string)?.pre ?? false,
+      answeredPost: answeredMap.get(p.id as string)?.post ?? false,
+    }))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-PT"));
+
+  return ok({ requiresQuestionnaire: true, entries });
+}
+
+export interface StaffQuestionnairePlayer {
+  id: string;
+  fullName: string;
+  ageGroup: string | null;
+}
+
+/**
+ * assertPlayerAccessible — Verifica archived_at IS NULL e processing_restricted=false
+ * para um jogador já confirmado no âmbito do staff. Chamada independentemente por
+ * CADA leitura de dados de bem-estar/presença (não só pela que resolve o jogador) —
+ * loopback #2/#3: nunca confiar apenas na ordem de chamadas do caller.
+ */
+async function assertPlayerAccessible(
+  serviceRole: ReturnType<typeof getServiceRoleClient>,
+  playerId: string,
+  clubId: string
+): Promise<AppError | null> {
+  const { data: player, error } = await serviceRole
+    .from("players")
+    .select("archived_at, processing_restricted")
+    .eq("id", playerId)
+    .eq("club_id", clubId)
+    .maybeSingle();
+
+  if (error) {
+    return { code: "internal", message: "Erro ao verificar jogador" };
+  }
+  if (!player || player.archived_at != null) {
+    return { code: "not_found", message: "Recurso não encontrado" };
+  }
+  if (player.processing_restricted === true) {
+    return {
+      code: "processing_restricted",
+      message:
+        "O tratamento dos dados deste jogador está limitado. Não é possível apresentar ou registar respostas.",
+    };
+  }
+  return null;
+}
+
+/**
+ * getPlayerForStaffQuestionnaire — Resolve o jogador-alvo para a página host do
+ * questionário staff-mediado, e é a PRIMEIRA leitura de dados a correr (antes de qualquer
+ * dado de bem-estar): confirma âmbito de equipas, archived_at IS NULL, e devolve erro claro
+ * de imediato se `processing_restricted` — a página nunca chega a pré-preencher/mostrar
+ * dados de bem-estar de um jogador com tratamento limitado (loopback #2).
+ */
+export async function getPlayerForStaffQuestionnaire(
+  playerId: string
+): Promise<Result<StaffQuestionnairePlayer, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, teamIds } = authResult.data;
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (!playerIds.includes(playerId)) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const accessError = await assertPlayerAccessible(serviceRole, playerId, clubId);
+  if (accessError) return err(accessError);
+
+  const { data: player, error } = await serviceRole
+    .from("players")
+    .select("id, full_name, age_group")
+    .eq("id", playerId)
+    .eq("club_id", clubId)
+    .maybeSingle();
+
+  if (error) {
+    return err({ code: "internal", message: "Erro ao carregar jogador" });
+  }
+
+  if (!player) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
+  return ok({
+    id: player.id as string,
+    fullName: player.full_name as string,
+    ageGroup: (player.age_group as string | null) ?? null,
+  });
+}
+
+/**
+ * getPlayerAttendanceStatusForStaff — Estado de presença do jogador-alvo numa sessão,
+ * para a guarda de ausência na fase 'post' da página host staff-mediada (equivalente
+ * staff de getPlayerAttendanceForSession, que é self-scoped via auth.uid()).
+ */
+export async function getPlayerAttendanceStatusForStaff(
+  playerId: string,
+  sessionId: string
+): Promise<Result<string | null, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, teamIds } = authResult.data;
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (!playerIds.includes(playerId)) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const accessError = await assertPlayerAccessible(serviceRole, playerId, clubId);
+  if (accessError) return err(accessError);
+
+  const { data, error } = await serviceRole
+    .from("attendances")
+    .select("status")
+    .eq("session_id", sessionId)
+    .eq("player_id", playerId)
+    .eq("club_id", clubId)
+    .maybeSingle();
+
+  if (error) {
+    return err({ code: "internal", message: "Erro ao carregar presença" });
+  }
+
+  return ok((data?.status as string | null) ?? null);
+}
+
+export interface StaffExistingFatigueResponse {
+  dim_energy: number;
+  dim_focus: number;
+  dim_sleep: number;
+  dim_soreness: number;
+  dim_mood: number;
+  srpe_value: number | null;
+  muscle_pain_zones: MusclePainZone[] | null;
+  has_exams_this_week: boolean | null;
+}
+
+/**
+ * getExistingFatigueResponseForStaff — Resposta já existente (se houver) do jogador-alvo
+ * para uma dada fase/sessão, usada pela página host para pré-preencher o formulário em
+ * modo de edição. Filtrado por club_id (defesa em profundidade, mesmo padrão de
+ * getExistingFatigueResponse/getPlayerFatigueData). SÓ deve ser chamada depois de
+ * getPlayerForStaffQuestionnaire confirmar que o jogador não tem processing_restricted
+ * (loopback #2 — nunca mostrar dados de bem-estar antes dessa verificação).
+ *
+ * Lê valores reais de dimensões — por isso passa por auditedRead() (FR50), tal como
+ * getPlayerFatigueData.
+ */
+export async function getExistingFatigueResponseForStaff(
+  playerId: string,
+  sessionId: string,
+  phase: "pre" | "post"
+): Promise<Result<StaffExistingFatigueResponse | null, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { userId, clubId, teamIds } = authResult.data;
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (!playerIds.includes(playerId)) {
+    return err({ code: "not_found", message: "Recurso não encontrado" });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const accessError = await assertPlayerAccessible(serviceRole, playerId, clubId);
+  if (accessError) return err(accessError);
+
+  let data: StaffExistingFatigueResponse | null = null;
+  try {
+    data = await auditedRead<StaffExistingFatigueResponse | null>(
+      {
+        action: "fatigue.staff_prefill_read",
+        targetKind: "fatigue_response",
+        targetId: playerId,
+        actorId: userId,
+        clubId,
+        payload: { session_id: sessionId, phase },
+      },
+      async () => {
+        // eslint-disable-next-line custom/no-direct-health-data-read -- query is legitimately wrapped in auditedRead()
+        const { data: row, error } = await serviceRole
+          .from("fatigue_responses")
+          .select(
+            "dim_energy, dim_focus, dim_sleep, dim_soreness, dim_mood, srpe_value, muscle_pain_zones, has_exams_this_week"
+          )
+          .eq("player_id", playerId)
+          .eq("session_id", sessionId)
+          .eq("phase", phase)
+          .eq("club_id", clubId)
+          .maybeSingle();
+
+        if (error) throw error;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (row ?? null) as any as StaffExistingFatigueResponse | null;
+      }
+    );
+  } catch {
+    return err({ code: "internal", message: "Erro ao carregar resposta existente" });
+  }
+
+  return ok(data);
 }

@@ -6,7 +6,7 @@
  */
 
 import Link from "next/link";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ClipboardList } from "lucide-react";
 import { ReadinessPanel } from "@/components/domain/readiness/readiness-panel";
 import { ReadinessPanelEmptyState } from "@/components/domain/readiness/readiness-panel-empty-state";
 import {
@@ -91,13 +91,22 @@ export default async function ProntidaoPage() {
               Próxima sessão: {sessionDate} · {players.length} jogadores
             </p>
           </div>
-          <Link
-            href="/tendencias"
-            className="lg:hidden flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            <TrendingUp className="h-4 w-4" />
-            Tendências
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link
+              href={`/prontidao/questionarios?sessionId=${sessionId}`}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Questionários Jogadores
+            </Link>
+            <Link
+              href="/tendencias"
+              className="lg:hidden flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Tendências
+            </Link>
+          </div>
         </div>
       </div>
 
