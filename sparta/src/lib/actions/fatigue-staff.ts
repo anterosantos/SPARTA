@@ -97,7 +97,13 @@ export async function getPlayerFatigueData(
     return err({ code: "not_found", message: "Recurso não encontrado" });
   }
 
-  // Validate player is in one of the staff's assigned teams
+  // Validate player is in one of the staff's assigned teams — usa getPlayerIdsForTeams()
+  // (mesmo padrão de getPlayer() em players.ts). Correção: a versão anterior usava
+  // .maybeSingle() numa query team_players filtrada só por team_id+player_id, que falha
+  // silenciosamente (PGRST116, erro descartado) quando o jogador pertence a mais do que
+  // uma equipa do mesmo treinador — devolvia sempre not_found nesse caso, mesmo com acesso
+  // legítimo. getPlayerIdsForTeams() busca a lista completa e testa com .includes(), imune
+  // a múltiplas linhas.
   const serviceRoleForTeams = getServiceRoleClient();
   const { data: teamCoaches } = await serviceRoleForTeams
     .from("team_coaches")
@@ -110,15 +116,8 @@ export async function getPlayerFatigueData(
     return err({ code: "not_found", message: "Recurso não encontrado" });
   }
 
-  const { data: teamPlayerRow } = await serviceRoleForTeams
-    .from("team_players")
-    .select("id")
-    .in("team_id", teamIds)
-    .eq("player_id", playerId)
-    .eq("is_archived", false)
-    .maybeSingle();
-
-  if (!teamPlayerRow) {
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (!playerIds.includes(playerId)) {
     return err({ code: "not_found", message: "Recurso não encontrado" });
   }
 
