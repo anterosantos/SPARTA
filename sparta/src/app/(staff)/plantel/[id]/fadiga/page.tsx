@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { FatigueTabs } from "@/components/domain/FatigueTabs";
 import { getPlayerFatigueData } from "@/lib/actions/fatigue-staff";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +36,30 @@ export default async function PlayerFadigaPage({
 
   const result = await getPlayerFatigueData(id);
 
-  // Returns 404 for both not-found and unauthorized (AC #1 — avoid revealing resource existence)
   if (!result.ok) {
-    notFound();
+    // 404 apenas para not_found/unauthorized (AC #1 — não revelar existência do recurso).
+    // Erros genuínos (ex: internal) mostram-se como erro real — um 404 genérico aqui
+    // escondia falhas reais de todos os jogadores atrás de uma mensagem enganosa.
+    if (result.error.code === "not_found" || result.error.code === "unauthorized") {
+      notFound();
+    }
+    logger.error("plantel_fadiga.load_failed", {
+      player_id: id,
+      code: result.error.code,
+      message: result.error.message,
+    });
+    return (
+      <>
+        <StickyHeader title="Erro" backHref={`/plantel/${id}`} />
+        <main id="main-content">
+          <div className="px-4 py-6 sm:px-6">
+            <p className="text-red-600 font-mono text-sm">
+              {result.error.message ?? "Erro ao carregar dados de fadiga."}
+            </p>
+          </div>
+        </main>
+      </>
+    );
   }
 
   const { responses, sessions, playerName, playerId } = result.data;
