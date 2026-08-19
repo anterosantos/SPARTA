@@ -13,7 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { FileText, TrendingUp } from "lucide-react";
+import { FileText, Grid3x3, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { CalmConfirmation } from "@/components/ui/calm-confirmation";
 import { TooltipExplain } from "@/components/ui/tooltip-explain";
@@ -101,6 +101,14 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
             onFilter={handleFilter}
             initialFilters={DEFAULT_FILTERS}
           />
+          <Link
+            href="/equipa/presencas"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-muted/50 transition-colors"
+            aria-label="Ver matriz de presenças da equipa"
+          >
+            <Grid3x3 className="h-4 w-4" aria-hidden="true" />
+            Matriz de Presenças
+          </Link>
         </div>
 
         {data.userRole === "coach" && (

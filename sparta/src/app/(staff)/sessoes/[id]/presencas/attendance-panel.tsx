@@ -15,6 +15,7 @@ import {
   type AttendanceRecord,
   type PlayerForAttendance,
 } from "@/lib/schemas/attendances";
+import { STATUS_LABEL, STATUS_COLOR } from "@/lib/attendance-status";
 
 interface AttendancePanelProps {
   players: PlayerForAttendance[];
@@ -34,24 +35,6 @@ function nextStatus(current: AttendanceStatus): AttendanceStatus {
   }
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]!;
 }
-
-const STATUS_LABEL: Record<AttendanceStatus, string> = {
-  sem_questionario: "Sem Questionário",
-  present: "Presente",
-  absent: "Ausente",
-  late: "Atrasado",
-  injured: "Lesionado",
-  excused: "Justificado",
-};
-
-const STATUS_COLOR: Record<AttendanceStatus, string> = {
-  sem_questionario: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  present: "bg-green-100 text-green-800",
-  absent: "bg-red-100 text-red-800",
-  late: "bg-yellow-100 text-yellow-800",
-  injured: "bg-orange-100 text-orange-800",
-  excused: "bg-blue-100 text-blue-800",
-};
 
 const POSITION_ORDER: Record<string, number> = {
   GK: 0,
