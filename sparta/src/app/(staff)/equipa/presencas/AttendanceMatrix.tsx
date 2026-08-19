@@ -1,4 +1,10 @@
-import { STATUS_LABEL, STATUS_COLOR, attendanceMatrixKey } from "@/lib/attendance-status";
+import { X, Triangle } from "lucide-react";
+import {
+  STATUS_LABEL,
+  STATUS_COLOR,
+  STATUS_ICON_COLOR,
+  attendanceMatrixKey,
+} from "@/lib/attendance-status";
 import { ATTENDANCE_STATUSES } from "@/lib/schemas/attendances";
 import type {
   AttendanceMatrixPlayer,
@@ -7,6 +13,26 @@ import type {
 import type { AttendanceStatus } from "@/lib/schemas/attendances";
 
 const TZ = "Europe/Lisbon";
+
+/** Presente = círculo; Ausente = X; Atrasado = triângulo; restantes = quadrado.
+ * Todos herdam a mesma cor de STATUS_COLOR/STATUS_ICON_COLOR — só a forma muda. */
+function StatusMark({ status }: { status: AttendanceStatus }) {
+  if (status === "absent") {
+    return <X className={`h-5 w-5 ${STATUS_ICON_COLOR[status]}`} strokeWidth={3} aria-hidden="true" />;
+  }
+  if (status === "late") {
+    return (
+      <Triangle
+        className={`h-5 w-5 ${STATUS_ICON_COLOR[status]}`}
+        fill="currentColor"
+        strokeWidth={0}
+        aria-hidden="true"
+      />
+    );
+  }
+  const shape = status === "present" ? "rounded-full" : "rounded-sm";
+  return <span className={`inline-block h-6 w-6 ${shape} ${STATUS_COLOR[status]}`} aria-hidden="true" />;
+}
 
 interface AttendanceMatrixProps {
   players: AttendanceMatrixPlayer[];
@@ -45,14 +71,11 @@ export function AttendanceMatrix({
   return (
     <div className="space-y-4">
       {/* Legenda */}
-      <ul className="flex flex-wrap gap-2 list-none p-0 m-0" aria-label="Legenda de estados de presença">
+      <ul className="flex flex-wrap gap-3 list-none p-0 m-0" aria-label="Legenda de estados de presença">
         {ATTENDANCE_STATUSES.map((status) => (
-          <li key={status}>
-            <span
-              className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${STATUS_COLOR[status]}`}
-            >
-              {STATUS_LABEL[status]}
-            </span>
+          <li key={status} className="inline-flex items-center gap-1.5">
+            <StatusMark status={status} />
+            <span className="text-xs font-medium text-foreground">{STATUS_LABEL[status]}</span>
           </li>
         ))}
       </ul>
@@ -108,9 +131,12 @@ export function AttendanceMatrix({
                     <td key={session.id} className="px-2 py-2 text-center">
                       <span
                         title={STATUS_LABEL[status]}
+                        role="img"
                         aria-label={`${player.fullName} — ${STATUS_LABEL[status]}`}
-                        className={`inline-block h-6 w-6 rounded-full ${STATUS_COLOR[status]}`}
-                      />
+                        className="inline-flex items-center justify-center h-6 w-6"
+                      >
+                        <StatusMark status={status} />
+                      </span>
                     </td>
                   );
                 })}

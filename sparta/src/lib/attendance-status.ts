@@ -18,6 +18,17 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
   excused: "bg-blue-100 text-blue-800",
 };
 
+/** Mesmas cores de STATUS_COLOR, isoladas (sem o bg-*) para uso em ícones (X, triângulo)
+ * onde só a cor do traço/preenchimento é necessária, não um fundo. */
+export const STATUS_ICON_COLOR: Record<AttendanceStatus, string> = {
+  sem_questionario: "text-slate-500 dark:text-slate-400",
+  present: "text-green-800",
+  absent: "text-red-800",
+  late: "text-yellow-800",
+  injured: "text-orange-800",
+  excused: "text-blue-800",
+};
+
 /** Chave composta partilhada entre quem constrói o statusMap (attendance-matrix.ts) e
  * quem o consome (AttendanceMatrix.tsx) — evita duplicar o template string nos dois lados. */
 export function attendanceMatrixKey(playerId: string, sessionId: string): string {
