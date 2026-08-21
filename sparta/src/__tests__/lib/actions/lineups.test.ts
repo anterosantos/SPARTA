@@ -14,7 +14,13 @@ describe("Lineup Validation Schema", () => {
         z.object({
           playerId: z.string().uuid("ID de jogador inválido"),
           role: z.enum(["starter", "bench"]),
-          shirtNum: z.number().int().positive().max(99).nullable().optional(),
+          shirtNum: z
+            .number()
+            .int("Número de camisola inválido")
+            .positive("Número de camisola tem de ser entre 1 e 99")
+            .max(99, "Número de camisola tem de ser entre 1 e 99")
+            .nullable()
+            .optional(),
         })
       )
       .min(1, "Pelo menos um jogador é necessário")
@@ -154,11 +160,11 @@ describe("Lineup Validation Schema", () => {
   });
 
   describe("Invalid inputs - shirtNum constraints", () => {
-    it("should reject zero shirtNum", () => {
+    it("should reject zero shirtNum with a friendly message (not a raw Zod default)", () => {
       const players = Array.from({ length: 11 }, (_, i) => ({
         playerId: `550e8400-e29b-41d4-a716-446655440${String(i).padStart(3, "0")}`,
         role: "starter" as const,
-        shirtNum: i === 0 ? 0 : i + 1, // First player has 0
+        shirtNum: i === 0 ? 0 : i + 1, // First player has 0 — e.g. jersey_num unset on profile
       }));
 
       const result = SubmitLineupSchema.safeParse({
@@ -167,6 +173,11 @@ describe("Lineup Validation Schema", () => {
       });
 
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          "Número de camisola tem de ser entre 1 e 99"
+        );
+      }
     });
 
     it("should reject shirtNum > 99", () => {

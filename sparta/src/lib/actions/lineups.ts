@@ -12,7 +12,13 @@ const PlayersArraySchema = z
     z.object({
       playerId: z.string().uuid("ID de jogador inválido"),
       role: z.enum(["starter", "bench"]),
-      shirtNum: z.number().int().positive().max(99).nullable().optional(),
+      shirtNum: z
+        .number()
+        .int("Número de camisola inválido")
+        .positive("Número de camisola tem de ser entre 1 e 99")
+        .max(99, "Número de camisola tem de ser entre 1 e 99")
+        .nullable()
+        .optional(),
     })
   )
   .min(1, "Pelo menos um jogador é necessário")

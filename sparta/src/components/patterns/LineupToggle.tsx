@@ -75,7 +75,11 @@ export function LineupToggle({
         <div className="flex items-end gap-2">
           <button
             type="button"
-            onClick={() => onChange("starter", shirtNum ?? player.jersey_num ?? null)}
+            // `||` (não `??`): jersey_num pode chegar como 0 quando o jogador não tem
+            // número registado (fallback de exibição noutro sítio) — 0 nunca é um número
+            // de camisola válido (servidor exige 1-99), por isso tratamo-lo como "por
+            // preencher" em vez de pré-preencher um valor que a submissão vai rejeitar.
+            onClick={() => onChange("starter", shirtNum || player.jersey_num || null)}
             disabled={disabled}
             aria-pressed={selected === "starter"}
             className={cn(
