@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist'
-import { Serwist } from 'serwist'
+import { NetworkOnly, Serwist } from 'serwist'
 import { defaultCache } from '@serwist/next/worker'
 
 declare global {
@@ -11,12 +11,28 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope & typeof globalThis
 
+// O defaultCache do @serwist/next aplica NetworkOnly({ networkTimeoutSeconds: 10 }) a
+// qualquer /api/auth/*, incluindo /api/auth/user-role (chamado pela página de login logo
+// após o signInWithPassword ter sucesso). NetworkOnly não tem fallback de cache — se a
+// rede demorar mais de 10s (frequente em ligações fracas, ex: bancada/campo de treino),
+// o SW rejeita o fetch() com "Timed out the network response after 10 seconds", e o login
+// mostra "Erro ao recuperar dados de sessão" mesmo com o login já autenticado no servidor.
+// Sobrepõe apenas esta regra com um timeout mais tolerante, antes do defaultCache (a
+// primeira rota que faz match "ganha" no Workbox/Serwist).
+const runtimeCaching = [
+  {
+    matcher: /\/api\/auth\/.*/,
+    handler: new NetworkOnly({ networkTimeoutSeconds: 30 }),
+  },
+  ...defaultCache,
+]
+
 const serwist = new Serwist({
   precacheEntries: (self as WorkerGlobalScope).__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching,
   fallbacks: {
     entries: [
       {
