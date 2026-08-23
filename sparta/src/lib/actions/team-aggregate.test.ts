@@ -360,14 +360,14 @@ describe("getTeamAggregateData", () => {
       const fatigue = result.data.weeklyFatigue;
       expect(fatigue).toHaveLength(4);
 
-      // Semana 4 (índice 3) tem avg=8
+      // Semana 4 (índice 3): dims=8 (bem-estar) → fadiga invertida = 6 - 8 = -2
       const week4 = fatigue[3];
-      expect(week4?.avgFatigue).toBe(8);
+      expect(week4?.avgFatigue).toBe(-2);
       expect(week4?.sampleSize).toBe(1);
 
-      // Semana 2 (índice 1) tem avg=2
+      // Semana 2 (índice 1): dims=2 (bem-estar) → fadiga invertida = 6 - 2 = 4
       const week2 = fatigue[1];
-      expect(week2?.avgFatigue).toBe(2);
+      expect(week2?.avgFatigue).toBe(4);
       expect(week2?.sampleSize).toBe(1);
 
       // Semanas 1 e 3 têm avg=0

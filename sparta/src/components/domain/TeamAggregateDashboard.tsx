@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import type { CSSProperties } from "react";
 import {
   LineChart,
   Line,
@@ -31,6 +32,16 @@ import type {
 interface TeamAggregateDashboardProps {
   data: TeamAggregateData;
 }
+
+// Estilo do tooltip do Recharts via tokens de tema (var(--*) de globals.css) — o
+// contentStyle por omissão do Recharts é sempre branco/preto fixo e fica ilegível
+// em modo escuro, já que não segue as CSS custom properties do tema.
+const CHART_TOOLTIP_STYLE: CSSProperties = {
+  backgroundColor: "var(--card)",
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  color: "var(--foreground)",
+};
 
 function TopPlayerCard({
   player,
@@ -157,8 +168,8 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
             >
               <TooltipExplain
                 term="Fadiga média"
-                definition="Média das 5 dimensões de fadiga (energia, foco, sono, dores, humor) de todos os jogadores nas últimas 4 semanas."
-                formula="avg(dim_energy + dim_focus + dim_sleep + dim_soreness + dim_mood) / 5"
+                definition="Inverso do bem-estar médio das 5 dimensões (energia, foco, sono, dores, humor) de todos os jogadores nas últimas 4 semanas — quanto mais alto, mais fadigada está a equipa."
+                formula="6 − avg(dim_energy + dim_focus + dim_sleep + dim_soreness + dim_mood) / 5"
               />
             </h2>
             {data.weeklyFatigue.every((pt) => pt.avgFatigue === 0) ? (
@@ -176,8 +187,11 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
                   <LineChart data={data.weeklyFatigue}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
-                    <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
+                    <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 12 }} />
                     <Tooltip
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={{ color: "var(--foreground)" }}
+                      itemStyle={{ color: "var(--foreground)" }}
                       formatter={(value) =>
                         typeof value === "number"
                           ? value.toLocaleString("pt-PT")
@@ -231,6 +245,9 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
                     <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
                     <Tooltip
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={{ color: "var(--foreground)" }}
+                      itemStyle={{ color: "var(--foreground)" }}
                       formatter={(value) =>
                         typeof value === "number"
                           ? `${value.toLocaleString("pt-PT")}%`
@@ -312,7 +329,7 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
                   <TopPlayerCard
                     key={player.playerId}
                     player={player}
-                    valueLabel="fadiga média (1–10)"
+                    valueLabel="fadiga média (1–5)"
                   />
                 ))}
               </div>
@@ -351,6 +368,9 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
                   />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--foreground)" }}
+                    itemStyle={{ color: "var(--foreground)" }}
                     formatter={(value) =>
                       typeof value === "number"
                         ? value.toLocaleString("pt-PT")

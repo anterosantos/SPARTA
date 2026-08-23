@@ -258,12 +258,16 @@ export async function getTeamAggregateData(): Promise<
         (v): v is number => v !== null && v !== undefined
       )
     );
-    const avg =
+    // Dimensões vão de 1 (pior: esgotado/muita dor/mau humor) a 5 (melhor) — ver
+    // lib/i18n/pt-PT/fatigue.ts. A média bruta é bem-estar, não fadiga; inverte-se
+    // (6 − média) para que um valor mais alto no gráfico signifique mais fadiga.
+    const avgWellness =
       allDims.length > 0 ? allDims.reduce((s, v) => s + v, 0) / allDims.length : 0;
+    const avgFatigue = allDims.length > 0 ? 6 - avgWellness : 0;
     return {
       weekLabel: w.label,
       weekStart: w.start.toISOString(),
-      avgFatigue: Math.round(avg * 10) / 10,
+      avgFatigue: Math.round(avgFatigue * 10) / 10,
       sampleSize: playerSet.size,
     };
   });
@@ -346,16 +350,20 @@ export async function getTeamAggregateData(): Promise<
       r.dim_mood,
     ].filter((v): v is number => v !== null && v !== undefined);
     if (dims.length === 0) continue;
-    const avg = dims.reduce((s, v) => s + v, 0) / dims.length;
+    // Média de bem-estar desta resposta (1 pior – 5 melhor); invertida abaixo.
+    const avgWellness = dims.reduce((s, v) => s + v, 0) / dims.length;
     const existing = avgFatigueByPlayer.get(r.player_id) ?? {
       sum: 0,
       count: 0,
     };
     avgFatigueByPlayer.set(r.player_id, {
-      sum: existing.sum + avg,
+      sum: existing.sum + avgWellness,
       count: existing.count + 1,
     });
   }
+  // Inverte bem-estar → fadiga (6 − média) para que o valor mais alto = mais fadigado,
+  // consistente com weeklyFatigue acima. Sem esta inversão, "Top 3 Mais Fatigados"
+  // mostrava, na verdade, os jogadores com MELHOR bem-estar.
   const topFatigued = Array.from(avgFatigueByPlayer.entries())
     .map(([pid, { sum, count }]) => ({
       playerId: pid,
@@ -363,7 +371,7 @@ export async function getTeamAggregateData(): Promise<
         playersArr.find((p) => p.id === pid)?.full_name?.trim() || "—",
       position: positionMap.get(pid) ?? "—",
       ageGroup: playersArr.find((p) => p.id === pid)?.age_group ?? "—",
-      value: Math.round((sum / count) * 10) / 10,
+      value: Math.round((6 - sum / count) * 10) / 10,
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
