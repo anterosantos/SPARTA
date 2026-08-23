@@ -19,6 +19,16 @@ export const DIMENSION_LABELS: Record<FatigueDimension, string> = {
   dim_mood: "Humor",
 };
 
+/** Ordem de exibição das 5 dimensões — mesma ordem usada em FatigueTrendRow (linhas)
+ * e reutilizada pela legenda e pela exportação PDF, para nunca divergir da tabela. */
+export const DIMENSION_ORDER: FatigueDimension[] = [
+  "dim_energy",
+  "dim_focus",
+  "dim_sleep",
+  "dim_soreness",
+  "dim_mood",
+];
+
 interface FatigueSparklineProps {
   data: SparklinePoint[];
   dimension: FatigueDimension;

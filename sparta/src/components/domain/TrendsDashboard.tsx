@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { TrendFilters } from "./TrendFilters";
 import { FatigueTrendRow } from "./FatigueTrendRow";
+import { FatigueTrendsLegend } from "./FatigueTrendsLegend";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { exportFatigueTrendsPdf } from "@/lib/utils/export";
 import type { PlayerTrendData, TrendFilters as TrendFiltersType } from "@/lib/actions/trends";
 
 const DEFAULT_FILTERS: TrendFiltersType = {
@@ -48,9 +51,32 @@ export function TrendsDashboard({ players }: TrendsDashboardProps) {
   }
   // sortBy === "alphabetic": já ordenado do servidor
 
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      return;
+    }
+    exportFatigueTrendsPdf(filtered);
+  };
+
   return (
     <div className="space-y-4">
-      <TrendFilters onFilter={handleFilter} initialFilters={DEFAULT_FILTERS} />
+      <div className="flex flex-wrap items-center gap-3">
+        <TrendFilters onFilter={handleFilter} initialFilters={DEFAULT_FILTERS} />
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={filtered.length === 0}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Exportar PDF
+          </Button>
+        </div>
+      </div>
+
+      <FatigueTrendsLegend />
 
       {filtered.length === 0 ? (
         <EmptyState
