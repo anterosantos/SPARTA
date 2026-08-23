@@ -8,7 +8,7 @@ import { SeasonToggle } from "@/components/ui/season-toggle";
 import { useSeasonView } from "@/hooks/useSeasonView";
 import { LoadFiltersSheet } from "@/components/domain/LoadFiltersSheet";
 import { PlayerLoadRow } from "@/components/domain/PlayerLoadRow";
-import { exportLoadCsv } from "@/lib/utils/export";
+import { exportLoadCsv, exportLoadPdf } from "@/lib/utils/export";
 import type { PlayerLoadData, LoadFilters } from "@/lib/actions/load";
 import type { Season } from "@/lib/schemas/seasons";
 
@@ -74,6 +74,13 @@ export function LoadDashboard({ players, currentSeason }: LoadDashboardProps) {
     exportLoadCsv(filtered, seasonView);
   };
 
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      return;
+    }
+    exportLoadPdf(filtered, seasonView, seasonAvg, currentSeason?.name ?? null);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header controls */}
@@ -90,6 +97,16 @@ export function LoadDashboard({ players, currentSeason }: LoadDashboardProps) {
           >
             <Download className="h-4 w-4" aria-hidden="true" />
             Exportar CSV
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={filtered.length === 0}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Exportar PDF
           </Button>
         </div>
       </div>
