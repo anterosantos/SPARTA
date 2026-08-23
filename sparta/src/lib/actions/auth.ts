@@ -161,6 +161,15 @@ export async function requireAdminRole(): Promise<
       role: profile.role as string,
     });
   } catch (e) {
+    // Next.js lança um erro especial (digest DYNAMIC_SERVER_USAGE) quando cookies() é
+    // chamado durante a tentativa de pré-renderização estática no build — não é um erro
+    // da aplicação, é o mecanismo interno que o Next.js usa para marcar a rota como
+    // dinâmica. requireStaffRole (sem try/catch) já deixa isto propagar sem problema;
+    // aqui, ao capturar tudo genericamente, estávamos a poluir os logs de build/deploy
+    // com "[requireAdminRole] Unexpected error" em todas as rotas /admin/*.
+    if ((e as { digest?: string } | null)?.digest === "DYNAMIC_SERVER_USAGE") {
+      throw e;
+    }
     console.error("[requireAdminRole] Unexpected error:", e);
     return err({ code: "unauthorized", message: "Erro de autenticação." });
   }
