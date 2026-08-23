@@ -8,6 +8,12 @@ import {
   DIMENSION_LABELS,
   DIMENSION_COLORS,
 } from "@/components/domain/FatigueSparkline";
+import type {
+  AttendanceMatrixPlayer,
+  AttendanceMatrixSession,
+} from "@/lib/actions/attendance-matrix";
+import { ATTENDANCE_STATUSES, type AttendanceStatus } from "@/lib/schemas/attendances";
+import { STATUS_LABEL, attendanceMatrixKey } from "@/lib/attendance-status";
 
 function escapeCSV(val: unknown): string {
   const s = String(val ?? "");
@@ -314,4 +320,154 @@ export function exportFatigueTrendsPdf(players: PlayerTrendData[]): void {
   });
 
   doc.save(`sparta-tendencias-fadiga-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+/**
+ * Cores das marcas por estado — mesmas usadas em StatusMark (AttendanceMatrix.tsx):
+ * presente = círculo bg-green-100, ausente = X com traço red-800, atrasado = triângulo
+ * preenchido yellow-800, lesionado/justificado/sem questionário = quadrado bg-*-100.
+ */
+const ATTENDANCE_MARK_HEX: Record<AttendanceStatus, string> = {
+  sem_questionario: "#F1F5F9",
+  present: "#DCFCE7",
+  absent: "#991B1B",
+  late: "#854D0E",
+  injured: "#FFEDD5",
+  excused: "#DBEAFE",
+};
+
+/**
+ * Desenha a mesma forma usada no ecrã para cada estado — presente = círculo, ausente = X,
+ * atrasado = triângulo, restantes = quadrado — para o PDF ser visualmente idêntico à
+ * matriz (mesma lógica de StatusMark em AttendanceMatrix.tsx, mas com primitivas jsPDF).
+ */
+function drawAttendanceMark(
+  doc: jsPDF,
+  cx: number,
+  cy: number,
+  size: number,
+  status: AttendanceStatus
+): void {
+  const [r, g, b] = hexToRgb(ATTENDANCE_MARK_HEX[status]);
+  const half = size / 2;
+
+  if (status === "absent") {
+    doc.setDrawColor(r, g, b);
+    doc.setLineWidth(1.3);
+    doc.line(cx - half, cy - half, cx + half, cy + half);
+    doc.line(cx - half, cy + half, cx + half, cy - half);
+    return;
+  }
+
+  if (status === "late") {
+    doc.setFillColor(r, g, b);
+    doc.triangle(cx, cy - half, cx + half, cy + half, cx - half, cy + half, "F");
+    return;
+  }
+
+  doc.setFillColor(r, g, b);
+  if (status === "present") {
+    doc.circle(cx, cy, half, "F");
+  } else {
+    doc.rect(cx - half, cy - half, size, size, "F");
+  }
+}
+
+const MATRIX_TZ = "Europe/Lisbon";
+
+function formatMatrixSessionHeader(scheduledAt: string): string {
+  const date = new Date(scheduledAt);
+  const weekday = date
+    .toLocaleDateString("pt-PT", { weekday: "short", timeZone: MATRIX_TZ })
+    .replace(/\.$/, "");
+  const dateLabel = date.toLocaleDateString("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: MATRIX_TZ,
+  });
+  return `${weekday}\n${dateLabel}`;
+}
+
+/**
+ * Exporta a Matriz de Presenças (jogadores × sessões) para PDF, com as mesmas formas e
+ * cores do ecrã. Gerado 100% no browser (jsPDF + jspdf-autotable). O número de sessões
+ * pode facilmente exceder a largura de uma página — usa horizontalPageBreak para
+ * continuar as colunas nas páginas seguintes, sempre repetindo a coluna "Jogador".
+ */
+export function exportAttendanceMatrixPdf(
+  players: AttendanceMatrixPlayer[],
+  sessions: AttendanceMatrixSession[],
+  statusMap: Record<string, AttendanceStatus>
+): void {
+  if (players.length === 0 || sessions.length === 0) return;
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+  const today = new Date().toLocaleDateString("pt-PT", { timeZone: MATRIX_TZ });
+
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.text("Matriz de Presenças", 40, 40);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Exportado em ${today}`, 40, 56);
+
+  // Legenda dos estados — mesma forma/cor da matriz no ecrã.
+  let legendX = 40;
+  const legendY = 74;
+  doc.setFontSize(8);
+  for (const status of ATTENDANCE_STATUSES) {
+    drawAttendanceMark(doc, legendX + 5, legendY - 3, 9, status);
+    doc.setTextColor(80);
+    const label = STATUS_LABEL[status];
+    doc.text(label, legendX + 14, legendY);
+    legendX += 14 + doc.getTextWidth(label) + 16;
+  }
+
+  const columns = [
+    { header: "Jogador", dataKey: "playerName" },
+    ...sessions.map((s) => ({
+      header: formatMatrixSessionHeader(s.scheduledAt),
+      dataKey: s.id,
+    })),
+  ];
+
+  const body = players.map((p) => {
+    const row: Record<string, string> = {
+      playerName: `${p.jerseyNum ?? "—"}  ${p.fullName}`,
+    };
+    for (const s of sessions) row[s.id] = "";
+    return row;
+  });
+
+  const sessionColumnStyles = Object.fromEntries(
+    sessions.map((s) => [s.id, { cellWidth: 26, halign: "center" as const }])
+  );
+
+  autoTable(doc, {
+    startY: 92,
+    columns,
+    body,
+    styles: { fontSize: 8, cellPadding: 4, minCellHeight: 22, valign: "middle" },
+    headStyles: { fillColor: [30, 41, 59], fontSize: 7 },
+    columnStyles: {
+      playerName: { cellWidth: 130, halign: "left" },
+      ...sessionColumnStyles,
+    },
+    horizontalPageBreak: true,
+    horizontalPageBreakRepeat: "playerName",
+    didDrawCell: (data) => {
+      if (data.section !== "body") return;
+      const session = sessions.find((s) => s.id === data.column.dataKey);
+      if (!session) return;
+      const player = players[data.row.index];
+      if (!player) return;
+      const status =
+        statusMap[attendanceMatrixKey(player.id, session.id)] ?? "sem_questionario";
+      const cx = data.cell.x + data.cell.width / 2;
+      const cy = data.cell.y + data.cell.height / 2;
+      drawAttendanceMark(doc, cx, cy, 10, status);
+    },
+  });
+
+  doc.save(`sparta-matriz-presencas-${new Date().toISOString().slice(0, 10)}.pdf`);
 }

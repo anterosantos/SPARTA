@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X, Triangle } from "lucide-react";
+import { X, Triangle, Download } from "lucide-react";
 import {
   STATUS_LABEL,
   STATUS_COLOR,
@@ -12,6 +12,8 @@ import { ATTENDANCE_STATUSES, type AttendanceStatus } from "@/lib/schemas/attend
 import { SESSION_TYPE_COLORS } from "@/lib/constants/session-colors";
 import type { SessionType } from "@/lib/schemas/sessions";
 import { useDarkMode } from "@/hooks/useDarkMode";
+import { Button } from "@/components/ui/button";
+import { exportAttendanceMatrixPdf } from "@/lib/utils/export";
 import type {
   AttendanceMatrixPlayer,
   AttendanceMatrixSession,
@@ -130,8 +132,26 @@ export function AttendanceMatrix({
     [players, filteredSessions, statusMap, activeStatuses]
   );
 
+  const handleExportPdf = () => {
+    if (filteredPlayers.length === 0 || filteredSessions.length === 0) return;
+    exportAttendanceMatrixPdf(filteredPlayers, filteredSessions, statusMap);
+  };
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={filteredPlayers.length === 0 || filteredSessions.length === 0}
+          className="gap-2"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Exportar PDF
+        </Button>
+      </div>
+
       {/* Filtro por tipo de sessão */}
       <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">Tipo de sessão</p>
