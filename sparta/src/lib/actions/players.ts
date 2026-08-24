@@ -967,8 +967,14 @@ export async function invitePlayer(
     });
   }
 
-  // Ligar profile_id ao registo do jogador (usar now() para timestamp consistente)
-  const { error: updateError } = await supabase
+  // Ligar profile_id ao registo do jogador (usar now() para timestamp consistente).
+  // UPDATE não gera erro quando 0 linhas correspondem ao filtro — sem o
+  // .select().maybeSingle() abaixo, um playerId/club_id que já não corresponda a
+  // nenhuma linha (ou profile_id já preenchido de uma tentativa anterior) passava
+  // como sucesso silencioso, deixando o profile/utilizador Auth criados mas nunca
+  // ligados a nenhum registo de jogador (órfão — sintoma: "Registo de jogador não
+  // encontrado" ao carregar sessões).
+  const { data: linkedPlayer, error: updateError } = await supabase
     .from("players")
     .update({
       profile_id: inviteData.user.id,
@@ -977,9 +983,27 @@ export async function invitePlayer(
     })
     .eq("id", validated.data.playerId)
     .eq("club_id", staffProfile.club_id)
-    .is("profile_id", null);
+    .is("profile_id", null)
+    .select("id")
+    .maybeSingle();
 
-  if (updateError) {
+  if (updateError || !linkedPlayer) {
+    // Compensação: reverter perfil + utilizador Auth já criados, para não trocar o
+    // órfão silencioso (bug antigo) por um órfão "barulhento" — mesma lógica do
+    // rollback de profileError acima.
+    const profileDeleteResult = await serviceRole
+      .from("profiles")
+      .delete()
+      .eq("id", inviteData.user.id);
+    const authDeleteResult = await serviceRole.auth.admin.deleteUser(inviteData.user.id);
+    if (profileDeleteResult.error || authDeleteResult.error) {
+      console.error("[invitePlayer] Critical: orphaned profile/auth user after link failure", {
+        userId: inviteData.user.id,
+        playerId: validated.data.playerId,
+        profileDeleteError: profileDeleteResult.error?.message,
+        authDeleteError: authDeleteResult.error?.message,
+      });
+    }
     return err({
       code: "link_failed",
       message:
