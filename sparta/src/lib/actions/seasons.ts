@@ -1,30 +1,14 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/supabase/server";
 import { logAccess } from "@/lib/actions/audit";
 import { SeasonCreateSchema, SeasonUpdateSchema } from "@/lib/schemas/seasons";
 import type { SeasonCreate, SeasonUpdate, Season } from "@/lib/schemas/seasons";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
 
-async function getAuthContext() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("club_id")
-    .eq("id", user.id)
-    .single();
-
-  return { supabase, user, profile };
-}
-
 export async function getSeasonsForClub(): Promise<Result<Season[], AppError>> {
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -42,7 +26,7 @@ export async function getSeasonsForClub(): Promise<Result<Season[], AppError>> {
 export async function getCurrentSeason(): Promise<
   Result<Season | null, AppError>
 > {
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -72,7 +56,7 @@ export async function createSeason(
     });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -128,7 +112,7 @@ export async function updateSeason(
     });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });

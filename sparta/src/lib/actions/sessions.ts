@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffRole } from "@/lib/actions/auth";
 import { logAccess } from "@/lib/actions/audit";
@@ -13,22 +13,6 @@ import {
 import type { SessionCreate, SessionUpdate, Session } from "@/lib/schemas/sessions";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
-
-async function getAuthContext() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("club_id, id")
-    .eq("id", user.id)
-    .single();
-
-  return { supabase, user, profile };
-}
 
 const SessionFiltersSchema = z.object({
   season_id: z.string().uuid().optional(),
@@ -48,16 +32,8 @@ export async function getSessionsForClub(
     return err({ code: "validation", message: "Filtros inválidos" });
   }
 
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, club_id")
-    .eq("id", user.id)
-    .single();
-
   if (!profile?.club_id) return err({ code: "forbidden", message: "Perfil não encontrado" });
 
   const serviceRole = getServiceRoleClient();
@@ -73,12 +49,19 @@ export async function getSessionsForClub(
   } else if (profile.role === "player") {
     clubId = profile.club_id;
 
-    const { data: player } = await serviceRole
+    const { data: player, error: playerError } = await serviceRole
       .from("players")
       .select("id")
       .eq("profile_id", user.id)
       .eq("club_id", clubId)
       .maybeSingle();
+    if (playerError) {
+      // maybeSingle() devolve erro (não excepção) se houver >1 linha a corresponder —
+      // sem clubId não haveria constraint UNIQUE(profile_id) a prevenir duplicados.
+      // Registar para diagnosticar: sem isto, um erro real fica indistinguível de
+      // "não existe jogador" (mesma mensagem genérica ao utilizador).
+      console.error("[getSessionsForClub] Erro ao procurar jogador:", playerError);
+    }
     if (!player) return err({ code: "forbidden", message: "Registo de jogador não encontrado" });
 
     const { data: tpRows } = await serviceRole
@@ -138,7 +121,7 @@ export async function getSessionsForClub(
 export async function getSessionById(
   sessionId: string
 ): Promise<Result<Session, AppError>> {
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -192,7 +175,7 @@ export async function createSession(
     return err({ code: "validation", message: messages || "Dados inválidos" });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -264,7 +247,7 @@ export async function updateSession(
     return err({ code: "validation", message: messages || "Dados inválidos" });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -331,7 +314,7 @@ export async function updateSessionTeams(
     return err({ code: "validation", message: "Jogo e amigável só podem ter uma equipa." });
   }
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -367,7 +350,7 @@ export async function updateSessionTeams(
 export async function cancelSession(
   sessionId: string
 ): Promise<Result<Session, AppError>> {
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });

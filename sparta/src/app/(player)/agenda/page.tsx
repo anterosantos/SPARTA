@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Calendar } from "lucide-react";
-import { createServerClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
@@ -42,15 +42,8 @@ export default async function PlayerAgendaPage({
     return startOfMonth(today);
   })();
 
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, profile } = await getRequestUser();
   if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
 
   if (!profile || profile.role !== "player") redirect("/hoje");
 

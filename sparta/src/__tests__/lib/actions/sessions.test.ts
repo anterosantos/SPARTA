@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
+  getRequestUser: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service-role", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/lib/actions/auth", () => ({
   requireStaffRole: vi.fn(),
 }));
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, getRequestUser } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import { requireStaffRole } from "@/lib/actions/auth";
@@ -36,6 +37,25 @@ import {
 
 const mockRequireStaffRole = requireStaffRole as ReturnType<typeof vi.fn>;
 const mockGetServiceRoleClient = getServiceRoleClient as ReturnType<typeof vi.fn>;
+
+// getRequestUser() substitui o antigo getAuthContext() privado de sessions.ts — em vez
+// de reconfigurar cada teste, replica aqui o mesmo caminho (createServerClient() mockado
+// por cada teste → auth.getUser() → profiles.select().single()), para todos os testes
+// existentes continuarem a funcionar sem alteração.
+vi.mocked(getRequestUser).mockImplementation(async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServerClient()) as any;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, profile: null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, club_id")
+    .eq("id", user.id)
+    .single();
+  return { supabase, user, profile };
+});
 
 const SESSION_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const CLUB_UUID = "650e8400-e29b-41d4-a716-446655440002";

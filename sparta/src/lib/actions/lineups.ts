@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { logAccess } from "@/lib/actions/audit";
 import type { Result, AppError } from "@/lib/types";
@@ -51,22 +51,6 @@ export interface SubmitLineupResult {
   error?: string;
 }
 
-async function getAuthContext() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("club_id, id, role")
-    .eq("id", user.id)
-    .single();
-
-  return { supabase, user, profile };
-}
-
 // In-memory lock to prevent concurrent submissions for the same session
 const submissionLocks = new Map<string, Promise<void>>();
 
@@ -82,7 +66,7 @@ export async function submitLineup(
 
   const { sessionId, players, concentrationTime, opponentName } = validated.data;
 
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) {
     return { ok: false, error: "Não autenticado" };
   }
@@ -267,7 +251,7 @@ export interface MatchLineupWithPlayerData extends MatchLineupData {
 export async function getLineupForSession(
   sessionId: string
 ): Promise<Result<MatchLineupWithPlayerData[], AppError>> {
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
   if (!user) return err({ code: "unauthorized", message: "Não autenticado" });
   if (!profile?.club_id)
     return err({ code: "forbidden", message: "Perfil não encontrado" });
@@ -360,7 +344,7 @@ export async function sendConvocatoria(
   }
 
   const { sessionId, players, concentrationTime, opponentName } = validated.data;
-  const { supabase, user, profile } = await getAuthContext();
+  const { supabase, user, profile } = await getRequestUser();
 
   if (!user) return { ok: false, error: "Não autenticado" };
   if (!profile?.club_id) return { ok: false, error: "Perfil não encontrado" };

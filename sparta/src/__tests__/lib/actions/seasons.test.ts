@@ -2,19 +2,38 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
+  getRequestUser: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/audit", () => ({
   logAccess: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
 }));
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, getRequestUser } from "@/lib/supabase/server";
 import {
   getSeasonsForClub,
   getCurrentSeason,
   createSeason,
   updateSeason,
 } from "@/lib/actions/seasons";
+
+// getRequestUser() substitui o antigo getAuthContext() privado de seasons.ts — replica
+// aqui o mesmo caminho (createServerClient() mockado por cada teste → auth.getUser() →
+// profiles.select().single()), para todos os testes existentes continuarem a funcionar.
+vi.mocked(getRequestUser).mockImplementation(async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServerClient()) as any;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, profile: null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, club_id")
+    .eq("id", user.id)
+    .single();
+  return { supabase, user, profile };
+});
 
 const SEASON_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const CLUB_UUID = "650e8400-e29b-41d4-a716-446655440002";

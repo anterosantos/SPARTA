@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
+  getRequestUser: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service-role", () => ({
@@ -28,7 +29,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, getRequestUser } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   submitFatigueResponse,
@@ -188,6 +189,8 @@ function buildStaffMockClients(opts?: BuildOpts) {
     mockSessionMetricsUpsert,
     mockAttendanceSelect,
     mockAttendanceUpdate,
+    role,
+    clubId,
   };
 }
 
@@ -200,6 +203,13 @@ function mockClients(opts?: BuildOpts) {
   const mocks = buildStaffMockClients(opts);
   vi.mocked(createServerClient).mockResolvedValue(mocks.serverClient as never);
   vi.mocked(getServiceRoleClient).mockReturnValue(mocks.serviceRoleClient as never);
+  // getSessionById (sessions.ts) usa getRequestUser() — mesmo resultado que
+  // serverClient.auth.getUser() + serverClient.from("profiles") produziriam.
+  vi.mocked(getRequestUser).mockResolvedValue({
+    supabase: mocks.serverClient,
+    user: { id: STAFF_USER_UUID },
+    profile: mocks.role ? { id: STAFF_USER_UUID, role: mocks.role, club_id: mocks.clubId } : null,
+  } as never);
   return mocks;
 }
 

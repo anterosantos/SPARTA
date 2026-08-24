@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
@@ -31,3 +32,31 @@ export async function createServerClient() {
     }
   );
 }
+
+/**
+ * Utilizador autenticado + perfil (id, role, club_id), memorizado com cache() do React
+ * para o pedido actual. Sem isto, cada Server Action com o seu próprio getAuthContext()
+ * privado repetia auth.getUser() + SELECT profiles de forma independente — numa única
+ * página como /agenda, page.tsx + getCurrentSeason() + getSessionsForClub() chamavam
+ * isto 3 vezes em série, cada uma a pagar round-trip completo ao Supabase. cache()
+ * garante que, dentro do mesmo pedido, chamadas repetidas devolvem a mesma promise já
+ * resolvida em vez de repetir o fetch.
+ */
+export const getRequestUser = cache(async () => {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { supabase, user: null, profile: null };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  return { supabase, user, profile };
+});

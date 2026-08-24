@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
+  getRequestUser: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/sessions", () => ({
@@ -30,9 +31,27 @@ vi.mock("@/lib/actions/seasons", () => ({
   }),
 }));
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, getRequestUser } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import PlayerAgendaPage from "@/app/(player)/agenda/page";
+
+// getRequestUser() substitui a leitura directa de auth.getUser()+profiles que page.tsx
+// tinha inline — replica aqui o mesmo caminho a partir do mock de createServerClient já
+// configurado por cada teste, para não ter de os reescrever todos.
+vi.mocked(getRequestUser).mockImplementation(async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServerClient()) as any;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, profile: null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, club_id")
+    .eq("id", user.id)
+    .single();
+  return { supabase, user, profile };
+});
 
 const USER_UUID = "750e8400-e29b-41d4-a716-446655440003";
 const CLUB_UUID = "650e8400-e29b-41d4-a716-446655440002";
