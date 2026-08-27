@@ -12,6 +12,7 @@ interface SessionDetailActionsProps {
   sessionType: SessionType;
   isScheduled: boolean;
   isCoach: boolean;
+  isAnalyst: boolean;
 }
 
 export function SessionDetailActions({
@@ -19,6 +20,7 @@ export function SessionDetailActions({
   sessionType,
   isScheduled,
   isCoach,
+  isAnalyst,
 }: SessionDetailActionsProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const isMatchOrFriendly = sessionType === "match" || sessionType === "friendly";
@@ -52,8 +54,10 @@ export function SessionDetailActions({
           </Link>
         </Button>
 
-        {/* Convocatória — coach apenas */}
-        {isMatchOrFriendly && isCoach && (
+        {/* Convocatória — coach edita, analyst só consulta (a página já trata
+            readOnly={role === "analyst"}; aqui só garantimos que o link existe
+            para ambos, não só para coach) */}
+        {isMatchOrFriendly && (isCoach || isAnalyst) && (
           <Button asChild variant="ghost" className="w-full justify-start gap-2">
             <Link href={`/sessoes/${sessionId}/convocatoria`}>
               <Users className="h-4 w-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { LineupToggle } from "@/components/patterns/LineupToggle";
@@ -83,6 +83,43 @@ export function ClientConvocacaoEditor({
   const isPending = isSaving || isSending;
   const canSubmit = starterCount === 11 && !readOnly && !isPending;
 
+  // Lista de convocados (resumo só-leitura) — playersByPosition tem os dados de todos
+  // os jogadores do plantel; aqui fazemos o lookup inverso por id para mostrar apenas
+  // quem está selecionado, sem obrigar a equipa técnica a percorrer o plantel todo.
+  const playerById = useMemo(() => {
+    const map = new Map<string, PlayerWithConsent>();
+    for (const positionPlayers of Object.values(playersByPosition)) {
+      for (const player of positionPlayers) map.set(player.id, player);
+    }
+    return map;
+  }, [playersByPosition]);
+
+  const starters = useMemo(
+    () =>
+      Object.entries(selections)
+        .filter(([, role]) => role === "starter")
+        .map(([playerId]) => ({
+          player: playerById.get(playerId),
+          shirtNum: shirtNumbers[playerId] ?? null,
+        }))
+        .filter(
+          (entry): entry is { player: PlayerWithConsent; shirtNum: number | null } =>
+            entry.player !== undefined
+        )
+        .sort((a, b) => (a.shirtNum ?? 999) - (b.shirtNum ?? 999)),
+    [selections, shirtNumbers, playerById]
+  );
+
+  const bench = useMemo(
+    () =>
+      Object.entries(selections)
+        .filter(([, role]) => role === "bench")
+        .map(([playerId]) => playerById.get(playerId))
+        .filter((player): player is PlayerWithConsent => player !== undefined)
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-PT")),
+    [selections, playerById]
+  );
+
   function buildPlayers() {
     return Object.entries(selections)
       .filter(([, role]) => role)
@@ -143,6 +180,55 @@ export function ClientConvocacaoEditor({
           {starterCount} / 11 titulares · {benchCount} suplentes
         </p>
       </div>
+
+      {/* Resumo da lista de convocados — só-leitura, para consulta rápida sem percorrer
+          o plantel todo. Visível para coach (a editar) e analyst (readOnly). */}
+      <section
+        aria-labelledby="convocados-summary-heading"
+        className="border-b border-border bg-card px-4 py-4 sm:px-6 space-y-3"
+      >
+        <h2
+          id="convocados-summary-heading"
+          className="text-sm font-semibold text-foreground"
+        >
+          Lista de Convocados
+        </h2>
+        {starters.length === 0 && bench.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Ainda sem jogadores seleccionados.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Titulares ({starters.length})
+              </p>
+              <ul className="space-y-0.5 list-none p-0 m-0">
+                {starters.map(({ player, shirtNum }) => (
+                  <li key={player.id} className="text-sm text-foreground">
+                    <span className="tabular-nums text-muted-foreground mr-2">
+                      {shirtNum ?? "—"}
+                    </span>
+                    {player.full_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Suplentes ({bench.length})
+              </p>
+              <ul className="space-y-0.5 list-none p-0 m-0">
+                {bench.map((player) => (
+                  <li key={player.id} className="text-sm text-foreground">
+                    {player.full_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Adversário + Hora de concentração */}
       <div className="border-b border-border bg-background px-4 py-4 sm:px-6 flex flex-col gap-4">

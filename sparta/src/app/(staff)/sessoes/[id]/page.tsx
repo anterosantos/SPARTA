@@ -64,6 +64,7 @@ export default async function SessionDetailPage({
   const statusLabel = STATUS_LABELS[session.status as SessionStatus] ?? session.status;
   const isScheduled = session.status === "scheduled";
   const isCoach = profile.role === "coach";
+  const isAnalyst = profile.role === "analyst";
 
   return (
     <main id="main-content">
@@ -135,6 +136,7 @@ export default async function SessionDetailPage({
           sessionType={session.type}
           isScheduled={isScheduled}
           isCoach={isCoach}
+          isAnalyst={isAnalyst}
         />
       </div>
     </main>
