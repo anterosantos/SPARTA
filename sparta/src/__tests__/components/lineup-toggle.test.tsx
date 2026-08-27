@@ -18,7 +18,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
@@ -31,7 +31,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
@@ -39,17 +39,17 @@ describe("LineupToggle", () => {
       expect(screen.getByText("MID")).toBeInTheDocument();
     });
 
-    it("should render three toggle buttons", () => {
+    it("should render two toggle buttons (Não / Convocado)", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
 
       const buttons = screen.getAllByRole("button");
-      expect(buttons).toHaveLength(3);
+      expect(buttons).toHaveLength(2);
     });
 
     it("should render dash position if no positions", () => {
@@ -57,7 +57,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={playerNoPos}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
@@ -67,98 +67,64 @@ describe("LineupToggle", () => {
   });
 
   describe("Selected state", () => {
-    it("should show selected state for starter", () => {
+    it("should show selected state for convocado", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={vi.fn()}
         />
       );
 
       const buttons = container.querySelectorAll("button");
-      const starterButton = buttons[1]; // Second button is starter
+      const convocadoButton = buttons[1]; // Second button is "Convocado"
 
-      expect(starterButton).toHaveAttribute("aria-pressed", "true");
-      expect(starterButton).toHaveClass("bg-primary");
-    });
-
-    it("should show selected state for bench", () => {
-      const { container } = render(
-        <LineupToggle
-          player={mockPlayer}
-          selected="bench"
-          onChange={vi.fn()}
-        />
-      );
-
-      const buttons = container.querySelectorAll("button");
-      const benchButton = buttons[2]; // Third button is bench
-
-      expect(benchButton).toHaveAttribute("aria-pressed", "true");
-      expect(benchButton).toHaveClass("bg-primary");
+      expect(convocadoButton).toHaveAttribute("aria-pressed", "true");
+      expect(convocadoButton).toHaveClass("bg-primary");
     });
 
     it("should show unselected state", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
 
       const buttons = container.querySelectorAll("button");
-      const unselectedButton = buttons[0]; // First button is unselected
+      const unselectedButton = buttons[0]; // First button is "Não"
 
       expect(unselectedButton).toHaveAttribute("aria-pressed", "true");
     });
   });
 
   describe("Interactions", () => {
-    it("should call onChange with 'starter' when starter button clicked", () => {
+    it("should call onChange with true when convocado button clicked", () => {
       const onChange = vi.fn();
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={onChange}
         />
       );
 
       const buttons = container.querySelectorAll("button");
-      const starterButton = buttons[1];
+      const convocadoButton = buttons[1];
 
-      fireEvent.click(starterButton);
+      fireEvent.click(convocadoButton);
 
-      expect(onChange).toHaveBeenCalledWith("starter", mockPlayer.jersey_num);
+      expect(onChange).toHaveBeenCalledWith(true, mockPlayer.jersey_num);
       expect(onChange).toHaveBeenCalledTimes(1);
     });
 
-    it("should call onChange with 'bench' when bench button clicked", () => {
+    it("should call onChange with false when unselected button clicked", () => {
       const onChange = vi.fn();
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
-          onChange={onChange}
-        />
-      );
-
-      const buttons = container.querySelectorAll("button");
-      const benchButton = buttons[2];
-
-      fireEvent.click(benchButton);
-
-      expect(onChange).toHaveBeenCalledWith("bench");
-    });
-
-    it("should call onChange with null when unselected button clicked", () => {
-      const onChange = vi.fn();
-      const { container } = render(
-        <LineupToggle
-          player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={onChange}
         />
       );
@@ -168,7 +134,7 @@ describe("LineupToggle", () => {
 
       fireEvent.click(unselectedButton);
 
-      expect(onChange).toHaveBeenCalledWith(null);
+      expect(onChange).toHaveBeenCalledWith(false);
     });
 
     it("should toggle between states on multiple clicks", () => {
@@ -176,37 +142,37 @@ describe("LineupToggle", () => {
       const { container, rerender } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={onChange}
         />
       );
 
       let buttons = container.querySelectorAll("button");
-      fireEvent.click(buttons[1]); // Click starter
-      expect(onChange).toHaveBeenCalledWith("starter", mockPlayer.jersey_num);
+      fireEvent.click(buttons[1]); // Click convocado
+      expect(onChange).toHaveBeenCalledWith(true, mockPlayer.jersey_num);
 
       rerender(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={onChange}
         />
       );
 
       buttons = container.querySelectorAll("button");
-      fireEvent.click(buttons[2]); // Click bench
-      expect(onChange).toHaveBeenCalledWith("bench");
+      fireEvent.click(buttons[0]); // Click não
+      expect(onChange).toHaveBeenCalledWith(false);
 
       expect(onChange).toHaveBeenCalledTimes(2);
     });
   });
 
   describe("Shirt number input", () => {
-    it("should show shirt number input when starter is selected", () => {
+    it("should show shirt number input when convocado is selected", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={vi.fn()}
         />
       );
@@ -218,23 +184,11 @@ describe("LineupToggle", () => {
       expect(input).toHaveAttribute("max", "99");
     });
 
-    it("should not show shirt number input when not starter", () => {
-      const { rerender } = render(
+    it("should not show shirt number input when not convocado", () => {
+      render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
-          onChange={vi.fn()}
-        />
-      );
-
-      expect(
-        screen.queryByLabelText(`Número de camisola para ${mockPlayer.full_name}`)
-      ).not.toBeInTheDocument();
-
-      rerender(
-        <LineupToggle
-          player={mockPlayer}
-          selected="bench"
+          selected={false}
           onChange={vi.fn()}
         />
       );
@@ -249,7 +203,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={onChange}
           shirtNum={null}
         />
@@ -258,14 +212,14 @@ describe("LineupToggle", () => {
       const input = screen.getByLabelText(`Número de camisola para ${mockPlayer.full_name}`) as HTMLInputElement;
       fireEvent.change(input, { target: { value: "7" } });
 
-      expect(onChange).toHaveBeenCalledWith("starter", 7);
+      expect(onChange).toHaveBeenCalledWith(true, 7);
     });
 
     it("should display existing shirt number", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={vi.fn()}
           shirtNum={10}
         />
@@ -280,7 +234,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={onChange}
           shirtNum={7}
         />
@@ -289,7 +243,7 @@ describe("LineupToggle", () => {
       const input = screen.getByLabelText(`Número de camisola para ${mockPlayer.full_name}`) as HTMLInputElement;
       fireEvent.change(input, { target: { value: "" } });
 
-      expect(onChange).toHaveBeenCalledWith("starter", null);
+      expect(onChange).toHaveBeenCalledWith(true, null);
     });
   });
 
@@ -298,7 +252,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
           parentalConsentConfirmed={false}
         />
@@ -313,7 +267,7 @@ describe("LineupToggle", () => {
       render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
           parentalConsentConfirmed={true}
         />
@@ -328,7 +282,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
           disabled={true}
         />
@@ -345,7 +299,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={onChange}
           disabled={true}
         />
@@ -361,7 +315,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
           disabled={true}
         />
@@ -377,7 +331,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={vi.fn()}
           disabled={true}
         />
@@ -393,7 +347,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );
@@ -406,7 +360,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected="starter"
+          selected={true}
           onChange={vi.fn()}
         />
       );
@@ -421,7 +375,7 @@ describe("LineupToggle", () => {
       const { container } = render(
         <LineupToggle
           player={mockPlayer}
-          selected={null}
+          selected={false}
           onChange={vi.fn()}
         />
       );

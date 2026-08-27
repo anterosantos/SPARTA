@@ -36,10 +36,6 @@ interface ClientConvocacaoEditorProps {
   playersByPosition: Record<string, PlayerWithConsent[]>;
 }
 
-interface LineupSelection {
-  [playerId: string]: "starter" | "bench" | null;
-}
-
 export function ClientConvocacaoEditor({
   session,
   existing,
@@ -58,12 +54,13 @@ export function ClientConvocacaoEditor({
     session.opponent_name ?? ""
   );
 
-  const [selections, setSelections] = useState<LineupSelection>(() => {
-    const map: LineupSelection = {};
+  // Convocatória só decide QUEM está convocado — titular/suplente só é escolhido no
+  // início da captura de eventos (setStartingLineup). Por isso, qualquer role
+  // existente (starter/bench/convocado_only) conta como "convocado" aqui.
+  const [convocados, setConvocados] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
     existing.forEach((lineup) => {
-      if (lineup.role === "starter" || lineup.role === "bench") {
-        map[lineup.player_id] = lineup.role;
-      }
+      map[lineup.player_id] = true;
     });
     return map;
   });
@@ -71,17 +68,14 @@ export function ClientConvocacaoEditor({
   const [shirtNumbers, setShirtNumbers] = useState<Record<string, number | null>>(() => {
     const map: Record<string, number | null> = {};
     existing.forEach((lineup) => {
-      if (lineup.role === "starter") {
-        map[lineup.player_id] = lineup.shirt_num ?? null;
-      }
+      map[lineup.player_id] = lineup.shirt_num ?? null;
     });
     return map;
   });
 
-  const starterCount = Object.values(selections).filter((v) => v === "starter").length;
-  const benchCount = Object.values(selections).filter((v) => v === "bench").length;
+  const convocadoCount = Object.values(convocados).filter(Boolean).length;
   const isPending = isSaving || isSending;
-  const canSubmit = starterCount === 11 && !readOnly && !isPending;
+  const canSubmit = convocadoCount > 0 && !readOnly && !isPending;
 
   // Lista de convocados (resumo só-leitura) — playersByPosition tem os dados de todos
   // os jogadores do plantel; aqui fazemos o lookup inverso por id para mostrar apenas
@@ -94,10 +88,10 @@ export function ClientConvocacaoEditor({
     return map;
   }, [playersByPosition]);
 
-  const starters = useMemo(
+  const convocadosList = useMemo(
     () =>
-      Object.entries(selections)
-        .filter(([, role]) => role === "starter")
+      Object.entries(convocados)
+        .filter(([, isIn]) => isIn)
         .map(([playerId]) => ({
           player: playerById.get(playerId),
           shirtNum: shirtNumbers[playerId] ?? null,
@@ -107,26 +101,15 @@ export function ClientConvocacaoEditor({
             entry.player !== undefined
         )
         .sort((a, b) => (a.shirtNum ?? 999) - (b.shirtNum ?? 999)),
-    [selections, shirtNumbers, playerById]
-  );
-
-  const bench = useMemo(
-    () =>
-      Object.entries(selections)
-        .filter(([, role]) => role === "bench")
-        .map(([playerId]) => playerById.get(playerId))
-        .filter((player): player is PlayerWithConsent => player !== undefined)
-        .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-PT")),
-    [selections, playerById]
+    [convocados, shirtNumbers, playerById]
   );
 
   function buildPlayers() {
-    return Object.entries(selections)
-      .filter(([, role]) => role)
-      .map(([playerId, role]) => ({
+    return Object.entries(convocados)
+      .filter(([, isIn]) => isIn)
+      .map(([playerId]) => ({
         playerId,
-        role: role as "starter" | "bench",
-        shirtNum: role === "starter" ? (shirtNumbers[playerId] ?? null) : null,
+        shirtNum: shirtNumbers[playerId] ?? null,
       }));
   }
 
@@ -177,12 +160,18 @@ export function ClientConvocacaoEditor({
       {/* Contador sticky */}
       <div className="sticky top-12 bg-card border-b border-border px-4 py-3 sm:px-6 z-40">
         <p aria-live="polite" aria-atomic="true" className="text-sm font-medium text-foreground">
-          {starterCount} / 11 titulares · {benchCount} suplentes
+          {convocadoCount} convocados
         </p>
+        {convocadoCount > 0 && convocadoCount < 11 && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Recomendado pelo menos 11, para depois poder definir os titulares na captura de eventos.
+          </p>
+        )}
       </div>
 
       {/* Resumo da lista de convocados — só-leitura, para consulta rápida sem percorrer
-          o plantel todo. Visível para coach (a editar) e analyst (readOnly). */}
+          o plantel todo. Visível para coach (a editar) e analyst (readOnly). Sem
+          distinção titular/suplente — essa escolha só acontece na captura de eventos. */}
       <section
         aria-labelledby="convocados-summary-heading"
         className="border-b border-border bg-card px-4 py-4 sm:px-6 space-y-3"
@@ -193,40 +182,21 @@ export function ClientConvocacaoEditor({
         >
           Lista de Convocados
         </h2>
-        {starters.length === 0 && bench.length === 0 ? (
+        {convocadosList.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Ainda sem jogadores seleccionados.
           </p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-                Titulares ({starters.length})
-              </p>
-              <ul className="space-y-0.5 list-none p-0 m-0">
-                {starters.map(({ player, shirtNum }) => (
-                  <li key={player.id} className="text-sm text-foreground">
-                    <span className="tabular-nums text-muted-foreground mr-2">
-                      {shirtNum ?? "—"}
-                    </span>
-                    {player.full_name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-                Suplentes ({bench.length})
-              </p>
-              <ul className="space-y-0.5 list-none p-0 m-0">
-                {bench.map((player) => (
-                  <li key={player.id} className="text-sm text-foreground">
-                    {player.full_name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          <ul className="space-y-0.5 list-none p-0 m-0 columns-1 sm:columns-2 gap-4">
+            {convocadosList.map(({ player, shirtNum }) => (
+              <li key={player.id} className="text-sm text-foreground break-inside-avoid">
+                <span className="tabular-nums text-muted-foreground mr-2">
+                  {shirtNum ?? "—"}
+                </span>
+                {player.full_name}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -283,12 +253,12 @@ export function ClientConvocacaoEditor({
                 <LineupToggle
                   key={player.id}
                   player={player}
-                  selected={selections[player.id] || null}
-                  onChange={(role, shirtNum) => {
-                    setSelections((prev) => ({ ...prev, [player.id]: role }));
-                    if (role === "starter") {
+                  selected={convocados[player.id] ?? false}
+                  onChange={(isConvocado, shirtNum) => {
+                    setConvocados((prev) => ({ ...prev, [player.id]: isConvocado }));
+                    if (isConvocado) {
                       setShirtNumbers((prev) => ({ ...prev, [player.id]: shirtNum ?? null }));
-                    } else if (role === null) {
+                    } else {
                       setShirtNumbers((prev) => {
                         const updated = { ...prev };
                         delete updated[player.id];

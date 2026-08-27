@@ -3,15 +3,18 @@
 import { z } from "zod";
 import { getRequestUser } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireStaffRole } from "@/lib/actions/auth";
 import { logAccess } from "@/lib/actions/audit";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
 
+// Convocatória agora só define QUEM está convocado — sem distinção titular/suplente.
+// Os titulares só são escolhidos no início da captura de eventos (setStartingLineup),
+// altura em que faz sentido saber quem realmente vai a jogo.
 const PlayersArraySchema = z
   .array(
     z.object({
       playerId: z.string().uuid("ID de jogador inválido"),
-      role: z.enum(["starter", "bench"]),
       shirtNum: z
         .number()
         .int("Número de camisola inválido")
@@ -21,11 +24,7 @@ const PlayersArraySchema = z
         .optional(),
     })
   )
-  .min(1, "Pelo menos um jogador é necessário")
-  .refine(
-    (players) => players.filter((p) => p.role === "starter").length === 11,
-    { message: "Deve seleccionar exactamente 11 titulares" }
-  );
+  .min(1, "Pelo menos um jogador é necessário");
 
 const ConvocatoriaFieldsSchema = z.object({
   concentrationTime: z
@@ -156,10 +155,12 @@ export async function submitLineup(
 
   // Delete existing lineups and insert new ones in a single RPC call for atomicity
   // Note: match_lineups table added in migration 000130; using type assertion
+  // Convocatória grava sempre "convocado_only" — titular/suplente só é decidido
+  // depois, em setStartingLineup() no início da captura de eventos.
   const lineupInserts = players.map((player) => ({
     session_id: sessionId,
     player_id: player.playerId,
-    role: player.role,
+    role: "convocado_only" as const,
     shirt_num: player.shirtNum ?? null,
     started_minute: 0,
   }));
@@ -425,7 +426,7 @@ export async function sendConvocatoria(
       players.map((p) => ({
         session_id: sessionId,
         player_id: p.playerId,
-        role: p.role,
+        role: "convocado_only" as const,
         shirt_num: p.shirtNum ?? null,
         started_minute: 0,
         created_at: new Date().toISOString(),
@@ -471,4 +472,97 @@ export async function sendConvocatoria(
   }
 
   return { ok: true };
+}
+
+// =============================================================================
+// setStartingLineup — escolhe os 11 titulares de entre os convocados, no início
+// da captura de eventos (não na Convocatória). Os restantes convocados passam a
+// "bench" (disponíveis para substituição via SubstitutionSheet).
+// =============================================================================
+
+const SetStartingLineupSchema = z.object({
+  sessionId: z.string().uuid("ID de sessão inválido"),
+  starterPlayerIds: z
+    .array(z.string().uuid("ID de jogador inválido"))
+    .length(11, "Deve seleccionar exactamente 11 titulares"),
+});
+
+export async function setStartingLineup(
+  input: unknown
+): Promise<Result<void, AppError>> {
+  const validated = SetStartingLineupSchema.safeParse(input);
+  if (!validated.success) {
+    return err({
+      code: "validation",
+      message: validated.error.issues[0]?.message ?? "Dados inválidos",
+    });
+  }
+  const { sessionId, starterPlayerIds } = validated.data;
+
+  // Staff (coach OU analyst) — a captura de eventos já é acessível a ambos, por isso
+  // a escolha dos titulares também tem de ser (ao contrário de submitLineup/
+  // sendConvocatoria, que continuam coach-only por serem passos de preparação).
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId } = authResult.data;
+
+  const serviceRole = getServiceRoleClient();
+
+  const { data: session } = await serviceRole
+    .from("sessions")
+    .select("id")
+    .eq("id", sessionId)
+    .eq("club_id", clubId)
+    .maybeSingle();
+  if (!session) return err({ code: "not_found", message: "Sessão não encontrada" });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matchLineupTable = (serviceRole.from as any)("match_lineups");
+
+  const { data: existingRows, error: fetchError } = await matchLineupTable
+    .select("player_id")
+    .eq("session_id", sessionId);
+  if (fetchError) {
+    return err({ code: "unknown", message: fetchError.message });
+  }
+
+  const existingIds = new Set<string>(
+    (existingRows ?? []).map((r: { player_id: string }) => r.player_id)
+  );
+  const notConvocado = starterPlayerIds.filter((id) => !existingIds.has(id));
+  if (notConvocado.length > 0) {
+    return err({
+      code: "validation",
+      message: "Alguns titulares seleccionados não estão convocados para esta sessão",
+    });
+  }
+
+  const starterSet = new Set(starterPlayerIds);
+
+  const { error: starterError } = await matchLineupTable
+    .update({ role: "starter" })
+    .eq("session_id", sessionId)
+    .in("player_id", starterPlayerIds);
+  if (starterError) {
+    return err({ code: "unknown", message: starterError.message });
+  }
+
+  const benchIds = [...existingIds].filter((id) => !starterSet.has(id));
+  if (benchIds.length > 0) {
+    const { error: benchError } = await matchLineupTable
+      .update({ role: "bench" })
+      .eq("session_id", sessionId)
+      .in("player_id", benchIds);
+    if (benchError) {
+      return err({ code: "unknown", message: benchError.message });
+    }
+  }
+
+  try {
+    await logAccess("lineup.starters_set", "session", sessionId);
+  } catch (e) {
+    console.error("[setStartingLineup] audit log failed (non-blocking)", e);
+  }
+
+  return ok(undefined);
 }

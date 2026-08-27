@@ -13,9 +13,12 @@ import { ZoneSelectorSheet } from "./zone-selector-sheet";
 import { RecentEventsRing } from "./recent-events-ring";
 import { SubstitutionSheet } from "./substitution-sheet";
 import { MatchTimeRecorders } from "./match-time-recorders";
+import { StartingLineupPicker } from "./starting-lineup-picker";
 import { PendingBadge } from "@/components/domain/pending-badge";
 import { useMatchOutboxDrain } from "@/hooks/useMatchOutboxDrain";
 import { closeMatchRecord } from "@/lib/actions/substitutions";
+import { getLineupForSession } from "@/lib/actions/lineups";
+import type { MatchLineupWithPlayerData } from "@/lib/actions/lineups";
 import { cn } from "@/lib/utils";
 
 interface MatchEventCaptureProps {
@@ -36,6 +39,36 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Titulares só são escolhidos aqui, no início da captura — não na Convocatória
+  // (que agora só define quem está convocado). Enquanto não houver nenhuma linha
+  // com role='starter', bloqueia a captura e mostra o StartingLineupPicker.
+  const [lineupPhase, setLineupPhase] = useState<"loading" | "needs-starters" | "ready">(
+    "loading"
+  );
+  const [convocados, setConvocados] = useState<MatchLineupWithPlayerData[]>([]);
+  const [lineupLoadError, setLineupLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLineup() {
+      const result = await getLineupForSession(sessionId);
+      if (cancelled) return;
+      if (!result.ok) {
+        setLineupLoadError("Erro ao carregar convocatória.");
+        setLineupPhase("needs-starters");
+        return;
+      }
+      setConvocados(result.data);
+      const hasStarters = result.data.some((l) => l.role === "starter");
+      setLineupPhase(hasStarters ? "ready" : "needs-starters");
+    }
+    loadLineup();
+    return () => {
+      cancelled = true;
+    };
+    // refreshTrigger também dispara depois de confirmar titulares
+  }, [sessionId, refreshTrigger]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -77,6 +110,33 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
       : selectedPlayer
         ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
         : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800";
+
+  if (lineupPhase === "loading") {
+    return (
+      <div className="flex items-center justify-center w-full h-screen bg-slate-50 dark:bg-slate-950">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          A carregar convocatória...
+        </span>
+      </div>
+    );
+  }
+
+  if (lineupPhase === "needs-starters") {
+    return (
+      <div className="flex flex-col w-full h-screen bg-slate-50 dark:bg-slate-950">
+        {lineupLoadError && (
+          <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+            <p className="text-xs text-red-700 dark:text-red-300">{lineupLoadError}</p>
+          </div>
+        )}
+        <StartingLineupPicker
+          sessionId={sessionId}
+          convocados={convocados}
+          onConfirmed={() => setRefreshTrigger((prev) => prev + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="flex flex-col w-full h-screen bg-slate-50 dark:bg-slate-950">

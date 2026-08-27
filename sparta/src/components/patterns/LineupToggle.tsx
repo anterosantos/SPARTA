@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, Users, Circle, AlertCircle } from "lucide-react";
+import { Check, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface LineupToggleProps {
@@ -10,8 +10,8 @@ export interface LineupToggleProps {
     jersey_num: number;
     positions?: Array<{ position: string; is_primary: boolean }>;
   };
-  selected: "starter" | "bench" | null;
-  onChange: (role: "starter" | "bench" | null, shirtNum?: number | null) => void;
+  selected: boolean;
+  onChange: (convocado: boolean, shirtNum?: number | null) => void;
   parentalConsentConfirmed?: boolean;
   disabled?: boolean;
   shirtNum?: number | null;
@@ -57,12 +57,12 @@ export function LineupToggle({
       >
         <button
           type="button"
-          onClick={() => onChange(null)}
+          onClick={() => onChange(false)}
           disabled={disabled}
-          aria-pressed={selected === null}
+          aria-pressed={!selected}
           className={cn(
             "inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 rounded-lg border font-medium text-sm",
-            selected === null
+            !selected
               ? "border-border bg-muted text-foreground"
               : "border-border bg-background text-muted-foreground hover:bg-muted/50",
             disabled && "opacity-50 cursor-not-allowed"
@@ -79,21 +79,21 @@ export function LineupToggle({
             // número registado (fallback de exibição noutro sítio) — 0 nunca é um número
             // de camisola válido (servidor exige 1-99), por isso tratamo-lo como "por
             // preencher" em vez de pré-preencher um valor que a submissão vai rejeitar.
-            onClick={() => onChange("starter", shirtNum || player.jersey_num || null)}
+            onClick={() => onChange(true, shirtNum || player.jersey_num || null)}
             disabled={disabled}
-            aria-pressed={selected === "starter"}
+            aria-pressed={selected}
             className={cn(
               "inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 rounded-lg border font-medium text-sm",
-              selected === "starter"
+              selected
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-background text-muted-foreground hover:bg-muted/50",
               disabled && "opacity-50 cursor-not-allowed"
             )}
           >
-            <Star className="h-4 w-4" />
-            <span className="hidden sm:inline">Titular</span>
+            <Check className="h-4 w-4" />
+            <span className="hidden sm:inline">Convocado</span>
           </button>
-          {selected === "starter" && (
+          {selected && (
             <input
               type="number"
               min="1"
@@ -101,7 +101,7 @@ export function LineupToggle({
               placeholder="Nº"
               value={shirtNum ?? ""}
               onChange={(e) =>
-                onChange("starter", e.target.value ? parseInt(e.target.value, 10) : null)
+                onChange(true, e.target.value ? parseInt(e.target.value, 10) : null)
               }
               disabled={disabled}
               className="min-h-[44px] min-w-[60px] px-2 rounded-lg border border-border bg-background text-foreground text-sm font-medium text-center"
@@ -109,23 +109,6 @@ export function LineupToggle({
             />
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={() => onChange("bench")}
-          disabled={disabled}
-          aria-pressed={selected === "bench"}
-          className={cn(
-            "inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 rounded-lg border font-medium text-sm",
-            selected === "bench"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background text-muted-foreground hover:bg-muted/50",
-            disabled && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          <Users className="h-4 w-4" />
-          <span className="hidden sm:inline">Banco</span>
-        </button>
       </div>
     </div>
   );
