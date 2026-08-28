@@ -98,21 +98,43 @@ export function ClientConvocacaoEditor({
     return map;
   }, [playersByPosition]);
 
-  const convocadosList = useMemo(
-    () =>
-      Object.entries(convocados)
-        .filter(([, isIn]) => isIn)
-        .map(([playerId]) => ({
-          player: playerById.get(playerId),
-          shirtNum: shirtNumbers[playerId] ?? null,
-        }))
-        .filter(
-          (entry): entry is { player: PlayerWithConsent; shirtNum: number | null } =>
-            entry.player !== undefined
-        )
-        .sort((a, b) => (a.shirtNum ?? 999) - (b.shirtNum ?? 999)),
-    [convocados, shirtNumbers, playerById]
-  );
+  // Ordem das posições tal como já vêm agrupadas do servidor (GK/DEF/MID/FWD, ...) —
+  // reaproveitada aqui em vez de reescrever a ordem à parte, para o resumo e a lista
+  // de convocados nunca poderem divergir da ordem usada na secção de edição.
+  const positionRank = useMemo(() => {
+    const map = new Map<string, number>();
+    Object.keys(playersByPosition).forEach((position, index) => map.set(position, index));
+    return map;
+  }, [playersByPosition]);
+
+  function primaryPositionOf(player: PlayerWithConsent): string {
+    return player.positions?.find((p) => p.is_primary)?.position ?? "Indefinido";
+  }
+
+  const convocadosList = useMemo(() => {
+    const list = Object.entries(convocados)
+      .filter(([, isIn]) => isIn)
+      .map(([playerId]) => ({
+        player: playerById.get(playerId),
+        shirtNum: shirtNumbers[playerId] ?? null,
+      }))
+      .filter(
+        (entry): entry is { player: PlayerWithConsent; shirtNum: number | null } =>
+          entry.player !== undefined
+      );
+
+    if (sortMode === "name") {
+      return list.sort((a, b) =>
+        a.player.full_name.localeCompare(b.player.full_name, "pt-PT")
+      );
+    }
+    return list.sort((a, b) => {
+      const rankA = positionRank.get(primaryPositionOf(a.player)) ?? 999;
+      const rankB = positionRank.get(primaryPositionOf(b.player)) ?? 999;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.player.full_name.localeCompare(b.player.full_name, "pt-PT");
+    });
+  }, [convocados, shirtNumbers, playerById, sortMode, positionRank]);
 
   // Lista alternativa, ordenada por nome (sem separação por posição) — para quem
   // conhece os jogadores pelo nome e não quer percorrer secções por posição.
