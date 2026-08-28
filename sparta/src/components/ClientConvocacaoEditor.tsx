@@ -3,6 +3,14 @@
 import { useTransition, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { LineupToggle } from "@/components/patterns/LineupToggle";
 import { submitLineup, sendConvocatoria } from "@/lib/actions/lineups";
 
@@ -46,6 +54,7 @@ export function ClientConvocacaoEditor({
   const [isSaving, startSaveTransition] = useTransition();
   const [isSending, startSendTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
 
   const [concentrationTime, setConcentrationTime] = useState(
     session.concentration_time ?? ""
@@ -145,11 +154,13 @@ export function ClientConvocacaoEditor({
           opponentName: opponentName || null,
         });
         if (!result.ok) {
+          setShowSendConfirm(false);
           setError(result.error ?? "Erro ao enviar");
           return;
         }
         router.push(`/sessoes/${session.id}?toast=convocatoria-sent`);
       } catch {
+        setShowSendConfirm(false);
         setError("Erro de comunicação com o servidor");
       }
     });
@@ -289,7 +300,7 @@ export function ClientConvocacaoEditor({
           <div className="flex gap-3">
             <Button
               variant="primary"
-              onClick={handleSend}
+              onClick={() => setShowSendConfirm(true)}
               disabled={!canSubmit}
               className="flex-1"
             >
@@ -327,6 +338,63 @@ export function ClientConvocacaoEditor({
           </p>
         </div>
       )}
+
+      {/* Confirmação antes de notificar os jogadores — "Guardar (só staff)" nunca os
+          notifica; só "Enviar convocatória" o faz, por isso pede confirmação explícita
+          com um resumo do que vai ser enviado. */}
+      <Dialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar convocatória?</DialogTitle>
+            <DialogDescription>
+              Os {convocadoCount} jogadores convocados vão ser notificados. Esta ação não
+              pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {opponentName && (
+              <p className="text-sm text-foreground">
+                <span className="font-medium">Adversário:</span> {opponentName}
+              </p>
+            )}
+            <p className="text-sm text-foreground">
+              <span className="font-medium">Hora de concentração:</span>{" "}
+              {concentrationTime || "não definida"}
+            </p>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Convocados ({convocadoCount})
+              </p>
+              <ul className="max-h-48 overflow-y-auto space-y-0.5 list-none p-0 m-0 columns-1 sm:columns-2 gap-4">
+                {convocadosList.map(({ player, shirtNum }) => (
+                  <li key={player.id} className="text-sm text-foreground break-inside-avoid">
+                    <span className="tabular-nums text-muted-foreground mr-2">
+                      {shirtNum ?? "—"}
+                    </span>
+                    {player.full_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowSendConfirm(false)}
+              disabled={isSending}
+            >
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleSend} disabled={isSending}>
+              {isSending ? "A enviar..." : "Confirmar e enviar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

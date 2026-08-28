@@ -101,8 +101,11 @@ export async function getPlayerNotifications(): Promise<
     concentration_time: string | null;
   }
 
-  // 3. Sessões futuras (dentro de 2 semanas, não canceladas, não dispensadas)
-  // opponent_name ainda não está nos tipos gerados do Supabase — usar cast
+  // 3. Sessões futuras (dentro de 2 semanas, não canceladas, não dispensadas, e com
+  // convocatória REALMENTE enviada — convocatoria_sent_at só fica preenchido por
+  // sendConvocatoria(); um "Guardar (só staff)" via submitLineup() já pode ter criado
+  // linhas em match_lineups sem isto, e não deve aparecer aqui (bug corrigido:
+  // jogadores viam a convocatória antes de o treinador a enviar).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawSessions } = await (supabase as any)
     .from("sessions")
@@ -110,6 +113,7 @@ export async function getPlayerNotifications(): Promise<
     .in("id", lineupSessionIds)
     .eq("club_id", player.club_id)
     .neq("status", "cancelled")
+    .not("convocatoria_sent_at", "is", null)
     .gte("scheduled_at", now.toISOString())
     .lte("scheduled_at", twoWeeksLater.toISOString())
     .order("scheduled_at", { ascending: true });

@@ -465,6 +465,14 @@ export async function sendConvocatoria(
       }
     }
 
+    // 4. Marcar como enviada — só depois de tudo o resto ter sucesso. Antes disto,
+    // getPlayerNotifications() não deve mostrar nada aos jogadores, mesmo que
+    // match_lineups já tenha linhas (guardadas via submitLineup, "só staff").
+    await supabase
+      .from("sessions")
+      .update({ convocatoria_sent_at: new Date().toISOString() })
+      .eq("id", sessionId);
+
     await logAccess("convocatoria.sent", "session", sessionId);
   } catch (e) {
     console.error("[sendConvocatoria] unexpected error:", e);

@@ -1768,6 +1768,7 @@ export type Database = {
         Row: {
           club_id: string
           concentration_time: string | null
+          convocatoria_sent_at: string | null
           created_at: string
           created_by: string
           duration_min: number
@@ -1783,6 +1784,7 @@ export type Database = {
         Insert: {
           club_id: string
           concentration_time?: string | null
+          convocatoria_sent_at?: string | null
           created_at?: string
           created_by: string
           duration_min?: number
@@ -1798,6 +1800,7 @@ export type Database = {
         Update: {
           club_id?: string
           concentration_time?: string | null
+          convocatoria_sent_at?: string | null
           created_at?: string
           created_by?: string
           duration_min?: number
