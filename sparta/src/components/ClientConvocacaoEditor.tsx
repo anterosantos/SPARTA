@@ -55,6 +55,7 @@ export function ClientConvocacaoEditor({
   const [isSending, startSendTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const [sortMode, setSortMode] = useState<"position" | "name">("position");
 
   const [concentrationTime, setConcentrationTime] = useState(
     session.concentration_time ?? ""
@@ -112,6 +113,33 @@ export function ClientConvocacaoEditor({
         .sort((a, b) => (a.shirtNum ?? 999) - (b.shirtNum ?? 999)),
     [convocados, shirtNumbers, playerById]
   );
+
+  // Lista alternativa, ordenada por nome (sem separação por posição) — para quem
+  // conhece os jogadores pelo nome e não quer percorrer secções por posição.
+  const playersByName = useMemo(
+    () =>
+      Object.values(playersByPosition)
+        .flat()
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-PT")),
+    [playersByPosition]
+  );
+
+  function handleToggleChange(
+    player: PlayerWithConsent,
+    isConvocado: boolean,
+    shirtNum?: number | null
+  ) {
+    setConvocados((prev) => ({ ...prev, [player.id]: isConvocado }));
+    if (isConvocado) {
+      setShirtNumbers((prev) => ({ ...prev, [player.id]: shirtNum ?? null }));
+    } else {
+      setShirtNumbers((prev) => {
+        const updated = { ...prev };
+        delete updated[player.id];
+        return updated;
+      });
+    }
+  }
 
   function buildPlayers() {
     return Object.entries(convocados)
@@ -252,39 +280,79 @@ export function ClientConvocacaoEditor({
         </div>
       </div>
 
-      {/* Lista de jogadores por posição */}
+      {/* Ordenar por posição ou por nome */}
+      <div className="border-b border-border bg-background px-4 py-3 sm:px-6 flex items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Ordenar por:</span>
+        <div role="group" aria-label="Ordenar lista de jogadores" className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSortMode("position")}
+            aria-pressed={sortMode === "position"}
+            className={`min-h-[36px] px-3 rounded-lg border text-sm font-medium ${
+              sortMode === "position"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+            }`}
+          >
+            Posição
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("name")}
+            aria-pressed={sortMode === "name"}
+            className={`min-h-[36px] px-3 rounded-lg border text-sm font-medium ${
+              sortMode === "name"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+            }`}
+          >
+            Nome
+          </button>
+        </div>
+      </div>
+
+      {/* Lista de jogadores — por posição (secções) ou por nome (lista única) */}
       <div className="flex-1">
-        {Object.entries(playersByPosition).map(([position, positionPlayers]) => (
-          <section key={position} className="border-b border-border">
-            <h2 className="sticky top-24 z-30 bg-muted border-b border-border px-4 py-2 sm:px-6 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {position}
-            </h2>
-            <div>
-              {positionPlayers.map((player) => (
-                <LineupToggle
-                  key={player.id}
-                  player={player}
-                  selected={convocados[player.id] ?? false}
-                  onChange={(isConvocado, shirtNum) => {
-                    setConvocados((prev) => ({ ...prev, [player.id]: isConvocado }));
-                    if (isConvocado) {
-                      setShirtNumbers((prev) => ({ ...prev, [player.id]: shirtNum ?? null }));
-                    } else {
-                      setShirtNumbers((prev) => {
-                        const updated = { ...prev };
-                        delete updated[player.id];
-                        return updated;
-                      });
+        {sortMode === "position" ? (
+          Object.entries(playersByPosition).map(([position, positionPlayers]) => (
+            <section key={position} className="border-b border-border">
+              <h2 className="sticky top-24 z-30 bg-muted border-b border-border px-4 py-2 sm:px-6 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                {position}
+              </h2>
+              <div>
+                {positionPlayers.map((player) => (
+                  <LineupToggle
+                    key={player.id}
+                    player={player}
+                    selected={convocados[player.id] ?? false}
+                    onChange={(isConvocado, shirtNum) =>
+                      handleToggleChange(player, isConvocado, shirtNum)
                     }
-                  }}
-                  parentalConsentConfirmed={player.parental_consent_status === "confirmed"}
-                  disabled={readOnly}
-                  shirtNum={shirtNumbers[player.id] ?? null}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+                    parentalConsentConfirmed={player.parental_consent_status === "confirmed"}
+                    disabled={readOnly}
+                    shirtNum={shirtNumbers[player.id] ?? null}
+                  />
+                ))}
+              </div>
+            </section>
+          ))
+        ) : (
+          <div>
+            {playersByName.map((player) => (
+              <LineupToggle
+                key={player.id}
+                player={player}
+                selected={convocados[player.id] ?? false}
+                onChange={(isConvocado, shirtNum) =>
+                  handleToggleChange(player, isConvocado, shirtNum)
+                }
+                parentalConsentConfirmed={player.parental_consent_status === "confirmed"}
+                disabled={readOnly}
+                shirtNum={shirtNumbers[player.id] ?? null}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Erro inline */}
