@@ -97,11 +97,12 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
                 {visibleSessions.map((s) => {
                   const config = SESSION_TYPE_COLORS[s.type]
                   const time = format(new Date(s.scheduled_at), "HH:mm")
+                  const isCancelled = s.status === "cancelled"
                   return (
                     <div
                       key={s.id}
                       className="w-full rounded-sm px-1.5 py-1 overflow-hidden"
-                      style={{ backgroundColor: config?.bg }}
+                      style={{ backgroundColor: config?.bg, opacity: isCancelled ? 0.5 : 1 }}
                       aria-hidden="true"
                     >
                       <span className="block truncate text-[11px] leading-tight font-medium text-white">

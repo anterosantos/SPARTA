@@ -26,16 +26,22 @@ export function NextSevenDaysList({ sessions, sessionBasePath = "/sessoes" }: Ne
           const dateLabel = isToday(date)
             ? "Hoje"
             : format(date, "EEE, d MMM", { locale: pt })
+          const isCancelled = session.status === "cancelled"
 
           return (
             <li key={session.id}>
               <Link
                 href={`${sessionBasePath}/${session.id}`}
                 className="flex items-start gap-3 rounded-lg bg-surface p-3 border-l-4 hover:opacity-80 transition-opacity"
-                style={{ borderLeftColor: config.bg }}
+                style={{ borderLeftColor: config.bg, opacity: isCancelled ? 0.5 : 1 }}
               >
                 <div className="space-y-0.5 min-w-0">
-                  <p className="text-xs font-semibold text-ink-1 capitalize">{sessionLabelWithOpponent(config.label, session)}</p>
+                  <p className="text-xs font-semibold text-ink-1 capitalize">
+                    {sessionLabelWithOpponent(config.label, session)}
+                    {isCancelled && (
+                      <span className="ml-2 text-xs font-normal text-ink-2">Cancelada</span>
+                    )}
+                  </p>
                   <p className="text-xs text-ink-2">
                     {dateLabel} · {time}
                     {session.location ? ` · ${session.location}` : ""}
