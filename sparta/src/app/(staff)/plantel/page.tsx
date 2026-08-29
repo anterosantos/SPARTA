@@ -4,11 +4,12 @@ import { Plus, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SemaforoBadge } from "@/components/ui/semaforo-badge";
 import { PlayerPhoto } from "@/components/ui/player-photo";
-import { getPlayers } from "@/lib/actions/players";
+import { getPlayers, getPlayersExportData } from "@/lib/actions/players";
 import { getUpcomingSession, getClubReadinessSnapshots } from "@/lib/actions/readiness";
 import { AGE_GROUPS, POSITIONS } from "@/lib/schemas/players";
 import { PlantelEmptyState } from "./plantel-empty-state";
 import { PendingConsentsBanner } from "./pending-consents-banner";
+import { PlantelExportButton } from "./plantel-export-button";
 import { PlantelListControls } from "@/components/patterns/PlantelListControls";
 import {
   PLAYER_SORT_OPTIONS,
@@ -48,9 +49,10 @@ export default async function PlantelPage({
     ? posicao
     : null;
 
-  const [result, sessionResult] = await Promise.all([
+  const [result, sessionResult, exportResult] = await Promise.all([
     getPlayers(showInactive ? { showInactive: true } : undefined),
     showInactive ? Promise.resolve(null) : getUpcomingSession(),
+    getPlayersExportData(),
   ]);
 
   // Build player_id → readiness state map from upcoming session snapshots
@@ -105,6 +107,7 @@ export default async function PlantelPage({
               Equipa
             </Link>
           </Button>
+          <PlantelExportButton players={exportResult.ok ? exportResult.data : []} />
           <Button asChild size="sm">
             <Link href="/plantel/novo">
               <Plus className="h-4 w-4" />

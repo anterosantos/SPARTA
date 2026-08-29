@@ -8,6 +8,14 @@ import { MonthGrid } from "@/components/ui/month-grid"
 import { NextSevenDaysList } from "@/components/ui/next-seven-days-list"
 import { isSameDay } from "date-fns"
 
+/** Uma ocorrência de aniversário já resolvida para uma data concreta do mês em
+ * exibição (recorrência anual — o ano é o do calendário, não o de nascimento). */
+export interface BirthdayEntry {
+  playerId: string
+  fullName: string
+  date: string // ISO
+}
+
 interface CalendarMonthViewProps {
   monthSessions: Session[]
   next7Sessions: Session[]
@@ -16,6 +24,9 @@ interface CalendarMonthViewProps {
   prevMonthHref: string
   nextMonthHref: string
   sessionBasePath?: string
+  /** Só passado pelo calendário de staff — o calendário do jogador não mostra
+   * aniversários de outros jogadores. */
+  birthdays?: BirthdayEntry[]
 }
 
 export function CalendarMonthView({
@@ -26,6 +37,7 @@ export function CalendarMonthView({
   prevMonthHref,
   nextMonthHref,
   sessionBasePath = "/sessoes",
+  birthdays = [],
 }: CalendarMonthViewProps) {
   const monthDate = new Date(month)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -72,6 +84,7 @@ export function CalendarMonthView({
         sessions={monthSessions}
         month={monthDate}
         onSelectDay={handleSelectDay}
+        birthdays={birthdays}
       />
 
       <div ref={agendaRef}>

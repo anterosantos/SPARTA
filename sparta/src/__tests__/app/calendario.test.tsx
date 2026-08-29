@@ -15,6 +15,13 @@ vi.mock("@/lib/actions/sessions", () => ({
   getSessionsForClub: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/players", () => ({
+  getPlayers: vi.fn().mockResolvedValue({
+    ok: true,
+    data: { u14: [], u15: [], u17: [], u19: [], senior: [] },
+  }),
+}));
+
 vi.mock("@/lib/actions/seasons", () => ({
   getCurrentSeason: vi.fn().mockResolvedValue({
     ok: true,

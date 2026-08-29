@@ -4,6 +4,9 @@ import { Plus, Calendar } from "lucide-react";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionsForClub } from "@/lib/actions/sessions";
 import { getCurrentSeason } from "@/lib/actions/seasons";
+import { getPlayers } from "@/lib/actions/players";
+import { AGE_GROUPS } from "@/lib/schemas/players";
+import type { BirthdayEntry } from "@/components/ui/calendar-month-view";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -65,11 +68,31 @@ export default async function CalendarioPage({
   const seasonResult = await getCurrentSeason();
   const seasonId = seasonResult.ok ? (seasonResult.data?.id ?? undefined) : undefined;
 
-  const result = await getSessionsForClub(seasonId ? { season_id: seasonId } : undefined);
+  const [result, playersResult] = await Promise.all([
+    getSessionsForClub(seasonId ? { season_id: seasonId } : undefined),
+    getPlayers(),
+  ]);
   if (!result.ok) {
     throw new Error(`Erro ao carregar sessões: ${result.error.message}`);
   }
   const sessions: Session[] = result.data;
+
+  // Aniversários dos jogadores no mês em exibição (vista de Mês) — birthdate é
+  // "YYYY-MM-DD"; parse directo em vez de new Date(...) evita desvio de fuso
+  // horário, e a data final usa o ano/mês do calendário em exibição (recorrência
+  // anual), não o ano de nascimento.
+  const monthBirthdays: BirthdayEntry[] = playersResult.ok
+    ? AGE_GROUPS.flatMap((g) => playersResult.data[g] ?? [])
+        .map((p) => {
+          const [, bMonthStr, bDayStr] = p.birthdate.split("-");
+          const bMonth = parseInt(bMonthStr ?? "", 10) - 1;
+          const bDay = parseInt(bDayStr ?? "", 10);
+          if (bMonth !== targetMonth.getMonth()) return null;
+          const date = new Date(targetMonth.getFullYear(), bMonth, bDay);
+          return { playerId: p.id, fullName: p.full_name, date: date.toISOString() };
+        })
+        .filter((entry): entry is BirthdayEntry => entry !== null)
+    : [];
 
   const isCoach = profile.role === "coach";
 
@@ -149,6 +172,7 @@ export default async function CalendarioPage({
               monthLabel={monthLabel}
               prevMonthHref={prevMonthHref}
               nextMonthHref={nextMonthHref}
+              birthdays={monthBirthdays}
             />
           </div>
         )}

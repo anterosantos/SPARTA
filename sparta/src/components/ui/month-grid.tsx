@@ -12,8 +12,10 @@ import {
   format,
 } from "date-fns"
 import { pt } from "date-fns/locale"
+import { Cake } from "lucide-react"
 import type { Session } from "@/lib/schemas/sessions"
 import { SESSION_TYPE_COLORS } from "@/lib/constants/session-colors"
+import type { BirthdayEntry } from "@/components/ui/calendar-month-view"
 
 const DAY_HEADERS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
 
@@ -21,6 +23,7 @@ interface MonthGridProps {
   sessions: Session[]
   month: Date
   onSelectDay: (date: Date) => void
+  birthdays?: BirthdayEntry[]
 }
 
 function buildCalendarDays(month: Date): Date[] {
@@ -38,7 +41,7 @@ function buildCalendarDays(month: Date): Date[] {
   return days
 }
 
-export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
+export function MonthGrid({ sessions, month, onSelectDay, birthdays = [] }: MonthGridProps) {
   const days = buildCalendarDays(month)
 
   const sessionsByDay = new Map<string, Session[]>()
@@ -47,6 +50,14 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
     const existing = sessionsByDay.get(key) ?? []
     existing.push(session)
     sessionsByDay.set(key, existing)
+  }
+
+  const birthdaysByDay = new Map<string, BirthdayEntry[]>()
+  for (const birthday of birthdays) {
+    const key = startOfDay(new Date(birthday.date)).toISOString()
+    const existing = birthdaysByDay.get(key) ?? []
+    existing.push(birthday)
+    birthdaysByDay.set(key, existing)
   }
 
   return (
@@ -76,13 +87,20 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
           const dayNum = format(day, "d")
           const visibleSessions = daySessions.slice(0, 3)
           const extraCount = daySessions.length - 3
+          const dayBirthdays = birthdaysByDay.get(key) ?? []
+          const birthdayNames = dayBirthdays.map((b) => b.fullName).join(", ")
 
           return (
             <button
               key={key}
               role="gridcell"
               onClick={() => onSelectDay(day)}
-              aria-label={`${format(day, "d 'de' MMMM", { locale: pt })}, ${daySessions.length} ${daySessions.length === 1 ? "sessão" : "sessões"}`}
+              aria-label={[
+                `${format(day, "d 'de' MMMM", { locale: pt })}, ${daySessions.length} ${daySessions.length === 1 ? "sessão" : "sessões"}`,
+                dayBirthdays.length > 0 ? `aniversário de ${birthdayNames}` : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
               className={[
                 "flex flex-col items-center py-1.5 px-0.5 min-h-[112px] rounded transition-colors hover:bg-surface",
                 !isCurrentMonth && "opacity-30",
@@ -91,7 +109,17 @@ export function MonthGrid({ sessions, month, onSelectDay }: MonthGridProps) {
                 .filter(Boolean)
                 .join(" ")}
             >
-              <span className="text-xs font-medium leading-none mb-1">{dayNum}</span>
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-xs font-medium leading-none">{dayNum}</span>
+                {dayBirthdays.length > 0 && (
+                  <span title={`Aniversário: ${birthdayNames}`}>
+                    <Cake
+                      className="size-3 text-pink-500 dark:text-pink-400"
+                      aria-hidden="true"
+                    />
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col gap-1 w-full px-1">
                 {/* Sessões ordenadas por hora — a mais cedo fica em cima */}
                 {visibleSessions.map((s) => {

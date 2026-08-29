@@ -1256,3 +1256,72 @@ export async function anonymizePlayer(
   return { success: true, message: "Jogador anonimizado com sucesso" };
 }
 
+export interface PlayerExportRow {
+  full_name: string;
+  birthdate: string;
+  height_cm: number | null;
+  weight_kg: number | null;
+}
+
+/**
+ * Lista de jogadores activos (nome, data de nascimento, altura, peso) para
+ * exportação em /plantel. Altura/peso vêm da última leitura em player_metrics
+ * (mesmo critério de "última leitura por jogador" já usado em team-aggregate.ts).
+ */
+export async function getPlayersExportData(): Promise<Result<PlayerExportRow[], AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, teamIds } = authResult.data;
+
+  const playerIds = await getPlayerIdsForTeams(teamIds);
+  if (playerIds.length === 0) return ok([]);
+
+  const serviceRole = getServiceRoleClient();
+
+  const [playersRes, metricsRes] = await Promise.all([
+    serviceRole
+      .from("players")
+      .select("id, full_name, birthdate")
+      .in("id", playerIds)
+      .eq("club_id", clubId)
+      .eq("is_archived", false)
+      .eq("is_active", true)
+      .order("full_name"),
+    serviceRole
+      .from("player_metrics")
+      .select("player_id, weight_kg, height_cm, recorded_at")
+      .eq("club_id", clubId)
+      .in("player_id", playerIds)
+      .order("recorded_at", { ascending: false }),
+  ]);
+
+  if (playersRes.error) {
+    return err({
+      code: "db_error",
+      message: playersRes.error.message ?? "Erro ao carregar jogadores",
+    });
+  }
+
+  // Primeira ocorrência por jogador = leitura mais recente (metricsRes já vem
+  // ordenado por recorded_at desc); uma leitura pode ter só peso ou só altura.
+  const lastHeightByPlayer = new Map<string, number>();
+  const lastWeightByPlayer = new Map<string, number>();
+  for (const row of metricsRes.data ?? []) {
+    if (typeof row.height_cm === "number" && !lastHeightByPlayer.has(row.player_id)) {
+      lastHeightByPlayer.set(row.player_id, row.height_cm);
+    }
+    if (typeof row.weight_kg === "number" && !lastWeightByPlayer.has(row.player_id)) {
+      lastWeightByPlayer.set(row.player_id, row.weight_kg);
+    }
+  }
+
+  const rows: PlayerExportRow[] = (playersRes.data ?? []).map((p) => ({
+    full_name: p.full_name?.trim() || "—",
+    birthdate: p.birthdate,
+    height_cm: lastHeightByPlayer.get(p.id) ?? null,
+    weight_kg: lastWeightByPlayer.get(p.id) ?? null,
+  }));
+
+  return ok(rows);
+}
+

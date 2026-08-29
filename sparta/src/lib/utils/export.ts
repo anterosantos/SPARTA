@@ -14,6 +14,7 @@ import type {
 } from "@/lib/actions/attendance-matrix";
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from "@/lib/schemas/attendances";
 import { STATUS_LABEL, attendanceMatrixKey } from "@/lib/attendance-status";
+import type { PlayerExportRow } from "@/lib/actions/players";
 
 function escapeCSV(val: unknown): string {
   const s = String(val ?? "");
@@ -23,6 +24,44 @@ function escapeCSV(val: unknown): string {
     return `"${safe.replace(/"/g, '""')}"`;
   }
   return safe;
+}
+
+function formatBirthdatePt(birthdate: string): string {
+  // Parse "YYYY-MM-DD" directamente em vez de new Date(...) — evita qualquer risco
+  // de desvio de um dia por fuso horário para uma data sem componente de hora.
+  const [y, m, d] = birthdate.split("-");
+  if (!y || !m || !d) return birthdate;
+  return `${d}/${m}/${y}`;
+}
+
+export function exportPlayersCsv(players: PlayerExportRow[]): void {
+  if (players.length === 0) return;
+
+  const headers = ["Nome", "Data de Nascimento", "Altura (cm)", "Peso (kg)"];
+  const rows: string[][] = [headers];
+
+  for (const p of players) {
+    rows.push([
+      escapeCSV(p.full_name),
+      escapeCSV(formatBirthdatePt(p.birthdate)),
+      escapeCSV(p.height_cm ?? ""),
+      escapeCSV(p.weight_kg ?? ""),
+    ]);
+  }
+
+  const csvContent = rows.map((row) => row.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `sparta-plantel-${today}.csv`;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function exportLoadCsv(players: PlayerLoadData[], view: SeasonView): void {
