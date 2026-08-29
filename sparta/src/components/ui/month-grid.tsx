@@ -109,18 +109,23 @@ export function MonthGrid({ sessions, month, onSelectDay, birthdays = [] }: Mont
                 .filter(Boolean)
                 .join(" ")}
             >
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-xs font-medium leading-none">{dayNum}</span>
-                {dayBirthdays.length > 0 && (
-                  <span title={`Aniversário: ${birthdayNames}`}>
-                    <Cake
-                      className="size-3 text-pink-500 dark:text-pink-400"
-                      aria-hidden="true"
-                    />
-                  </span>
-                )}
-              </div>
+              <span className="text-xs font-medium leading-none mb-1">{dayNum}</span>
               <div className="flex flex-col gap-1 w-full px-1">
+                {/* Aniversários primeiro — sempre visíveis, não entram na contagem
+                    de "+N" das sessões (raros, mas quando há, o nome tem de aparecer,
+                    não só num tooltip). */}
+                {dayBirthdays.map((b) => (
+                  <div
+                    key={b.playerId}
+                    className="w-full rounded-sm px-1.5 py-1 overflow-hidden bg-pink-500 dark:bg-pink-600"
+                    aria-hidden="true"
+                  >
+                    <span className="flex items-center gap-1 truncate text-[11px] leading-tight font-medium text-white">
+                      <Cake className="size-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{b.fullName}</span>
+                    </span>
+                  </div>
+                ))}
                 {/* Sessões ordenadas por hora — a mais cedo fica em cima */}
                 {visibleSessions.map((s) => {
                   const config = SESSION_TYPE_COLORS[s.type]
