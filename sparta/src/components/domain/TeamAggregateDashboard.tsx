@@ -27,6 +27,7 @@ import type {
   TeamAggregateData,
   TopPlayerItem,
   MatchEventsPoint,
+  TeamAcwrSeries,
 } from "@/lib/actions/team-aggregate";
 
 interface TeamAggregateDashboardProps {
@@ -42,6 +43,13 @@ const CHART_TOOLTIP_STYLE: CSSProperties = {
   borderRadius: 6,
   color: "var(--foreground)",
 };
+
+// Ângulo dourado (~137.5°) — gera cores bem distribuídas e distintas mesmo para
+// um número de jogadores desconhecido à partida, sem precisar de uma paleta fixa.
+function lineColorForIndex(index: number): string {
+  const hue = (index * 137.508) % 360;
+  return `hsl(${hue}, 65%, 50%)`;
+}
 
 function TopPlayerCard({
   player,
@@ -95,6 +103,11 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
     filters.ageGroup === "all"
       ? data.squadFormation
       : data.squadFormation.filter((p) => p.ageGroup === filters.ageGroup);
+
+  const filteredAcwrSeries: TeamAcwrSeries[] =
+    filters.ageGroup === "all"
+      ? data.teamAcwr.series
+      : data.teamAcwr.series.filter((s) => s.ageGroup === filters.ageGroup);
 
   const hasAgeGroupFilter = filters.ageGroup !== "all";
 
@@ -271,6 +284,62 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
           </div>
         </section>
       </div>
+
+      {/* ACWR da equipa — uma linha por jogador */}
+      <section aria-labelledby="chart-acwr-heading">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <h2
+            id="chart-acwr-heading"
+            className="text-sm font-semibold text-foreground flex items-center gap-1"
+          >
+            <TooltipExplain
+              term="ACWR da equipa"
+              definition="Rácio de carga aguda (7d) sobre carga crónica (28d) de cada jogador, semana a semana. Valores próximos de 1 indicam carga estável; muito acima ou abaixo do habitual do jogador sinaliza risco de lesão por sobrecarga ou destreino."
+              formula="acute (soma sRPE 7d) / chronic (soma sRPE 28d ÷ 4)"
+            />
+          </h2>
+          {filteredAcwrSeries.length === 0 ? (
+            <EmptyState
+              icon={<TrendingUp className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+              title="Sem dados de ACWR"
+              description={`Nenhum jogador com ACWR calculado nas últimas 4 semanas${hasAgeGroupFilter ? " para este grupo etário" : ""}.`}
+            />
+          ) : (
+            <div aria-label="Gráfico de ACWR da equipa, uma linha por jogador" className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.teamAcwr.points}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} allowDecimals />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--foreground)" }}
+                    itemStyle={{ color: "var(--foreground)" }}
+                    formatter={(value) =>
+                      typeof value === "number" ? value.toFixed(2) : "—"
+                    }
+                  />
+                  <Legend />
+                  {filteredAcwrSeries.map((series, i) => (
+                    <Line
+                      key={series.playerId}
+                      type="monotone"
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      dataKey={(point: any) => point.values[series.playerId] ?? null}
+                      name={series.playerName}
+                      stroke={lineColorForIndex(i)}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Top 3 */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

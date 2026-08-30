@@ -37,6 +37,26 @@ export type MatchEventsPoint = {
   eventCount: number;
 };
 
+export type TeamAcwrPoint = {
+  weekLabel: string;
+  weekStart: string;
+  /** ACWR (Acute:Chronic Workload Ratio) por jogador nesta semana — null se sem
+   * snapshot nessa janela. Chave = player_id. */
+  values: Record<string, number | null>;
+};
+
+export type TeamAcwrSeries = {
+  playerId: string;
+  playerName: string;
+  ageGroup: string;
+};
+
+export type TeamAcwrData = {
+  points: TeamAcwrPoint[];
+  /** Só jogadores com pelo menos um ponto não-nulo nas últimas 4 semanas. */
+  series: TeamAcwrSeries[];
+};
+
 /**
  * Peso (kg) de último recurso, usado apenas quando NENHUM jogador do plantel
  * tem leitura de peso (não há média possível). Normalmente o peso por omissão
@@ -71,6 +91,7 @@ export type TeamAggregateData = {
   topFatigued: TopPlayerItem[];
   eventsPerMatch: MatchEventsPoint[];
   squadFormation: PlayerFormationItem[];
+  teamAcwr: TeamAcwrData;
   currentSeason: { id: string; name: string } | null;
   totalActivePlayers: number;
   userRole: "coach" | "analyst";
@@ -84,6 +105,12 @@ type FatigueRow = {
   dim_sleep: number | null;
   dim_soreness: number | null;
   dim_mood: number | null;
+};
+
+type AcwrRow = {
+  player_id: string;
+  acwr: number | null;
+  computed_at: string;
 };
 
 export async function getTeamAggregateData(): Promise<
@@ -159,6 +186,14 @@ export async function getTeamAggregateData(): Promise<
       topFatigued: [],
       eventsPerMatch: [],
       squadFormation: [],
+      teamAcwr: {
+        points: weekWindows.map((w) => ({
+          weekLabel: w.label,
+          weekStart: w.start.toISOString(),
+          values: {},
+        })),
+        series: [],
+      },
       currentSeason: currentSeason
         ? { id: currentSeason.id, name: currentSeason.name ?? "" }
         : null,
@@ -167,7 +202,7 @@ export async function getTeamAggregateData(): Promise<
     });
   }
 
-  const [fatigueResult, attendanceResult, metricsResult, eventsResult, bodyMetricsResult] =
+  const [fatigueResult, attendanceResult, metricsResult, eventsResult, bodyMetricsResult, acwrResult] =
     await Promise.allSettled([
       // fatigue_responses — dados de saúde, obrigatório auditedRead (FR50)
       auditedRead<FatigueRow[]>(
@@ -237,6 +272,29 @@ export async function getTeamAggregateData(): Promise<
         .eq("club_id", clubId)
         .in("player_id", playerIds)
         .order("recorded_at", { ascending: false }),
+      // readiness_snapshots — ACWR por jogador, dado de saúde derivado (Art. 9 RGPD),
+      // obrigatório auditedRead (FR50)
+      auditedRead<AcwrRow[]>(
+        {
+          action: "team_aggregate_acwr.viewed",
+          targetKind: "readiness_snapshots",
+          targetId: clubId,
+          actorId: userId,
+          clubId,
+        },
+        async () => {
+          // eslint-disable-next-line custom/no-direct-health-data-read -- inside auditedRead() callback; audit logging handled by wrapper
+          const { data, error } = await serviceRole
+            .from("readiness_snapshots")
+            .select("player_id, acwr, computed_at")
+            .eq("club_id", clubId)
+            .in("player_id", playerIds)
+            .gte("computed_at", since28.toISOString())
+            .order("computed_at", { ascending: true });
+          if (error) throw error;
+          return (data ?? []) as AcwrRow[];
+        }
+      ),
     ]);
 
   // Guard: se auditedRead() foi rejeitado, não continuar
@@ -486,6 +544,44 @@ export async function getTeamAggregateData(): Promise<
     };
   });
 
+  // ACWR semanal por jogador — uma linha por jogador no gráfico "ACWR da equipa".
+  // Para cada semana, usa-se o snapshot mais recente dentro da janela (o ACWR já
+  // é em si um rácio de janela deslizante, por isso o último valor da semana
+  // representa melhor "o estado no fim dessa semana" do que uma média).
+  const acwrRows: AcwrRow[] = acwrResult.status === "fulfilled" ? acwrResult.value : [];
+  const latestAcwrByPlayerWeek = new Map<string, Map<number, { value: number | null; at: number }>>();
+  for (const row of acwrRows) {
+    if (!row.player_id) continue;
+    const t = new Date(row.computed_at).getTime();
+    if (Number.isNaN(t)) continue;
+    const weekIdx = weekWindows.findIndex((w) => t >= w.start.getTime() && t < w.end.getTime());
+    if (weekIdx === -1) continue;
+    let byWeek = latestAcwrByPlayerWeek.get(row.player_id);
+    if (!byWeek) {
+      byWeek = new Map();
+      latestAcwrByPlayerWeek.set(row.player_id, byWeek);
+    }
+    const existing = byWeek.get(weekIdx);
+    if (!existing || t > existing.at) {
+      byWeek.set(weekIdx, { value: row.acwr, at: t });
+    }
+  }
+  const teamAcwrPoints: TeamAcwrPoint[] = weekWindows.map((w, weekIdx) => {
+    const values: Record<string, number | null> = {};
+    for (const [playerId, byWeek] of latestAcwrByPlayerWeek.entries()) {
+      values[playerId] = byWeek.get(weekIdx)?.value ?? null;
+    }
+    return { weekLabel: w.label, weekStart: w.start.toISOString(), values };
+  });
+  const teamAcwrSeries: TeamAcwrSeries[] = Array.from(latestAcwrByPlayerWeek.keys())
+    .filter((pid) => teamAcwrPoints.some((p) => p.values[pid] != null))
+    .map((pid) => ({
+      playerId: pid,
+      playerName: playersArr.find((p) => p.id === pid)?.full_name?.trim() || "—",
+      ageGroup: playersArr.find((p) => p.id === pid)?.age_group ?? "—",
+    }))
+    .sort((a, b) => a.playerName.localeCompare(b.playerName, "pt-PT"));
+
   return ok({
     weeklyFatigue,
     weeklyAttendance,
@@ -493,6 +589,7 @@ export async function getTeamAggregateData(): Promise<
     topFatigued,
     eventsPerMatch,
     squadFormation,
+    teamAcwr: { points: teamAcwrPoints, series: teamAcwrSeries },
     currentSeason: currentSeason
       ? { id: currentSeason.id, name: currentSeason.name ?? "" }
       : null,
