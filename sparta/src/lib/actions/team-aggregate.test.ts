@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getTeamAggregateData } from "./team-aggregate";
+import { getTeamAggregateData, getTeamAcwrChart } from "./team-aggregate";
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
@@ -723,8 +723,8 @@ describe("getTeamAggregateData", () => {
       if (result.ok) {
         expect(result.data.teamAcwr.points).toHaveLength(4);
         const lastWeek = result.data.teamAcwr.points[3];
-        expect(lastWeek?.values[PLAYER_1]).toBe(1.4);
-        expect(lastWeek?.values[PLAYER_2] ?? null).toBeNull();
+        expect(lastWeek?.[PLAYER_1]).toBe(1.4);
+        expect(lastWeek?.[PLAYER_2] ?? null).toBeNull();
 
         const series = result.data.teamAcwr.series;
         expect(series.map((s) => s.playerId).sort()).toEqual([PLAYER_1, PLAYER_2].sort());
@@ -769,5 +769,103 @@ describe("getTeamAggregateData", () => {
         expect(result.data.teamAcwr.series).toHaveLength(0);
       }
     });
+  });
+});
+
+describe("getTeamAcwrChart", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("retorna unauthorized quando não autenticado", async () => {
+    mockRequireStaffRole.mockResolvedValue({
+      ok: false,
+      error: { code: "unauthorized", message: "Autenticação necessária." },
+    });
+
+    const result = await getTeamAcwrChart("30d");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("unauthorized");
+  });
+
+  it("plantel vazio devolve pontos e série vazios sem erro", async () => {
+    setupAuth("coach", CLUB_A, "user-1", []);
+    setupServiceRole();
+
+    const result = await getTeamAcwrChart("30d");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.points).toHaveLength(0);
+      expect(result.data.series).toHaveLength(0);
+    }
+  });
+
+  it("range='7d' produz 7 pontos diários", async () => {
+    setupAuth("coach", CLUB_A);
+    setupServiceRole({
+      players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+      acwr: [{ player_id: PLAYER_1, acwr: 1.2, computed_at: new Date().toISOString() }],
+    });
+
+    const result = await getTeamAcwrChart("7d");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.points).toHaveLength(7);
+    }
+  });
+
+  it("range='30d' produz 4 pontos semanais", async () => {
+    setupAuth("coach", CLUB_A);
+    setupServiceRole({
+      players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+      acwr: [],
+    });
+
+    const result = await getTeamAcwrChart("30d");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.points).toHaveLength(4);
+    }
+  });
+
+  it("range='season' consulta a época actual para determinar o início", async () => {
+    setupAuth("coach", CLUB_A);
+    (getCurrentSeason as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      data: { id: "season-1", name: "2026/27", start_date: "2026-07-01", end_date: "2027-06-30" },
+    });
+    setupServiceRole({
+      players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
+      acwr: [],
+    });
+
+    const result = await getTeamAcwrChart("season");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.points.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("retorna db_error se a query de jogadores falhar", async () => {
+    setupAuth("coach", CLUB_A);
+    const serviceClient = setupServiceRole();
+    (serviceClient.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+      if (table === "players") {
+        const q = createMockQuery();
+        q.is.mockResolvedValue({ data: null, error: { message: "DB error" } });
+        return q;
+      }
+      return createMockQuery();
+    });
+
+    const result = await getTeamAcwrChart("30d");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("db_error");
   });
 });

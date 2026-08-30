@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import {
   LineChart,
@@ -23,12 +23,21 @@ import { TeamWeightFormation } from "@/components/domain/TeamWeightFormation";
 import { TeamHeightFormation } from "@/components/domain/TeamHeightFormation";
 import { TeamAggregateFiltersSheet, DEFAULT_FILTERS } from "@/components/domain/TeamAggregateFiltersSheet";
 import type { TeamAggregateFilters } from "@/components/domain/TeamAggregateFiltersSheet";
+import { getTeamAcwrChart } from "@/lib/actions/team-aggregate";
 import type {
   TeamAggregateData,
   TopPlayerItem,
   MatchEventsPoint,
   TeamAcwrSeries,
+  TeamAcwrData,
+  AcwrChartRange,
 } from "@/lib/actions/team-aggregate";
+
+const ACWR_RANGE_OPTIONS: { value: AcwrChartRange; label: string }[] = [
+  { value: "7d", label: "Últimos 7 dias" },
+  { value: "30d", label: "Último mês" },
+  { value: "season", label: "Época toda" },
+];
 
 interface TeamAggregateDashboardProps {
   data: TeamAggregateData;
@@ -78,6 +87,47 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
   const [filters, setFilters] = useState<TeamAggregateFilters>(DEFAULT_FILTERS);
   const [showPdfComingSoon, setShowPdfComingSoon] = useState(false);
 
+  // ACWR da equipa — intervalo seleccionável (o carregamento inicial da página já
+  // vem com range="30d" embutido em data.teamAcwr; só se refaz o pedido ao
+  // servidor quando o utilizador troca de intervalo).
+  const [acwrRange, setAcwrRange] = useState<AcwrChartRange>("30d");
+  const [acwrData, setAcwrData] = useState<TeamAcwrData>(data.teamAcwr);
+  const [acwrLoading, setAcwrLoading] = useState(false);
+  const [acwrError, setAcwrError] = useState<string | null>(null);
+  const [hiddenPlayerIds, setHiddenPlayerIds] = useState<Set<string>>(new Set());
+  const isFirstAcwrRange = useRef(true);
+
+  useEffect(() => {
+    if (isFirstAcwrRange.current) {
+      isFirstAcwrRange.current = false;
+      return;
+    }
+    let cancelled = false;
+    setAcwrLoading(true);
+    setAcwrError(null);
+    getTeamAcwrChart(acwrRange).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setAcwrData(result.data);
+      } else {
+        setAcwrError(result.error.message);
+      }
+      setAcwrLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [acwrRange]);
+
+  const toggleHiddenPlayer = useCallback((playerId: string) => {
+    setHiddenPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
+
   const handleFilter = useCallback((newFilters: TeamAggregateFilters) => {
     setFilters(newFilters);
   }, []);
@@ -106,8 +156,8 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
 
   const filteredAcwrSeries: TeamAcwrSeries[] =
     filters.ageGroup === "all"
-      ? data.teamAcwr.series
-      : data.teamAcwr.series.filter((s) => s.ageGroup === filters.ageGroup);
+      ? acwrData.series
+      : acwrData.series.filter((s) => s.ageGroup === filters.ageGroup);
 
   const hasAgeGroupFilter = filters.ageGroup !== "all";
 
@@ -288,55 +338,120 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
       {/* ACWR da equipa — uma linha por jogador */}
       <section aria-labelledby="chart-acwr-heading">
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <h2
-            id="chart-acwr-heading"
-            className="text-sm font-semibold text-foreground flex items-center gap-1"
-          >
-            <TooltipExplain
-              term="ACWR da equipa"
-              definition="Rácio de carga aguda (7d) sobre carga crónica (28d) de cada jogador, semana a semana. Valores próximos de 1 indicam carga estável; muito acima ou abaixo do habitual do jogador sinaliza risco de lesão por sobrecarga ou destreino."
-              formula="acute (soma sRPE 7d) / chronic (soma sRPE 28d ÷ 4)"
-            />
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2
+              id="chart-acwr-heading"
+              className="text-sm font-semibold text-foreground flex items-center gap-1"
+            >
+              <TooltipExplain
+                term="ACWR da equipa"
+                definition="Rácio de carga aguda (7d) sobre carga crónica (28d) de cada jogador ao longo do tempo. Valores próximos de 1 indicam carga estável; muito acima ou abaixo do habitual do jogador sinaliza risco de lesão por sobrecarga ou destreino."
+                formula="acute (soma sRPE 7d) / chronic (soma sRPE 28d ÷ 4)"
+              />
+            </h2>
+            <div className="flex gap-1.5" role="group" aria-label="Intervalo do gráfico de ACWR">
+              {ACWR_RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setAcwrRange(opt.value)}
+                  aria-pressed={acwrRange === opt.value}
+                  disabled={acwrLoading}
+                  className={`min-h-[36px] rounded-full px-3 text-xs font-medium transition-colors disabled:opacity-50 ${
+                    acwrRange === opt.value
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {acwrError && (
+            <p role="alert" className="text-xs text-destructive">
+              {acwrError}
+            </p>
+          )}
+
           {filteredAcwrSeries.length === 0 ? (
             <EmptyState
               icon={<TrendingUp className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
               title="Sem dados de ACWR"
-              description={`Nenhum jogador com ACWR calculado nas últimas 4 semanas${hasAgeGroupFilter ? " para este grupo etário" : ""}.`}
+              description={`Nenhum jogador com ACWR calculado neste intervalo${hasAgeGroupFilter ? " para este grupo etário" : ""}.`}
             />
           ) : (
-            <div aria-label="Gráfico de ACWR da equipa, uma linha por jogador" className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.teamAcwr.points}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} allowDecimals />
-                  <Tooltip
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                    labelStyle={{ color: "var(--foreground)" }}
-                    itemStyle={{ color: "var(--foreground)" }}
-                    formatter={(value) =>
-                      typeof value === "number" ? value.toFixed(2) : "—"
-                    }
-                  />
-                  <Legend />
-                  {filteredAcwrSeries.map((series, i) => (
-                    <Line
-                      key={series.playerId}
-                      type="monotone"
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      dataKey={(point: any) => point.values[series.playerId] ?? null}
-                      name={series.playerName}
-                      stroke={lineColorForIndex(i)}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 5 }}
-                      connectNulls
+            <>
+              <div
+                aria-label="Gráfico de ACWR da equipa, uma linha por jogador"
+                className="h-72"
+                aria-busy={acwrLoading}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={acwrData.points}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals />
+                    <Tooltip
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={{ color: "var(--foreground)" }}
+                      itemStyle={{ color: "var(--foreground)" }}
+                      formatter={(value) =>
+                        typeof value === "number" ? value.toFixed(2) : "—"
+                      }
                     />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                    {filteredAcwrSeries.map((series, i) =>
+                      hiddenPlayerIds.has(series.playerId) ? null : (
+                        <Line
+                          key={series.playerId}
+                          type="monotone"
+                          dataKey={series.playerId}
+                          name={series.playerName}
+                          stroke={lineColorForIndex(i)}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                          connectNulls
+                        />
+                      )
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Legenda clicável — permite retirar/mostrar linhas de jogadores */}
+              <div
+                className="flex flex-wrap gap-2 pt-1"
+                role="group"
+                aria-label="Mostrar ou ocultar jogadores no gráfico de ACWR"
+              >
+                {filteredAcwrSeries.map((series, i) => {
+                  const isHidden = hiddenPlayerIds.has(series.playerId);
+                  const color = lineColorForIndex(i);
+                  return (
+                    <button
+                      key={series.playerId}
+                      type="button"
+                      onClick={() => toggleHiddenPlayer(series.playerId)}
+                      aria-pressed={!isHidden}
+                      aria-label={`${isHidden ? "Mostrar" : "Ocultar"} ${series.playerName} no gráfico`}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-opacity ${
+                        isHidden ? "opacity-40" : ""
+                      }`}
+                      style={{ borderColor: color }}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: color }}
+                        aria-hidden="true"
+                      />
+                      {series.playerName}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </section>
