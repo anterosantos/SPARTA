@@ -193,22 +193,33 @@ export async function createSession(
         "Sem época actual definida. Configure em /configuracoes/epocas.",
     });
 
+  // Repetição semanal: gera N sessões independentes, uma por semana a partir da
+  // data escolhida, no mesmo dia da semana e à mesma hora. Sem repetição,
+  // occurrences=1 mantém o comportamento original (uma única sessão).
+  const seasonId = seasonResult.data.id;
+  const occurrences =
+    validated.data.repeatWeekly && validated.data.repeatWeeks
+      ? validated.data.repeatWeeks
+      : 1;
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const baseScheduledAt = new Date(validated.data.scheduledAt).getTime();
+  const rowsToInsert = Array.from({ length: occurrences }, (_, i) => ({
+    club_id: profile.club_id,
+    season_id: seasonId,
+    type: validated.data.type,
+    scheduled_at: new Date(baseScheduledAt + i * ONE_WEEK_MS).toISOString(),
+    duration_min: validated.data.durationMin,
+    location: validated.data.location ?? null,
+    notes: validated.data.notes ?? null,
+    opponent_name: validated.data.opponentName ?? null,
+    created_by: profile.id,
+  }));
+
   const serviceRole = getServiceRoleClient();
   const { data, error } = await serviceRole
     .from("sessions")
-    .insert({
-      club_id: profile.club_id,
-      season_id: seasonResult.data.id,
-      type: validated.data.type,
-      scheduled_at: validated.data.scheduledAt,
-      duration_min: validated.data.durationMin,
-      location: validated.data.location ?? null,
-      notes: validated.data.notes ?? null,
-      opponent_name: validated.data.opponentName ?? null,
-      created_by: profile.id,
-    })
-    .select("*")
-    .single();
+    .insert(rowsToInsert)
+    .select("*");
 
   if (error) {
     if (error.message.includes("season_id")) {
@@ -219,21 +230,32 @@ export async function createSession(
     }
     return err({ code: "unknown", message: "Erro ao guardar sessão" });
   }
-  const session = data as Session;
+  const sessions = (data ?? []) as Session[];
+  const firstSession = sessions[0];
+  if (!firstSession) {
+    return err({ code: "unknown", message: "Erro ao guardar sessão" });
+  }
 
-  // Create session_teams records for each selected team
+  // Create session_teams records for each selected team, replicado para todas
+  // as sessões geradas (uma única ou várias, em caso de repetição semanal)
   if (teamIds && teamIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (serviceRole as any)
       .from("session_teams")
-      .insert(teamIds.map((tid) => ({ session_id: session.id, team_id: tid })));
+      .insert(
+        sessions.flatMap((s) =>
+          teamIds.map((tid) => ({ session_id: s.id, team_id: tid }))
+        )
+      );
   }
 
-  logAccess("session.created", "session", session.id).catch((e) => {
-    console.error("audit log failed (non-blocking)", e);
-  });
+  for (const s of sessions) {
+    logAccess("session.created", "session", s.id).catch((e) => {
+      console.error("audit log failed (non-blocking)", e);
+    });
+  }
 
-  return ok(session);
+  return ok(firstSession);
 }
 
 export async function updateSession(

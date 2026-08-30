@@ -120,6 +120,13 @@ function makeSupabaseMock({
       data: sessionData,
       error: queryError,
     }),
+    // createSession() agora termina em .insert(rows).select("*") (sem .single()),
+    // para suportar repetição semanal (várias linhas). Torna o próprio mock
+    // "thenable" para que `await chain.insert(...).select(...)` resolva
+    // directamente, sem quebrar as outras cadeias que já terminam em
+    // .maybeSingle()/.single()/.order() explicitamente.
+    then: (resolve: (v: { data: unknown; error: unknown }) => void) =>
+      resolve({ data: sessionsList, error: queryError }),
   };
 
   return {
@@ -456,6 +463,59 @@ describe("createSession", () => {
     const result = await createSession({
       ...validInput,
       type: "invalid" as never,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation");
+  });
+
+  it("repeatWeekly=true com repeatWeeks gera N sessões espaçadas por 7 dias", async () => {
+    vi.mocked(getCurrentSeason).mockResolvedValue({
+      ok: true,
+      data: mockCurrentSeason,
+    });
+    const mock = makeSupabaseMock();
+    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+    const result = await createSession({
+      ...validInput,
+      repeatWeekly: true,
+      repeatWeeks: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    const sessionsTable = mock.from("sessions");
+    const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
+    const insertedRows = insertCall[0] as { scheduled_at: string }[];
+    expect(insertedRows).toHaveLength(3);
+    const base = new Date(FUTURE_AT).getTime();
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    expect(new Date(insertedRows[0]!.scheduled_at).getTime()).toBe(base);
+    expect(new Date(insertedRows[1]!.scheduled_at).getTime()).toBe(base + ONE_WEEK_MS);
+    expect(new Date(insertedRows[2]!.scheduled_at).getTime()).toBe(base + 2 * ONE_WEEK_MS);
+  });
+
+  it("repeatWeekly=false (omissão) insere apenas 1 sessão", async () => {
+    vi.mocked(getCurrentSeason).mockResolvedValue({
+      ok: true,
+      data: mockCurrentSeason,
+    });
+    const mock = makeSupabaseMock();
+    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+    await createSession(validInput);
+
+    const sessionsTable = mock.from("sessions");
+    const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
+    const insertedRows = insertCall[0] as unknown[];
+    expect(insertedRows).toHaveLength(1);
+  });
+
+  it("devolve validation error se repeatWeekly=true sem indicar repeatWeeks", async () => {
+    const result = await createSession({
+      ...validInput,
+      repeatWeekly: true,
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("validation");

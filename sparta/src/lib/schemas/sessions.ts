@@ -26,6 +26,15 @@ export const SessionCreateSchema = z
       .string()
       .max(100, "Nome da equipa adversária demasiado longo (máx. 100 caracteres)")
       .optional(),
+    // Repetição semanal — gera N sessões independentes (mesmo dia da semana e
+    // hora), uma por semana a partir de scheduledAt. Só aplicável na criação.
+    repeatWeekly: z.boolean().optional().default(false),
+    repeatWeeks: z
+      .number()
+      .int()
+      .min(2, "Mínimo 2 semanas")
+      .max(52, "Máximo 52 semanas")
+      .optional(),
   })
   .refine(
     (data) => {
@@ -37,7 +46,11 @@ export const SessionCreateSchema = z
       message: "Data não pode ser passada (máx. retaguarda 24h)",
       path: ["scheduledAt"],
     }
-  );
+  )
+  .refine((data) => !data.repeatWeekly || data.repeatWeeks !== undefined, {
+    message: "Indique durante quantas semanas repetir",
+    path: ["repeatWeeks"],
+  });
 
 export const SessionUpdateSchema = z
   .object({

@@ -60,6 +60,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
   const [open, setOpen] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState("Sessão criada");
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
     staffTeams.length === 1 && staffTeams[0] ? new Set([staffTeams[0].id]) : new Set()
   );
@@ -73,11 +74,14 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
       location: "",
       notes: "",
       opponentName: "",
+      repeatWeekly: false,
+      repeatWeeks: undefined,
     },
   });
 
   const watchedType = form.watch("type");
   const isSingleTeamType = watchedType === "match" || watchedType === "friendly";
+  const repeatWeekly = form.watch("repeatWeekly");
 
   function toggleTeam(id: string) {
     setSelectedTeamIds((prev) => {
@@ -113,6 +117,8 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
             // Only match/friendly sessions have an opponent — a leftover value
             // from a type the user switched away from must not be persisted.
             opponentName: isSingleTeamType ? data.opponentName || undefined : undefined,
+            repeatWeekly: data.repeatWeekly ?? false,
+            repeatWeeks: data.repeatWeekly ? data.repeatWeeks : undefined,
           },
           teamIds.length > 0 ? teamIds : undefined
         );
@@ -120,6 +126,11 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
           form.setError("root", { message: result.error.message });
           return;
         }
+        setConfirmationMessage(
+          data.repeatWeekly && data.repeatWeeks
+            ? `${data.repeatWeeks} sessões criadas (repetição semanal)`
+            : "Sessão criada"
+        );
         setShowConfirmation(true);
       } catch {
         form.setError("root", { message: "Erro ao comunicar com servidor" });
@@ -131,7 +142,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
     <>
       {showConfirmation && (
         <CalmConfirmation
-          message="Sessão criada"
+          message={confirmationMessage}
           onDismiss={() => router.push(returnTo)}
         />
       )}
@@ -209,6 +220,45 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
               <p className="text-xs text-destructive">
                 {form.formState.errors.scheduledAt.message}
               </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none text-sm font-medium">
+              <input
+                type="checkbox"
+                disabled={!hasSeason}
+                className="h-4 w-4 border-border text-primary focus:ring-primary"
+                {...form.register("repeatWeekly")}
+              />
+              Repetir semanalmente
+            </label>
+            {repeatWeekly && (
+              <div className="space-y-1 pl-6">
+                <label htmlFor="session-repeat-weeks" className="text-xs text-muted-foreground">
+                  Durante quantas semanas (incluindo esta)? <span aria-hidden>*</span>
+                </label>
+                <input
+                  id="session-repeat-weeks"
+                  type="number"
+                  min={2}
+                  max={52}
+                  placeholder="ex: 8"
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  disabled={!hasSeason}
+                  {...form.register("repeatWeeks", {
+                    setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cria uma sessão no mesmo dia da semana e hora, todas as semanas.
+                </p>
+                {form.formState.errors.repeatWeeks && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.repeatWeeks.message}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

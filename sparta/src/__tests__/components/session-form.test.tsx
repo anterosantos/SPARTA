@@ -58,6 +58,8 @@ const mockSession: Session = {
   notes: "Treino normal",
   created_by: "850e8400-e29b-41d4-a716-446655440003",
   created_at: "2026-05-19T00:00:00Z",
+  concentration_time: null,
+  opponent_name: null,
 };
 
 describe("SessionForm — modo create", () => {
@@ -132,7 +134,7 @@ describe("SessionForm — modo create", () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalled();
     });
-    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
     expect(submittedPayload.opponentName).toBe("SC Vilanovense");
   });
 
@@ -163,7 +165,7 @@ describe("SessionForm — modo create", () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalled();
     });
-    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
     expect(submittedPayload.opponentName).toBeUndefined();
   });
 
@@ -258,7 +260,7 @@ describe("SessionForm — modo create", () => {
       expect(createSession).toHaveBeenCalled();
     });
 
-    const [submittedPayload] = vi.mocked(createSession).mock.calls[0];
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
     expect(submittedPayload.scheduledAt).toBe(chosenLocal.toISOString());
   });
 
@@ -280,6 +282,97 @@ describe("SessionForm — modo create", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/sem época actual/i)).toBeInTheDocument();
+    });
+  });
+
+  it("campo 'Durante quantas semanas' só aparece quando 'Repetir semanalmente' está marcado", () => {
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    expect(screen.queryByLabelText(/durante quantas semanas/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
+    expect(screen.getByLabelText(/durante quantas semanas/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
+    expect(screen.queryByLabelText(/durante quantas semanas/i)).not.toBeInTheDocument();
+  });
+
+  it("envia repeatWeekly e repeatWeeks ao criar sessão com repetição semanal", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
+    fireEvent.change(screen.getByLabelText(/durante quantas semanas/i), {
+      target: { value: "6" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.repeatWeekly).toBe(true);
+    expect(submittedPayload.repeatWeeks).toBe(6);
+  });
+
+  it("não envia repeatWeeks quando 'Repetir semanalmente' não está marcado", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.repeatWeekly).toBe(false);
+    expect(submittedPayload.repeatWeeks).toBeUndefined();
+  });
+
+  it("mostra mensagem de confirmação com o número de sessões quando repete semanalmente", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const datetimeInput = screen.getByLabelText(/data e hora/i);
+    const localDt = new Date(FUTURE_AT);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
+    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+
+    fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
+    fireEvent.change(screen.getByLabelText(/durante quantas semanas/i), {
+      target: { value: "4" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("calm-confirmation")).toHaveTextContent("4 sessões criadas");
     });
   });
 });
