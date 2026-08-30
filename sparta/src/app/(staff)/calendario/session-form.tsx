@@ -45,6 +45,25 @@ function toISOFromLocal(localStr: string): string {
   return new Date(localStr).toISOString();
 }
 
+// Minutos entre duas datas locais (formato datetime-local) — usado para
+// derivar durationMin a partir de "Data e hora de fim" no formulário (o
+// schema/BD continuam a guardar duration_min, só a UI passou a pedir a data
+// de fim em vez do número de minutos directamente).
+function minutesBetweenLocal(startLocal: string, endLocal: string): number | undefined {
+  if (!startLocal || !endLocal) return undefined;
+  const start = new Date(startLocal).getTime();
+  const end = new Date(endLocal).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+  return Math.round((end - start) / 60000);
+}
+
+// Data/hora de fim (formato datetime-local) a partir do início + duração —
+// usado para pré-preencher o campo ao editar uma sessão existente.
+function endLocalFromDuration(scheduledAtIso: string, durationMin: number): string {
+  const end = new Date(new Date(scheduledAtIso).getTime() + durationMin * 60000);
+  return toDateTimeLocal(end.toISOString());
+}
+
 // ─── Create Form ──────────────────────────────────────────────────────────────
 
 interface SessionFormCreateProps {
@@ -64,6 +83,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
     staffTeams.length === 1 && staffTeams[0] ? new Set([staffTeams[0].id]) : new Set()
   );
+  const [endAt, setEndAt] = useState("");
 
   const form = useForm<SessionCreateInput>({
     resolver: zodResolver(SessionCreateSchema),
@@ -82,6 +102,16 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
   const watchedType = form.watch("type");
   const isSingleTeamType = watchedType === "match" || watchedType === "friendly";
   const repeatWeekly = form.watch("repeatWeekly");
+  const scheduledAt = form.watch("scheduledAt");
+
+  // durationMin (guardado no schema/BD) é derivado de "Data e hora de fim" —
+  // a UI já não pede minutos directamente.
+  useEffect(() => {
+    const minutes = minutesBetweenLocal(scheduledAt ?? "", endAt);
+    if (minutes !== undefined) {
+      form.setValue("durationMin", minutes, { shouldValidate: true });
+    }
+  }, [scheduledAt, endAt, form]);
 
   function toggleTeam(id: string) {
     setSelectedTeamIds((prev) => {
@@ -100,6 +130,10 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
   }
 
   function onSubmit(data: SessionCreateInput) {
+    if (!endAt) {
+      form.setError("root", { message: "Indique a data e hora de fim." });
+      return;
+    }
     if (staffTeams.length > 0 && selectedTeamIds.size === 0) {
       form.setError("root", { message: "Seleciona pelo menos uma equipa." });
       return;
@@ -223,6 +257,26 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
             )}
           </div>
 
+          <div className="space-y-1">
+            <label htmlFor="session-end-at" className="text-sm font-medium">
+              Data e hora de fim <span aria-hidden>*</span>
+            </label>
+            <input
+              id="session-end-at"
+              type="datetime-local"
+              min={scheduledAt || undefined}
+              className="w-full rounded border px-3 py-2 text-sm"
+              disabled={!hasSeason}
+              value={endAt}
+              onChange={(e) => setEndAt(e.target.value)}
+            />
+            {form.formState.errors.durationMin && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.durationMin.message}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <label className="flex items-center gap-2.5 cursor-pointer select-none text-sm font-medium">
               <input
@@ -259,26 +313,6 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
                   </p>
                 )}
               </div>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="session-duration" className="text-sm font-medium">
-              Duração (minutos) <span aria-hidden>*</span>
-            </label>
-            <input
-              id="session-duration"
-              type="number"
-              min={15}
-              max={240}
-              className="w-full rounded border px-3 py-2 text-sm"
-              disabled={!hasSeason}
-              {...form.register("durationMin", { valueAsNumber: true })}
-            />
-            {form.formState.errors.durationMin && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.durationMin.message}
-              </p>
             )}
           </div>
 
@@ -381,6 +415,9 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
   const [loadingTeams, setLoadingTeams] = useState(true);
+  const [endAt, setEndAt] = useState(() =>
+    endLocalFromDuration(session.scheduled_at, session.duration_min)
+  );
 
   const isLocked =
     session.status === "cancelled" || session.status === "completed";
@@ -411,6 +448,16 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
 
   const watchedType = form.watch("type");
   const isSingleTeamType = watchedType === "match" || watchedType === "friendly";
+  const scheduledAt = form.watch("scheduledAt");
+
+  // durationMin (guardado no schema/BD) é derivado de "Data e hora de fim" —
+  // a UI já não pede minutos directamente.
+  useEffect(() => {
+    const minutes = minutesBetweenLocal(scheduledAt ?? "", endAt);
+    if (minutes !== undefined) {
+      form.setValue("durationMin", minutes, { shouldValidate: true });
+    }
+  }, [scheduledAt, endAt, form]);
 
   function toggleTeam(id: string) {
     setSelectedTeamIds((prev) => {
@@ -432,6 +479,10 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
   }
 
   function onSubmit(data: SessionUpdateInput) {
+    if (!endAt) {
+      form.setError("root", { message: "Indique a data e hora de fim." });
+      return;
+    }
     startTransition(async () => {
       try {
         // Update session basic info
@@ -551,17 +602,17 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="session-duration" className="text-sm font-medium">
-              Duração (minutos) <span aria-hidden>*</span>
+            <label htmlFor="session-end-at" className="text-sm font-medium">
+              Data e hora de fim <span aria-hidden>*</span>
             </label>
             <input
-              id="session-duration"
-              type="number"
-              min={15}
-              max={240}
+              id="session-end-at"
+              type="datetime-local"
+              min={scheduledAt || undefined}
               className="w-full rounded border px-3 py-2 text-sm"
               disabled={isLocked}
-              {...form.register("durationMin", { valueAsNumber: true })}
+              value={endAt}
+              onChange={(e) => setEndAt(e.target.value)}
             />
             {form.formState.errors.durationMin && (
               <p className="text-xs text-destructive">

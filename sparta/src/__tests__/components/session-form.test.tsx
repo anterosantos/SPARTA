@@ -62,6 +62,27 @@ const mockSession: Session = {
   opponent_name: null,
 };
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function localDateTimeString(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Preenche "Data e hora" e "Data e hora de fim" — o formulário exige ambos
+ * desde que a duração deixou de ser pedida directamente (é derivada da
+ * diferença entre as duas datas). */
+function fillSessionDates(startIso: string, durationMin = 90) {
+  const start = new Date(startIso);
+  const end = new Date(start.getTime() + durationMin * 60_000);
+  fireEvent.change(screen.getByLabelText(/^data e hora(?! de fim)/i), {
+    target: { value: localDateTimeString(start) },
+  });
+  fireEvent.change(screen.getByLabelText(/data e hora de fim/i), {
+    target: { value: localDateTimeString(end) },
+  });
+}
+
 describe("SessionForm — modo create", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -70,8 +91,8 @@ describe("SessionForm — modo create", () => {
     expect(screen.getByTestId("drill-down-sheet")).toBeInTheDocument();
     expect(screen.getByText("Nova sessão")).toBeInTheDocument();
     expect(screen.getByLabelText(/tipo de sessão/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/data e hora/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/duração/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^data e hora(?! de fim)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/data e hora de fim/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/local/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/notas/i)).toBeInTheDocument();
   });
@@ -123,11 +144,7 @@ describe("SessionForm — modo create", () => {
       target: { value: "SC Vilanovense" },
     });
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -154,11 +171,7 @@ describe("SessionForm — modo create", () => {
     // Muda de ideias antes de submeter — o campo desaparece da UI
     fireEvent.change(select, { target: { value: "training" } });
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -180,14 +193,7 @@ describe("SessionForm — modo create", () => {
     const select = screen.getByLabelText(/tipo de sessão/i);
     fireEvent.change(select, { target: { value: "match" } });
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
-
-    const durationInput = screen.getByLabelText(/duração/i);
-    fireEvent.change(durationInput, { target: { value: "60" } });
+    fillSessionDates(FUTURE_AT, 60);
 
     const submitBtn = screen.getByRole("button", { name: /criar sessão/i });
     fireEvent.click(submitBtn);
@@ -200,6 +206,40 @@ describe("SessionForm — modo create", () => {
         "Sessão criada"
       );
     });
+  });
+
+  it("calcula durationMin a partir da diferença entre 'Data e hora' e 'Data e hora de fim'", async () => {
+    vi.mocked(createSession).mockResolvedValue({
+      ok: true,
+      data: mockSession,
+    });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    fillSessionDates(FUTURE_AT, 45);
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalled();
+    });
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.durationMin).toBe(45);
+  });
+
+  it("mostra erro e não submete quando a data de fim não é preenchida", async () => {
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    fireEvent.change(screen.getByLabelText(/^data e hora(?! de fim)/i), {
+      target: { value: localDateTimeString(new Date(FUTURE_AT)) },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/indique a data e hora de fim/i)).toBeInTheDocument();
+    });
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   it("volta para o returnTo (preserva vista/mês do calendário) em vez de /calendario fixo (regressão)", async () => {
@@ -216,11 +256,7 @@ describe("SessionForm — modo create", () => {
       />
     );
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -245,14 +281,8 @@ describe("SessionForm — modo create", () => {
     // regardless of where CI runs.
     const chosenLocal = new Date(Date.now() + 24 * 60 * 60 * 1000);
     chosenLocal.setSeconds(0, 0);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${chosenLocal.getFullYear()}-${pad(chosenLocal.getMonth() + 1)}-${pad(chosenLocal.getDate())}T${pad(chosenLocal.getHours())}:${pad(chosenLocal.getMinutes())}`;
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
-
-    const durationInput = screen.getByLabelText(/duração/i);
-    fireEvent.change(durationInput, { target: { value: "60" } });
+    fillSessionDates(chosenLocal.toISOString(), 60);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -272,11 +302,7 @@ describe("SessionForm — modo create", () => {
 
     render(<SessionForm mode="create" hasSeason={true} />);
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -305,11 +331,7 @@ describe("SessionForm — modo create", () => {
 
     render(<SessionForm mode="create" hasSeason={true} />);
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
     fireEvent.change(screen.getByLabelText(/durante quantas semanas/i), {
@@ -334,11 +356,7 @@ describe("SessionForm — modo create", () => {
 
     render(<SessionForm mode="create" hasSeason={true} />);
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
 
@@ -358,11 +376,7 @@ describe("SessionForm — modo create", () => {
 
     render(<SessionForm mode="create" hasSeason={true} />);
 
-    const datetimeInput = screen.getByLabelText(/data e hora/i);
-    const localDt = new Date(FUTURE_AT);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dtLocal = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`;
-    fireEvent.change(datetimeInput, { target: { value: dtLocal } });
+    fillSessionDates(FUTURE_AT);
 
     fireEvent.click(screen.getByLabelText(/repetir semanalmente/i));
     fireEvent.change(screen.getByLabelText(/durante quantas semanas/i), {
@@ -385,6 +399,13 @@ describe("SessionForm — modo edit", () => {
     expect(screen.getByText("Editar sessão")).toBeInTheDocument();
     const select = screen.getByLabelText(/tipo de sessão/i) as HTMLSelectElement;
     expect(select.value).toBe("training");
+
+    // "Data e hora de fim" vem pré-preenchida a partir de scheduled_at + duration_min
+    const endInput = screen.getByLabelText(/data e hora de fim/i) as HTMLInputElement;
+    const expectedEnd = new Date(
+      new Date(mockSession.scheduled_at).getTime() + mockSession.duration_min * 60_000
+    );
+    expect(endInput.value).toBe(localDateTimeString(expectedEnd));
   });
 
   it("desabilita formulário quando sessão está cancelada", () => {
