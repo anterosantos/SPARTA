@@ -392,10 +392,10 @@ describe("getTeamAggregateData", () => {
         { id: "p4", full_name: "P4", age_group: "senior" },
       ],
       attendance: [
-        { player_id: PLAYER_1, status: "present", session_id: "s1", sessions: { date: recentDate, type: "treino" } },
-        { player_id: PLAYER_2, status: "late", session_id: "s1", sessions: { date: recentDate, type: "treino" } },
-        { player_id: PLAYER_3, status: "absent", session_id: "s1", sessions: { date: recentDate, type: "treino" } },
-        { player_id: "p4", status: "injured", session_id: "s1", sessions: { date: recentDate, type: "treino" } },
+        { player_id: PLAYER_1, status: "present", session_id: "s1", sessions: { scheduled_at: recentDate, type: "training" } },
+        { player_id: PLAYER_2, status: "late", session_id: "s1", sessions: { scheduled_at: recentDate, type: "training" } },
+        { player_id: PLAYER_3, status: "absent", session_id: "s1", sessions: { scheduled_at: recentDate, type: "training" } },
+        { player_id: "p4", status: "injured", session_id: "s1", sessions: { scheduled_at: recentDate, type: "training" } },
       ],
     });
 
@@ -473,11 +473,11 @@ describe("getTeamAggregateData", () => {
     setupServiceRole({
       players: [{ id: PLAYER_1, full_name: "P1", age_group: "senior" }],
       events: [
-        { session_id: "s1", sessions: { date: day1, type: "jogo" } },
-        { session_id: "s1", sessions: { date: day1, type: "jogo" } },
-        { session_id: "s1", sessions: { date: day1, type: "jogo" } },
-        { session_id: "s2", sessions: { date: day2, type: "amigavel" } },
-        { session_id: "s2", sessions: { date: day2, type: "amigavel" } },
+        { session_id: "s1", sessions: { scheduled_at: day1, type: "match" } },
+        { session_id: "s1", sessions: { scheduled_at: day1, type: "match" } },
+        { session_id: "s1", sessions: { scheduled_at: day1, type: "match" } },
+        { session_id: "s2", sessions: { scheduled_at: day2, type: "friendly" } },
+        { session_id: "s2", sessions: { scheduled_at: day2, type: "friendly" } },
       ],
     });
 
@@ -489,8 +489,13 @@ describe("getTeamAggregateData", () => {
       expect(events).toHaveLength(2);
       const s1 = events.find((e) => e.sessionId === "s1");
       expect(s1?.eventCount).toBe(3);
+      // sessions.type real é inglês ("match") — output usa o vocabulário
+      // "jogo"/"amigavel" da UI (TeamAggregateFiltersSheet); esta é a conversão que
+      // faltava e deixava a query real sem devolver nada (usava "jogo" no filtro).
+      expect(s1?.sessionType).toBe("jogo");
       const s2 = events.find((e) => e.sessionId === "s2");
       expect(s2?.eventCount).toBe(2);
+      expect(s2?.sessionType).toBe("amigavel");
     }
   });
 

@@ -194,12 +194,14 @@ export async function getTeamAggregateData(): Promise<
         }
       ),
       // attendances + sessions — não é dado de saúde
+      // "sessions.date" não existe (a coluna real é scheduled_at) — esta query nunca
+      // devolvia linhas, daí "Sem dados de presença" mesmo com presenças registadas.
       serviceRole
         .from("attendances")
-        .select("player_id, status, session_id, sessions!inner(date, type)")
+        .select("player_id, status, session_id, sessions!inner(scheduled_at, type)")
         .eq("club_id", clubId)
         .in("player_id", playerIds)
-        .gte("sessions.date", since28.toISOString().slice(0, 10)),
+        .gte("sessions.scheduled_at", since28.toISOString()),
       // session_metrics por época (Top-3 carregados) — sRPE load data, not health data
       currentSeason?.id
         ? // eslint-disable-next-line custom/no-direct-health-data-read -- session_metrics is sRPE load data, not personal health data
@@ -211,14 +213,17 @@ export async function getTeamAggregateData(): Promise<
             .eq("sessions.season_id", currentSeason.id)
         : Promise.resolve({ data: [] as Array<{ player_id: string; srpe_load: number }>, error: null }),
       // match_events últimos 10 jogos/amigáveis — performance event data, not health data
+      // "sessions.date" não existe (coluna real: scheduled_at), e sessions.type usa os
+      // valores em inglês ("match"/"friendly"), não "jogo"/"amigavel" — esta query nunca
+      // encontrava nada, daí "Sem dados de eventos" mesmo com eventos capturados.
       // eslint-disable-next-line custom/no-direct-health-data-read -- match_events is performance data, not personal health data
       serviceRole
         .from("match_events")
-        .select("session_id, sessions!inner(date, type)")
+        .select("session_id, sessions!inner(scheduled_at, type)")
         .eq("club_id", clubId)
         .eq("is_deleted", false)
-        .in("sessions.type", ["jogo", "amigavel"])
-        .order("sessions.date", { ascending: false })
+        .in("sessions.type", ["match", "friendly"])
+        .order("sessions.scheduled_at", { ascending: false })
         .limit(10),
       // player_metrics — última leitura de peso/altura por jogador (vista "Equipa por posição").
       // Uma leitura pode ter só peso ou só altura (não ambos obrigatórios), por isso não
@@ -277,7 +282,7 @@ export async function getTeamAggregateData(): Promise<
     player_id: string;
     status: string;
     session_id: string;
-    sessions: { date: string; type: string };
+    sessions: { scheduled_at: string; type: string };
   };
   const attRows: AttRow[] =
     attendanceResult.status === "fulfilled" && !attendanceResult.value.error
@@ -286,9 +291,9 @@ export async function getTeamAggregateData(): Promise<
       : [];
   const weeklyAttendance = weekWindows.map((w) => {
     const bucket = attRows.filter((r) => {
-      const dateStr = r.sessions?.date;
+      const dateStr = r.sessions?.scheduled_at;
       if (!dateStr) return false;
-      const d = new Date(dateStr + "T00:00:00Z").getTime();
+      const d = new Date(dateStr).getTime();
       if (Number.isNaN(d)) return false;
       return d >= w.start.getTime() && d < w.end.getTime();
     });
@@ -379,7 +384,7 @@ export async function getTeamAggregateData(): Promise<
   // Eventos por jogo (últimos 10)
   type EventRow = {
     session_id: string;
-    sessions: { date: string; type: string };
+    sessions: { scheduled_at: string; type: string };
   };
   const eventRows: EventRow[] =
     eventsResult.status === "fulfilled" && !eventsResult.value.error
@@ -391,23 +396,31 @@ export async function getTeamAggregateData(): Promise<
     { date: string; type: string; count: number }
   >();
   for (const e of eventRows) {
-    if (!e.session_id || !e.sessions?.date) continue;
+    if (!e.session_id || !e.sessions?.scheduled_at) continue;
     const existing = eventsBySession.get(e.session_id);
     if (existing) {
       existing.count++;
     } else {
       eventsBySession.set(e.session_id, {
-        date: e.sessions.date,
+        // "YYYY-MM-DD" em Europe/Lisbon (AGENTS.md #10) — o gráfico usa
+        // sessionDate.slice(5) para mostrar "MM-DD" no eixo X.
+        date: new Date(e.sessions.scheduled_at).toLocaleDateString("en-CA", {
+          timeZone: "Europe/Lisbon",
+        }),
         type: e.sessions.type,
         count: 1,
       });
     }
   }
+  // sessions.type usa valores em inglês ("match"/"friendly") — o filtro da UI
+  // (TeamAggregateFiltersSheet) usa "jogo"/"amigavel" como vocabulário próprio;
+  // esta é a única conversão entre os dois, feita aqui para não espalhar por todo
+  // o lado o mapeamento inglês↔português.
   const eventsPerMatch = Array.from(eventsBySession.entries())
     .map(([sid, { date, type, count }]) => ({
       sessionId: sid,
       sessionDate: date,
-      sessionType: type as "jogo" | "amigavel",
+      sessionType: (type === "friendly" ? "amigavel" : "jogo") as "jogo" | "amigavel",
       eventCount: count,
     }))
     .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
