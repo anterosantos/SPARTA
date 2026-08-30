@@ -216,6 +216,9 @@ export async function getTeamAggregateData(): Promise<
       // "sessions.date" não existe (coluna real: scheduled_at), e sessions.type usa os
       // valores em inglês ("match"/"friendly"), não "jogo"/"amigavel" — esta query nunca
       // encontrava nada, daí "Sem dados de eventos" mesmo com eventos capturados.
+      // .order() por uma tabela associada não aceita "tabela.coluna" no nome da coluna
+      // (isso só é válido em .eq()/.gte()/.in()) — tem de ir na opção referencedTable,
+      // senão o Postgrest devolve erro e a query falha silenciosamente aqui.
       // eslint-disable-next-line custom/no-direct-health-data-read -- match_events is performance data, not personal health data
       serviceRole
         .from("match_events")
@@ -223,7 +226,7 @@ export async function getTeamAggregateData(): Promise<
         .eq("club_id", clubId)
         .eq("is_deleted", false)
         .in("sessions.type", ["match", "friendly"])
-        .order("sessions.scheduled_at", { ascending: false })
+        .order("scheduled_at", { ascending: false, referencedTable: "sessions" })
         .limit(10),
       // player_metrics — última leitura de peso/altura por jogador (vista "Equipa por posição").
       // Uma leitura pode ter só peso ou só altura (não ambos obrigatórios), por isso não
@@ -284,6 +287,11 @@ export async function getTeamAggregateData(): Promise<
     session_id: string;
     sessions: { scheduled_at: string; type: string };
   };
+  if (attendanceResult.status === "fulfilled" && attendanceResult.value.error) {
+    // Erro engolido em silêncio antes — só resultava num gráfico vazio, sem pista
+    // nenhuma de que a query tinha falhado.
+    console.error("[getTeamAggregateData] attendances query error:", attendanceResult.value.error);
+  }
   const attRows: AttRow[] =
     attendanceResult.status === "fulfilled" && !attendanceResult.value.error
       ? // Supabase TS SDK limitation: joined select types cannot be properly inferred at compile-time
@@ -386,6 +394,12 @@ export async function getTeamAggregateData(): Promise<
     session_id: string;
     sessions: { scheduled_at: string; type: string };
   };
+  if (eventsResult.status === "fulfilled" && eventsResult.value.error) {
+    // Erro engolido em silêncio antes — só resultava em "Sem dados de eventos", sem
+    // pista nenhuma de que a query tinha falhado (foi assim que o bug de sintaxe do
+    // .order() por tabela associada passou despercebido).
+    console.error("[getTeamAggregateData] match_events query error:", eventsResult.value.error);
+  }
   const eventRows: EventRow[] =
     eventsResult.status === "fulfilled" && !eventsResult.value.error
       ? // Supabase TS SDK limitation: joined select types cannot be properly inferred at compile-time
