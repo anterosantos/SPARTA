@@ -247,7 +247,7 @@ describe("getTeamAggregateData", () => {
         expect(pt.avgFatigue).toBe(0);
         expect(pt.sampleSize).toBe(0);
       }
-      expect(result.data.teamAcwr.points).toHaveLength(4);
+      expect(result.data.teamAcwr.points).toHaveLength(30);
       expect(result.data.teamAcwr.series).toHaveLength(0);
     }
   });
@@ -698,9 +698,10 @@ describe("getTeamAggregateData", () => {
   });
 
   describe("teamAcwr", () => {
-    it("agrega o snapshot mais recente por jogador/semana em pontos semanais", async () => {
+    it("agrega o snapshot mais recente por jogador/dia em pontos diários", async () => {
       setupAuth("coach", CLUB_A);
       const now = new Date();
+      const minutesAgo = (n: number) => new Date(now.getTime() - n * 60 * 1000).toISOString();
       const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
 
       setupServiceRole({
@@ -709,10 +710,10 @@ describe("getTeamAggregateData", () => {
           { id: PLAYER_2, full_name: "Ana Costa", age_group: "u19" },
         ],
         acwr: [
-          // PLAYER_1: dois snapshots na semana mais recente (0-7 dias) — fica o mais recente (1.4)
-          { player_id: PLAYER_1, acwr: 1.1, computed_at: daysAgo(5) },
-          { player_id: PLAYER_1, acwr: 1.4, computed_at: daysAgo(1) },
-          // PLAYER_2: um snapshot há 3 semanas
+          // PLAYER_1: dois snapshots no último dia — fica o mais recente (1.4)
+          { player_id: PLAYER_1, acwr: 1.1, computed_at: minutesAgo(120) },
+          { player_id: PLAYER_1, acwr: 1.4, computed_at: minutesAgo(10) },
+          // PLAYER_2: um snapshot há 20 dias
           { player_id: PLAYER_2, acwr: 0.9, computed_at: daysAgo(20) },
         ],
       });
@@ -721,10 +722,10 @@ describe("getTeamAggregateData", () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.data.teamAcwr.points).toHaveLength(4);
-        const lastWeek = result.data.teamAcwr.points[3];
-        expect(lastWeek?.[PLAYER_1]).toBe(1.4);
-        expect(lastWeek?.[PLAYER_2] ?? null).toBeNull();
+        expect(result.data.teamAcwr.points).toHaveLength(30);
+        const lastDay = result.data.teamAcwr.points[result.data.teamAcwr.points.length - 1];
+        expect(lastDay?.[PLAYER_1]).toBe(1.4);
+        expect(lastDay?.[PLAYER_2] ?? null).toBeNull();
 
         const series = result.data.teamAcwr.series;
         expect(series.map((s) => s.playerId).sort()).toEqual([PLAYER_1, PLAYER_2].sort());
@@ -817,7 +818,7 @@ describe("getTeamAcwrChart", () => {
     }
   });
 
-  it("range='30d' produz 4 pontos semanais", async () => {
+  it("range='30d' produz 30 pontos diários", async () => {
     setupAuth("coach", CLUB_A);
     setupServiceRole({
       players: [{ id: PLAYER_1, full_name: "João Silva", age_group: "senior" }],
@@ -828,7 +829,7 @@ describe("getTeamAcwrChart", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.points).toHaveLength(4);
+      expect(result.data.points).toHaveLength(30);
     }
   });
 

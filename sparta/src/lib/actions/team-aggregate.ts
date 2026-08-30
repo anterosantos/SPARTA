@@ -110,6 +110,10 @@ export async function getTeamAggregateData(): Promise<
 
   const now = new Date();
   const since28 = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+  // Gráfico "ACWR da equipa" — carregamento inicial usa sempre o intervalo
+  // "30d" (30 buckets diários); trocar de intervalo no cliente chama
+  // getTeamAcwrChart() em separado, que recalcula com buildAcwrBuckets().
+  const acwrBuckets30d = buildAcwrBuckets("30d", now, null);
 
   const weekWindows = Array.from({ length: 4 }, (_, i) => {
     const end = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
@@ -170,7 +174,7 @@ export async function getTeamAggregateData(): Promise<
       eventsPerMatch: [],
       squadFormation: [],
       teamAcwr: {
-        points: weekWindows.map((w) => ({
+        points: acwrBuckets30d.map((w) => ({
           weekLabel: w.label,
           weekStart: w.start.toISOString(),
         })),
@@ -271,7 +275,7 @@ export async function getTeamAggregateData(): Promise<
             .select("player_id, acwr, computed_at")
             .eq("club_id", clubId)
             .in("player_id", playerIds)
-            .gte("computed_at", since28.toISOString())
+            .gte("computed_at", acwrBuckets30d[0]!.start.toISOString())
             .order("computed_at", { ascending: true });
           if (error) throw error;
           return (data ?? []) as AcwrSnapshotRow[];
@@ -526,11 +530,8 @@ export async function getTeamAggregateData(): Promise<
     };
   });
 
-  // ACWR por jogador no gráfico "ACWR da equipa" — carregamento inicial usa
-  // sempre o intervalo "30d" (mesma janela de weekWindows); trocar de intervalo
-  // no cliente chama getTeamAcwrChart() em separado.
   const acwrRows: AcwrSnapshotRow[] = acwrResult.status === "fulfilled" ? acwrResult.value : [];
-  const teamAcwr = aggregateAcwrRows(acwrRows, weekWindows, playersArr);
+  const teamAcwr = aggregateAcwrRows(acwrRows, acwrBuckets30d, playersArr);
 
   return ok({
     weeklyFatigue,

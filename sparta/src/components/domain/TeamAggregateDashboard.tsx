@@ -12,6 +12,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 import { FileText, Grid3x3, TrendingUp } from "lucide-react";
@@ -24,6 +26,7 @@ import { TeamHeightFormation } from "@/components/domain/TeamHeightFormation";
 import { TeamAggregateFiltersSheet, DEFAULT_FILTERS } from "@/components/domain/TeamAggregateFiltersSheet";
 import type { TeamAggregateFilters } from "@/components/domain/TeamAggregateFiltersSheet";
 import { getTeamAcwrChart } from "@/lib/actions/team-aggregate";
+import { ACWR_THRESHOLDS } from "@/lib/readiness/thresholds";
 import type {
   TeamAggregateData,
   TopPlayerItem,
@@ -38,6 +41,12 @@ const ACWR_RANGE_OPTIONS: { value: AcwrChartRange; label: string }[] = [
   { value: "30d", label: "Último mês" },
   { value: "season", label: "Época toda" },
 ];
+
+// Banda segura ACWR de referência para a vista agregada da equipa (mistura
+// jogadores de vários escalões, cada um com o seu próprio limiar em
+// lib/readiness/thresholds.ts) — usa-se aqui o limiar mais conservador (u14,
+// 0.8–1.3), a "zona segura" genérica citada em Gabbett (2016).
+const ACWR_SAFE_BAND = ACWR_THRESHOLDS.u14;
 
 interface TeamAggregateDashboardProps {
   data: TeamAggregateData;
@@ -369,6 +378,10 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
             </div>
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            Banda segura ACWR: {ACWR_SAFE_BAND.lo}–{ACWR_SAFE_BAND.hi}
+          </p>
+
           {acwrError && (
             <p role="alert" className="text-xs text-destructive">
               {acwrError}
@@ -393,6 +406,17 @@ export function TeamAggregateDashboard({ data }: TeamAggregateDashboardProps) {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} allowDecimals />
+
+                    {/* Banda segura ACWR — mesmo padrão visual do gráfico por jogador (CargaAcwrTab) */}
+                    <ReferenceArea
+                      y1={ACWR_SAFE_BAND.lo}
+                      y2={ACWR_SAFE_BAND.hi}
+                      fill="#94a3b8"
+                      fillOpacity={0.15}
+                    />
+                    <ReferenceLine y={ACWR_SAFE_BAND.lo} stroke="#22c55e" strokeDasharray="4 2" strokeOpacity={0.5} />
+                    <ReferenceLine y={ACWR_SAFE_BAND.hi} stroke="#ef4444" strokeDasharray="4 2" strokeOpacity={0.5} />
+
                     <Tooltip
                       contentStyle={CHART_TOOLTIP_STYLE}
                       labelStyle={{ color: "var(--foreground)" }}

@@ -25,12 +25,14 @@ describe("buildAcwrBuckets", () => {
     expect(buckets[6]!.end.getTime()).toBe(now.getTime());
   });
 
-  it("'30d' devolve 4 buckets semanais com labels 'Sem 1'..'Sem 4'", () => {
+  it("'30d' devolve 30 buckets diários, do mais antigo para o mais recente", () => {
     const buckets = buildAcwrBuckets("30d", now, null);
-    expect(buckets.map((b) => b.label)).toEqual(["Sem 1", "Sem 2", "Sem 3", "Sem 4"]);
+    expect(buckets).toHaveLength(30);
+    expect(buckets[0]!.start.getTime()).toBeLessThan(buckets[29]!.start.getTime());
     for (const b of buckets) {
-      expect(b.end.getTime() - b.start.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+      expect(b.end.getTime() - b.start.getTime()).toBe(24 * 60 * 60 * 1000);
     }
+    expect(buckets[29]!.end.getTime()).toBe(now.getTime());
   });
 
   it("'season' devolve buckets mensais desde o início da época até agora", () => {

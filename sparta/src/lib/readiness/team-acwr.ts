@@ -44,34 +44,35 @@ type TimeBucket = { start: Date; end: Date; label: string };
  *
  * Granularidade escolhida para manter o gráfico legível:
  * - "7d": 7 buckets diários
- * - "30d": 4 buckets semanais (comportamento original do gráfico)
+ * - "30d": 30 buckets diários
  * - "season": 1 bucket por mês do calendário, do início da época actual até hoje
- *   (buckets semanais numa época inteira produziriam demasiadas linhas no eixo X)
+ *   (buckets diários/semanais numa época inteira produziriam demasiadas linhas
+ *   no eixo X)
  */
+function buildDailyBuckets(now: Date, days: number): TimeBucket[] {
+  return Array.from({ length: days }, (_, i) => {
+    const end = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+    const label = end.toLocaleDateString("pt-PT", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: "Europe/Lisbon",
+    });
+    return { start, end, label };
+  }).reverse();
+}
+
 export function buildAcwrBuckets(
   range: AcwrChartRange,
   now: Date,
   seasonStartDate: string | null
 ): TimeBucket[] {
   if (range === "7d") {
-    return Array.from({ length: 7 }, (_, i) => {
-      const end = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-      const label = end.toLocaleDateString("pt-PT", {
-        day: "2-digit",
-        month: "2-digit",
-        timeZone: "Europe/Lisbon",
-      });
-      return { start, end, label };
-    }).reverse();
+    return buildDailyBuckets(now, 7);
   }
 
   if (range === "30d") {
-    return Array.from({ length: 4 }, (_, i) => {
-      const end = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-      const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return { start, end, label: `Sem ${4 - i}` };
-    }).reverse();
+    return buildDailyBuckets(now, 30);
   }
 
   // "season" — buckets mensais alinhados ao calendário, do 1.º dia do mês de

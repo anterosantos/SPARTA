@@ -21,6 +21,8 @@ vi.mock("recharts", () => ({
   CartesianGrid: () => null,
   Tooltip: () => null,
   Legend: () => null,
+  ReferenceArea: () => null,
+  ReferenceLine: () => null,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="responsive-container">{children}</div>
   ),
@@ -71,6 +73,11 @@ describe("<TeamAggregateDashboard> — ACWR da equipa", () => {
   it("mostra estado vazio quando não há série de ACWR", () => {
     render(<TeamAggregateDashboard data={makeData()} />);
     expect(screen.getByText("Sem dados de ACWR")).toBeInTheDocument();
+  });
+
+  it("mostra a banda segura ACWR (0.8–1.3) mesmo sem série de dados", () => {
+    render(<TeamAggregateDashboard data={makeData()} />);
+    expect(screen.getByText("Banda segura ACWR: 0.8–1.3")).toBeInTheDocument();
   });
 
   it("renderiza uma linha por jogador quando há série de ACWR", () => {
