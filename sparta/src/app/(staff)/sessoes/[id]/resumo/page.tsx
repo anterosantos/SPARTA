@@ -43,7 +43,7 @@ export default async function MatchSummaryPage({ params }: PageProps) {
     throw new Error(result.error.message);
   }
 
-  const { session, score, goals, cards, players } = result.data;
+  const { session, score, goals, cards, players, actionTotals } = result.data;
 
   const date = new Date(session.scheduledAt);
   const dateLabel = date.toLocaleDateString("pt-PT", {
@@ -83,6 +83,33 @@ export default async function MatchSummaryPage({ params }: PageProps) {
             {score.own} — {score.opponent}
           </p>
           <p className="text-xs text-muted-foreground mt-1">Nós vs Adversário</p>
+        </section>
+
+        {/* Estatísticas da equipa — agregado de todos os eventos capturados na
+            captura de eventos, somados para toda a equipa (não por jogador). */}
+        <section>
+          <h3 className="text-sm font-semibold text-foreground mb-2">
+            Estatísticas da equipa
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {actionTotals.map((stat) => (
+              <div
+                key={stat.action}
+                className={`rounded-lg border p-3 text-center ${
+                  stat.positive
+                    ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20"
+                    : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20"
+                }`}
+              >
+                <p className="text-xl font-bold text-foreground tabular-nums">
+                  {stat.count}
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Golos */}

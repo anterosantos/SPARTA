@@ -17,6 +17,7 @@ import {
   DoorClosed,
 } from "lucide-react";
 import type { MatchAction } from "@/lib/stores/match-session";
+import { MATCH_ACTION_INFO } from "@/lib/schemas/match-events";
 import { cn } from "@/lib/utils";
 
 interface ActionButtonProps {
@@ -24,36 +25,34 @@ interface ActionButtonProps {
   onClick?: (action: MatchAction) => void;
 }
 
-const ACTIONS_MAP: Record<
-  MatchAction,
-  { label: string; icon: React.ComponentType<{ className?: string }>; positive: boolean }
-> = {
-  // Ações originais
-  ball_loss: { label: "Perda de bola", icon: RotateCcw, positive: false },
-  ball_recovery: { label: "Recuperação", icon: Zap, positive: true },
-  shot_total: { label: "Remate desenquadrado", icon: Target, positive: false },
-  shot_on_target: { label: "Remate enquadrado", icon: Crosshair, positive: true },
-  pass_completed: { label: "Passe completado", icon: TrendingUp, positive: true },
-  def_pressure: { label: "Pressão defensiva", icon: Shield, positive: false },
-  def_action_success: { label: "Ação def. com sucesso", icon: CheckCircle, positive: true },
-  off_action_success: { label: "Ação of. com sucesso", icon: ArrowUpRight, positive: true },
-  // Sprint 1.5 — novos tipos
-  goal: { label: "Golo", icon: Goal, positive: true },
-  card: { label: "Cartão", icon: SquareX, positive: false },
-  corner: { label: "Canto", icon: Flag, positive: false },
-  entry_opp_area: { label: "Entrada área adversária", icon: DoorOpen, positive: true },
-  entry_own_area: { label: "Entrada na nossa área", icon: DoorClosed, positive: false },
-  match_time_record: { label: "Tempos de jogo", icon: Target, positive: true },
+// Etiqueta e polaridade vêm de MATCH_ACTION_INFO (lib/schemas/match-events.ts) — fonte
+// única partilhada com o resumo do jogo. Só o ícone (componente React) é local.
+const ACTION_ICONS: Record<MatchAction, React.ComponentType<{ className?: string }>> = {
+  ball_loss: RotateCcw,
+  ball_recovery: Zap,
+  shot_total: Target,
+  shot_on_target: Crosshair,
+  pass_completed: TrendingUp,
+  def_pressure: Shield,
+  def_action_success: CheckCircle,
+  off_action_success: ArrowUpRight,
+  goal: Goal,
+  card: SquareX,
+  corner: Flag,
+  entry_opp_area: DoorOpen,
+  entry_own_area: DoorClosed,
+  match_time_record: Target,
 };
 
 export const ActionButton = forwardRef<
   HTMLButtonElement,
   ActionButtonProps
 >(({ action, onClick }, ref) => {
-  const actionInfo = ACTIONS_MAP[action];
-  if (!actionInfo) return null;
+  const actionInfo = MATCH_ACTION_INFO[action];
+  const Icon = ACTION_ICONS[action];
+  if (!actionInfo || !Icon) return null;
 
-  const { label, icon: Icon, positive } = actionInfo;
+  const { label, positive } = actionInfo;
   const color = positive
     ? "border-l-emerald-500"
     : "border-l-red-500";

@@ -3,8 +3,20 @@
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffRole } from "@/lib/actions/auth";
 import { auditedRead } from "@/lib/data/audited";
+import { MATCH_ACTIONS, MATCH_ACTION_INFO } from "@/lib/schemas/match-events";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
+
+// match_time_record não é uma estatística de jogo — é só um marcador usado para
+// calcular tempo útil/total (MatchTimeRecorders), por isso fica de fora do agregado.
+const AGGREGATE_ACTIONS = MATCH_ACTIONS.filter((a) => a !== "match_time_record");
+
+export interface MatchSummaryActionTotal {
+  action: string;
+  label: string;
+  count: number;
+  positive: boolean;
+}
 
 export interface MatchSummaryGoal {
   playerId: string | null;
@@ -44,6 +56,9 @@ export interface MatchSummaryData {
   goals: MatchSummaryGoal[];
   cards: MatchSummaryCard[];
   players: MatchSummaryPlayer[];
+  /** Todas as estatísticas capturadas, agregadas ao nível da equipa (soma de todos os
+   * jogadores) — não só golos/cartões. Ordem fixa de MATCH_ACTIONS. */
+  actionTotals: MatchSummaryActionTotal[];
 }
 
 /**
@@ -95,7 +110,6 @@ export async function getMatchSummary(
           .eq("session_id", sessionId)
           .eq("club_id", clubId)
           .eq("is_deleted", false)
-          .in("action", ["goal", "card"])
     ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (serviceRole.from as any)("match_lineups")
@@ -135,10 +149,12 @@ export async function getMatchSummary(
 
   const goals: MatchSummaryGoal[] = [];
   const cards: MatchSummaryCard[] = [];
+  const countByAction = new Map<string, number>();
   let ownGoals = 0;
   let opponentGoals = 0;
 
   for (const e of eventsRes.data ?? []) {
+    countByAction.set(e.action, (countByAction.get(e.action) ?? 0) + 1);
     const context = (e.context ?? {}) as Record<string, unknown>;
     if (e.action === "goal") {
       const team: "own" | "opponent" = context.team === "opponent" ? "opponent" : "own";
@@ -164,6 +180,13 @@ export async function getMatchSummary(
   }
 
   goals.sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+
+  const actionTotals: MatchSummaryActionTotal[] = AGGREGATE_ACTIONS.map((action) => ({
+    action,
+    label: MATCH_ACTION_INFO[action].label,
+    count: countByAction.get(action) ?? 0,
+    positive: MATCH_ACTION_INFO[action].positive,
+  }));
 
   const players: MatchSummaryPlayer[] = (lineupsRes.data ?? [])
     .map((l) => ({
@@ -192,5 +215,6 @@ export async function getMatchSummary(
     goals,
     cards,
     players,
+    actionTotals,
   });
 }

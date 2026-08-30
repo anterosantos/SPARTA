@@ -18,6 +18,31 @@ export const MATCH_ACTIONS = [
   "match_time_record",
 ] as const;
 
+/**
+ * Etiqueta (PT) e polaridade (positivo=verde/negativo=vermelho) de cada tipo de
+ * evento — fonte única partilhada entre o botão de captura (ActionButton, ícone à
+ * parte) e o resumo do jogo (agregado da equipa), para nunca divergirem.
+ */
+export const MATCH_ACTION_INFO: Record<
+  (typeof MATCH_ACTIONS)[number],
+  { label: string; positive: boolean }
+> = {
+  ball_loss: { label: "Perda de bola", positive: false },
+  ball_recovery: { label: "Recuperação", positive: true },
+  shot_total: { label: "Remate desenquadrado", positive: false },
+  shot_on_target: { label: "Remate enquadrado", positive: true },
+  pass_completed: { label: "Passe completado", positive: true },
+  def_pressure: { label: "Pressão defensiva", positive: false },
+  def_action_success: { label: "Ação def. com sucesso", positive: true },
+  off_action_success: { label: "Ação of. com sucesso", positive: true },
+  goal: { label: "Golo", positive: true },
+  card: { label: "Cartão", positive: false },
+  corner: { label: "Canto", positive: false },
+  entry_opp_area: { label: "Entrada área adversária", positive: true },
+  entry_own_area: { label: "Entrada na nossa área", positive: false },
+  match_time_record: { label: "Tempos de jogo", positive: true },
+};
+
 // Ações que requerem 4.º ecrã de contexto
 export const CONTEXT_ACTIONS = ["goal", "card"] as const;
 export type ContextAction = (typeof CONTEXT_ACTIONS)[number];
