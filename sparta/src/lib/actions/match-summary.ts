@@ -11,11 +11,20 @@ import type { Result, AppError } from "@/lib/types";
 // calcular tempo útil/total (MatchTimeRecorders), por isso fica de fora do agregado.
 const AGGREGATE_ACTIONS = MATCH_ACTIONS.filter((a) => a !== "match_time_record");
 
+export interface MatchSummaryActionEvent {
+  playerName: string | null;
+  jerseyNum: number | null;
+  zone: string;
+}
+
 export interface MatchSummaryActionTotal {
   action: string;
   label: string;
   count: number;
   positive: boolean;
+  /** Um item por evento capturado deste tipo — jogador + zona do campo, por
+   * ordem cronológica — para a lista de detalhe ao clicar na estatística. */
+  events: MatchSummaryActionEvent[];
 }
 
 export interface MatchSummaryGoal {
@@ -106,10 +115,15 @@ export async function getMatchSummary(
         // eslint-disable-next-line custom/no-direct-health-data-read -- inside auditedRead() callback; audit logging handled by wrapper
         serviceRole
           .from("match_events")
-          .select("id, action, player_id, context")
+          .select("id, action, player_id, zone, context, occurred_at")
           .eq("session_id", sessionId)
           .eq("club_id", clubId)
           .eq("is_deleted", false)
+          // Ordem cronológica real de captura — os golos/cartões chegavam
+          // fora de ordem porque dependiam do campo opcional "minute" do
+          // contexto (muitas vezes ausente), em vez da ordem em que
+          // aconteceram de facto.
+          .order("occurred_at", { ascending: true })
     ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (serviceRole.from as any)("match_lineups")
@@ -150,11 +164,19 @@ export async function getMatchSummary(
   const goals: MatchSummaryGoal[] = [];
   const cards: MatchSummaryCard[] = [];
   const countByAction = new Map<string, number>();
+  const eventsByAction = new Map<string, MatchSummaryActionEvent[]>();
   let ownGoals = 0;
   let opponentGoals = 0;
 
   for (const e of eventsRes.data ?? []) {
     countByAction.set(e.action, (countByAction.get(e.action) ?? 0) + 1);
+    const actionEvents = eventsByAction.get(e.action) ?? [];
+    actionEvents.push({
+      playerName: e.player_id ? (nameByPlayer.get(e.player_id) ?? null) : null,
+      jerseyNum: e.player_id ? (jerseyByPlayer.get(e.player_id) ?? null) : null,
+      zone: e.zone,
+    });
+    eventsByAction.set(e.action, actionEvents);
     const context = (e.context ?? {}) as Record<string, unknown>;
     if (e.action === "goal") {
       const team: "own" | "opponent" = context.team === "opponent" ? "opponent" : "own";
@@ -179,13 +201,12 @@ export async function getMatchSummary(
     }
   }
 
-  goals.sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-
   const actionTotals: MatchSummaryActionTotal[] = AGGREGATE_ACTIONS.map((action) => ({
     action,
     label: MATCH_ACTION_INFO[action].label,
     count: countByAction.get(action) ?? 0,
     positive: MATCH_ACTION_INFO[action].positive,
+    events: eventsByAction.get(action) ?? [],
   }));
 
   const players: MatchSummaryPlayer[] = (lineupsRes.data ?? [])

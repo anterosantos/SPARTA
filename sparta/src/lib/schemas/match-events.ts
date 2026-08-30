@@ -69,6 +69,23 @@ export const MATCH_ZONES = [
   "att_right",
 ] as const;
 
+// Etiqueta (PT) de cada zona — fonte única partilhada entre o ring de eventos
+// recentes, a lista de revisão e o resumo do jogo.
+export const MATCH_ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
+  def_left: "Defesa esquerda",
+  def_center: "Defesa centro",
+  def_right: "Defesa direita",
+  mid_def_left: "MC defensivo esq.",
+  mid_def_center: "MC defensivo centro",
+  mid_def_right: "MC defensivo dir.",
+  mid_att_left: "MC ofensivo esq.",
+  mid_att_center: "MC ofensivo centro",
+  mid_att_right: "MC ofensivo dir.",
+  att_left: "Ataque esquerda",
+  att_center: "Ataque centro",
+  att_right: "Ataque direita",
+};
+
 // Contexto para golos (FR27a)
 export const GoalContextSchema = z.object({
   play_type: z.enum(["corner", "open_play", "free_kick", "other"]),

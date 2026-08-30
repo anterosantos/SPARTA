@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getMatchSummary } from "@/lib/actions/match-summary";
 import { StickyHeader } from "@/components/patterns/StickyHeader";
 import { sessionLabelWithOpponent } from "@/lib/constants/session-colors";
+import { TeamStatsGrid } from "@/components/domain/match-summary/team-stats-grid";
 
 export const metadata = { title: "Resumo do jogo" };
 
@@ -86,30 +87,13 @@ export default async function MatchSummaryPage({ params }: PageProps) {
         </section>
 
         {/* Estatísticas da equipa — agregado de todos os eventos capturados na
-            captura de eventos, somados para toda a equipa (não por jogador). */}
+            captura de eventos, somados para toda a equipa (não por jogador).
+            Clicável: mostra jogador + zona do campo de cada evento. */}
         <section>
           <h3 className="text-sm font-semibold text-foreground mb-2">
             Estatísticas da equipa
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {actionTotals.map((stat) => (
-              <div
-                key={stat.action}
-                className={`rounded-lg border p-3 text-center ${
-                  stat.positive
-                    ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20"
-                    : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20"
-                }`}
-              >
-                <p className="text-xl font-bold text-foreground tabular-nums">
-                  {stat.count}
-                </p>
-                <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
+          <TeamStatsGrid stats={actionTotals} />
         </section>
 
         {/* Golos */}
