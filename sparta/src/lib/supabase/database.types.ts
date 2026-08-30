@@ -2088,9 +2088,11 @@ export type Database = {
       match_minutes_played: {
         Row: {
           duration_min: number | null
+          ended_minute: number | null
           minutes_played: number | null
           player_id: string | null
           session_id: string | null
+          started_minute: number | null
         }
         Relationships: [
           {
