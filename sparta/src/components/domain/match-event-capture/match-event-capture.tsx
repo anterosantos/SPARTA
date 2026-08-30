@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, ArrowLeftRight, Flag, Timer, Maximize2, Minimize2 } from "lucide-react";
+import { RefreshCw, ArrowLeftRight, Flag, Timer, Hourglass, Maximize2, Minimize2 } from "lucide-react";
 import {
   useMatchSession,
   useSelectedPlayer,
+  useSelectedAction,
+  useIsOpponentEvent,
   useLastActionPolarity,
 } from "@/lib/stores/match-session";
 import { PlayerGrid } from "./player-grid";
@@ -20,6 +22,9 @@ import { useMatchOutboxDrain } from "@/hooks/useMatchOutboxDrain";
 import { closeMatchRecord } from "@/lib/actions/substitutions";
 import { getLineupForSession } from "@/lib/actions/lineups";
 import type { MatchLineupWithPlayerData } from "@/lib/actions/lineups";
+import { submitMatchEvent } from "@/lib/actions/events";
+import { newId } from "@/lib/uuid";
+import { MATCH_ACTION_INFO } from "@/lib/schemas/match-events";
 import { cn } from "@/lib/utils";
 
 interface MatchEventCaptureProps {
@@ -32,14 +37,18 @@ interface MatchEventCaptureProps {
 export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithinEditWindow = true }: MatchEventCaptureProps) {
   const router = useRouter();
   const selectedPlayer = useSelectedPlayer();
+  const selectedAction = useSelectedAction();
+  const isOpponentEvent = useIsOpponentEvent();
   const lastPolarity = useLastActionPolarity();
-  const { clearSelection } = useMatchSession();
+  const { clearSelection, addRecentEvent } = useMatchSession();
   const { pendingCount, isDraining, drain } = useMatchOutboxDrain();
   const [isSubSheetOpen, setIsSubSheetOpen] = useState(false);
   const [showTimeRecorders, setShowTimeRecorders] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMarkingHalfTime, setIsMarkingHalfTime] = useState(false);
+  const [halfTimeError, setHalfTimeError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Titulares só são escolhidos aqui, no início da captura — não na Convocatória
@@ -104,10 +113,41 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const handleMarkHalfTime = async () => {
+    if (isMarkingHalfTime) return;
+    const confirmed = window.confirm("Marcar fim da 1ª parte / início da 2ª parte?");
+    if (!confirmed) return;
+    setIsMarkingHalfTime(true);
+    setHalfTimeError(null);
+    const payload = {
+      id: newId(),
+      session_id: sessionId,
+      action: "half_time" as const,
+      zone: "mid_def_center" as const,
+      player_id: null,
+      occurred_at: new Date().toISOString(),
+      captured_via: "online" as const,
+      context: null,
+    };
+    const result = await submitMatchEvent(payload);
+    if (!result.ok) {
+      setHalfTimeError(result.error.message);
+    } else {
+      addRecentEvent({
+        id: payload.id,
+        action: "half_time",
+        zone: payload.zone,
+        jersey_number: null,
+        occurred_at: payload.occurred_at,
+      });
+    }
+    setIsMarkingHalfTime(false);
+  };
+
   const headerBg =
-    selectedPlayer && lastPolarity === "negative"
+    selectedAction && lastPolarity === "negative"
       ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-      : selectedPlayer
+      : selectedAction
         ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
         : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800";
 
@@ -147,19 +187,25 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
           headerBg
         )}
       >
-        {selectedPlayer ? (
+        {selectedAction ? (
           <>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">
-                {selectedPlayer.name} • nº {selectedPlayer.jersey_number}
+                {MATCH_ACTION_INFO[selectedAction].label}
+                {selectedPlayer && ` • ${selectedPlayer.name} nº ${selectedPlayer.jersey_number}`}
+                {isOpponentEvent && " • Adversário"}
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400 truncate">
-                {selectedPlayer.position}
+                {selectedPlayer
+                  ? selectedPlayer.position
+                  : isOpponentEvent
+                    ? "Evento sem jogador"
+                    : "Selecione um jogador"}
               </div>
             </div>
             <button
               onClick={() => clearSelection()}
-              aria-label="Trocar jogador"
+              aria-label="Trocar evento"
               className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0"
             >
               <RefreshCw className="w-5 h-5" />
@@ -167,7 +213,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
           </>
         ) : (
           <div className="text-sm text-slate-500 flex-1">
-            Selecione um jogador
+            Selecione um evento
           </div>
         )}
         <PendingBadge
@@ -195,6 +241,15 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         </button>
         <button
           type="button"
+          onClick={() => void handleMarkHalfTime()}
+          disabled={isMarkingHalfTime}
+          aria-label="Marcar fim da 1ª parte / início da 2ª parte"
+          className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center disabled:opacity-50"
+        >
+          <Hourglass className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
           onClick={handleCloseMatch}
           aria-label="Encerrar registo de jogo"
           className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -215,6 +270,11 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
           <p className="text-xs text-red-700 dark:text-red-300">{closeError}</p>
         </div>
       )}
+      {halfTimeError && (
+        <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+          <p className="text-xs text-red-700 dark:text-red-300">{halfTimeError}</p>
+        </div>
+      )}
 
       {/* Tempos de jogo (T1.5.11) — colapsável */}
       {showTimeRecorders && (
@@ -223,12 +283,12 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
         </div>
       )}
 
-      {/* Body */}
+      {/* Body — fluxo Evento → Jogador → Zona */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {!selectedPlayer ? (
-          <PlayerGrid sessionId={sessionId} refreshTrigger={refreshTrigger} />
-        ) : (
+        {!selectedAction ? (
           <ActionList />
+        ) : (
+          <PlayerGrid sessionId={sessionId} refreshTrigger={refreshTrigger} />
         )}
       </div>
 

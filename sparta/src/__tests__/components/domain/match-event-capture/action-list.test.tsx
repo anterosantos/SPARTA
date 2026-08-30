@@ -8,11 +8,13 @@ describe("<ActionList>", () => {
     useMatchSession.setState({ selectedPlayer: null, selectedAction: null, lastActionPolarity: null });
   });
 
-  // Sprint 1.5: ActionList tem 8 ações standard + 5 eventos especiais + 1 trocar jogador = 14
-  it("renderiza 14 botões de ação (8 standard + 5 eventos especiais + trocar jogador)", () => {
+  // ActionList é agora o primeiro ecrã (fluxo Evento→Jogador→Zona) — 8 ações
+  // standard + 5 eventos especiais, sem botão de trocar jogador (não há ainda
+  // jogador seleccionado nesta fase)
+  it("renderiza 13 botões de ação (8 standard + 5 eventos especiais)", () => {
     render(<ActionList />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(14);
+    expect(buttons).toHaveLength(13);
   });
 
   it("inclui label 'Perda de bola'", () => {

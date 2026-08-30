@@ -38,6 +38,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({
       selectedPlayer: null,
       selectedAction: null,
+      isOpponentEvent: false,
       lastActionPolarity: null,
     });
     vi.mocked(submitMatchEvent).mockResolvedValue({ ok: true, data: { id: "test-uuid-v7" } });
@@ -81,7 +82,7 @@ describe("<ZoneSelectorSheet>", () => {
     });
   });
 
-  it("limpa selectedAction mas mantém selectedPlayer após submit com sucesso (sticky player)", async () => {
+  it("limpa selectedPlayer mas mantém selectedAction após submit com sucesso (sticky action)", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_recovery" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
@@ -89,8 +90,40 @@ describe("<ZoneSelectorSheet>", () => {
 
     await waitFor(() => {
       const state = useMatchSession.getState();
-      expect(state.selectedPlayer).toEqual(mockPlayer);
-      expect(state.selectedAction).toBeNull();
+      expect(state.selectedPlayer).toBeNull();
+      expect(state.selectedAction).toBe("ball_recovery");
+    });
+  });
+
+  it("renderiza quando isOpponentEvent e action estão selecionados (sem jogador)", () => {
+    useMatchSession.setState({ selectedPlayer: null, isOpponentEvent: true, selectedAction: "corner" });
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("chama submitMatchEvent com player_id null para evento do adversário", async () => {
+    useMatchSession.setState({ selectedPlayer: null, isOpponentEvent: true, selectedAction: "corner" });
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+
+    await waitFor(() => {
+      expect(submitMatchEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ player_id: null, action: "corner", zone: "def_left" })
+      );
+    });
+  });
+
+  it("limpa isOpponentEvent após submit de evento do adversário com sucesso", async () => {
+    useMatchSession.setState({ selectedPlayer: null, isOpponentEvent: true, selectedAction: "corner" });
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+
+    await waitFor(() => {
+      const state = useMatchSession.getState();
+      expect(state.isOpponentEvent).toBe(false);
+      expect(state.selectedAction).toBe("corner");
     });
   });
 

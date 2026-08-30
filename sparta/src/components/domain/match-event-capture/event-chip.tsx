@@ -16,6 +16,7 @@ import {
   DoorOpen,
   DoorClosed,
   Timer,
+  Hourglass,
 } from "lucide-react";
 import type { RecentEventEntry, MatchAction } from "@/lib/stores/match-session";
 import type { MATCH_ZONES } from "@/lib/schemas/match-events";
@@ -37,6 +38,7 @@ const ACTION_ICON: Record<MatchAction, React.ElementType> = {
   entry_opp_area: DoorOpen,
   entry_own_area: DoorClosed,
   match_time_record: Timer,
+  half_time: Hourglass,
 };
 
 const ACTION_LABEL: Record<MatchAction, string> = {
@@ -55,6 +57,7 @@ const ACTION_LABEL: Record<MatchAction, string> = {
   entry_opp_area: "Entrada área adv.",
   entry_own_area: "Entrada nossa área",
   match_time_record: "Tempos de jogo",
+  half_time: "Intervalo",
 };
 
 const ZONE_ABBR: Record<(typeof MATCH_ZONES)[number], string> = {
@@ -101,9 +104,10 @@ export function EventChip({ entry, onDelete, isDeleting, isWithinEditWindow = tr
   const zoneAbbr = ZONE_ABBR[entry.zone];
   const actionLabel = ACTION_LABEL[entry.action];
   const zoneLabel = ZONE_LABEL[entry.zone];
+  const jerseyDisplay = entry.jersey_number !== null ? `#${entry.jersey_number}` : "ADV";
 
-  const chipAriaLabel = `${actionLabel}, #${entry.jersey_number}, ${zoneLabel}`;
-  const deleteAriaLabel = `Remover evento: ${actionLabel} #${entry.jersey_number} ${zoneLabel}`;
+  const chipAriaLabel = `${actionLabel}, ${jerseyDisplay}, ${zoneLabel}`;
+  const deleteAriaLabel = `Remover evento: ${actionLabel} ${jerseyDisplay} ${zoneLabel}`;
 
   if (isConfirming) {
     return (
@@ -150,7 +154,7 @@ export function EventChip({ entry, onDelete, isDeleting, isWithinEditWindow = tr
     >
       <Icon className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
       <span className="font-mono text-xs whitespace-nowrap">
-        #{entry.jersey_number} {zoneAbbr}
+        {jerseyDisplay} {zoneAbbr}
       </span>
     </button>
   );

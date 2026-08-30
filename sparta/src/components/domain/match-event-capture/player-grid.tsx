@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { PlayerButton } from "./player-button";
 import { useMatchSession } from "@/lib/stores/match-session";
 import { getLineupForSession } from "@/lib/actions/lineups";
@@ -16,6 +17,8 @@ export function PlayerGrid({ sessionId, refreshTrigger = 0 }: PlayerGridProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const setSelectedPlayer = useMatchSession((s) => s.setSelectedPlayer);
+  const setOpponentEvent = useMatchSession((s) => s.setOpponentEvent);
+  const clearSelection = useMatchSession((s) => s.clearSelection);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,6 +90,30 @@ export function PlayerGrid({ sessionId, refreshTrigger = 0 }: PlayerGridProps) {
             onClick={() => setSelectedPlayer(player)}
           />
         ))}
+        {/* Registar evento sem jogador — acção do adversário */}
+        <button
+          type="button"
+          onClick={() => setOpponentEvent(true)}
+          aria-label="Adversário — evento sem jogador"
+          className="w-full h-full rounded-lg border-l-4 border-l-orange-400 border-r border-t border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 cursor-pointer"
+        >
+          <ShieldAlert className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+          <span className="text-xs text-center font-medium px-2 text-orange-700 dark:text-orange-300">
+            Adversário
+          </span>
+        </button>
+        {/* Voltar à lista de eventos */}
+        <button
+          type="button"
+          onClick={clearSelection}
+          aria-label="Trocar evento"
+          className="w-full h-full rounded-lg border-l-4 border-l-yellow-400 border-r border-t border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+          <span className="text-xs text-center font-medium px-2 text-yellow-700 dark:text-yellow-300">
+            Trocar evento
+          </span>
+        </button>
       </div>
     </div>
   );

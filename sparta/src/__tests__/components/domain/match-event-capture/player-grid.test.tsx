@@ -32,10 +32,10 @@ describe("<PlayerGrid>", () => {
     vi.mocked(getLineupForSession).mockResolvedValue({ ok: true, data: mockPlayers });
   });
 
-  it("renderiza 11 botões de jogadores", async () => {
+  it("renderiza 11 botões de jogadores + Adversário + Trocar evento", async () => {
     render(<PlayerGrid sessionId="session-1" />);
     const buttons = await screen.findAllByRole("button");
-    expect(buttons).toHaveLength(11);
+    expect(buttons).toHaveLength(13);
   });
 
   it("desabilita botão para jogador com processing_restricted", async () => {
@@ -78,5 +78,22 @@ describe("<PlayerGrid>", () => {
     await screen.findAllByRole("button");
     expect(getLineupForSession).toHaveBeenCalledTimes(1);
     expect(getLineupForSession).toHaveBeenCalledWith("session-1");
+  });
+
+  it("botão Adversário activa isOpponentEvent e limpa selectedPlayer", async () => {
+    render(<PlayerGrid sessionId="session-1" />);
+    const button = await screen.findByRole("button", { name: "Adversário — evento sem jogador" });
+    button.click();
+    expect(useMatchSession.getState().isOpponentEvent).toBe(true);
+    expect(useMatchSession.getState().selectedPlayer).toBeNull();
+  });
+
+  it("botão Trocar evento limpa toda a seleção", async () => {
+    render(<PlayerGrid sessionId="session-1" />);
+    useMatchSession.setState({ selectedAction: "ball_loss" });
+    const button = await screen.findByRole("button", { name: "Trocar evento" });
+    button.click();
+    expect(useMatchSession.getState().selectedAction).toBeNull();
+    expect(useMatchSession.getState().selectedPlayer).toBeNull();
   });
 });

@@ -173,8 +173,8 @@ function buildServiceRoleForDelete(opts: {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("MATCH_ACTIONS e MATCH_ZONES — enums exportados", () => {
-  it("MATCH_ACTIONS tem 14 acções (8 originais + 6 Sprint 1.5)", () => {
-    expect(MATCH_ACTIONS).toHaveLength(14);
+  it("MATCH_ACTIONS tem 15 acções (8 originais + 6 Sprint 1.5 + half_time)", () => {
+    expect(MATCH_ACTIONS).toHaveLength(15);
   });
 
   it("MATCH_ZONES tem 12 zonas", () => {
@@ -390,6 +390,39 @@ describe("submitMatchEvent", () => {
 
     expect(result.ok).toBe(true);
   });
+
+  // ── Eventos sem jogador (acção do adversário / marcador de intervalo) ───────
+
+  it("aceita player_id null e salta verificação de convocatória/processing_restricted", async () => {
+    setupAuth();
+    mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
+
+    const result = await submitMatchEvent(makePayload({ player_id: null, action: "corner" }));
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("aceita action='half_time' com player_id null", async () => {
+    setupAuth();
+    mockGetServiceRoleClient.mockReturnValue(buildServiceRoleForSubmit());
+
+    const result = await submitMatchEvent(
+      makePayload({ player_id: null, action: "half_time" })
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("player_id null mesmo com convocatória/processing_restricted inválidos ainda tem sucesso (verificação saltada)", async () => {
+    setupAuth();
+    mockGetServiceRoleClient.mockReturnValue(
+      buildServiceRoleForSubmit({ lineupData: null, playerData: null })
+    );
+
+    const result = await submitMatchEvent(makePayload({ player_id: null, action: "goal" }));
+
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("deleteMatchEvent", () => {
@@ -595,6 +628,31 @@ describe("getRecentMatchEvents", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("unauthorized");
+    }
+  });
+
+  it("evento com player_id null (adversário/intervalo) retorna jersey_number null", async () => {
+    setupAuth();
+    mockGetServiceRoleClient.mockReturnValue(
+      buildServiceRoleForRecentEvents({
+        eventsData: [
+          {
+            id: EVENT_UUID,
+            action: "half_time",
+            zone: "mid_def_center",
+            occurred_at: "2026-05-30T15:00:00Z",
+            player_id: null,
+          },
+        ],
+      })
+    );
+
+    const result = await getRecentMatchEvents(SESSION_UUID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data[0]?.jersey_number).toBeNull();
+      expect(result.data[0]?.action).toBe("half_time");
     }
   });
 });

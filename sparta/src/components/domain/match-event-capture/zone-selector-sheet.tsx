@@ -8,6 +8,7 @@ import {
   useMatchSession,
   useSelectedPlayer,
   useSelectedAction,
+  useIsOpponentEvent,
   type RecentEventEntry,
 } from "@/lib/stores/match-session";
 import { submitMatchEvent } from "@/lib/actions/events";
@@ -39,7 +40,7 @@ function createRecentEventEntry(
         id: string;
         action: string;
         zone: (typeof MATCH_ZONES)[number];
-        player_id: string;
+        player_id: string | null;
         session_id: string;
         occurred_at: string;
         captured_via: "online" | "offline-drain";
@@ -48,14 +49,14 @@ function createRecentEventEntry(
   zone: (typeof MATCH_ZONES)[number],
   selectedPlayer: {
     jersey_number: number;
-  }
+  } | null
 ): RecentEventEntry {
   return {
     id: payload.id,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     action: selectedAction as any,
     zone,
-    jersey_number: selectedPlayer.jersey_number,
+    jersey_number: selectedPlayer ? selectedPlayer.jersey_number : null,
     occurred_at: payload.occurred_at,
   };
 }
@@ -63,7 +64,8 @@ function createRecentEventEntry(
 export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneSelectorSheetProps) {
   const selectedPlayer = useSelectedPlayer();
   const selectedAction = useSelectedAction();
-  const { clearAction, clearSelection } = useMatchSession();
+  const isOpponentEvent = useIsOpponentEvent();
+  const { clearPlayer, clearSelection } = useMatchSession();
   const addRecentEvent = useMatchSession((s) => s.addRecentEvent);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, startTransition] = useTransition();
@@ -78,7 +80,8 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
     selectedAction !== null &&
     requiresContext(selectedAction);
 
-  const isOpen = selectedAction !== null && selectedPlayer !== null;
+  const isOpen =
+    selectedAction !== null && (selectedPlayer !== null || isOpponentEvent);
 
   // Focus first zone cell when sheet opens
   useEffect(() => {
@@ -92,7 +95,8 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
     zone: (typeof MATCH_ZONES)[number],
     context?: GoalContext | CardContext
   ) => {
-    if (!selectedPlayer || !selectedAction) return;
+    if (!selectedAction) return;
+    if (!selectedPlayer && !isOpponentEvent) return;
 
     setError(null);
     setIsSubmitting(true);
@@ -106,7 +110,7 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
       id: newId(),
       action: selectedAction,
       zone,
-      player_id: selectedPlayer.player_id,
+      player_id: selectedPlayer ? selectedPlayer.player_id : null,
       session_id: sessionId,
       occurred_at: captureTime.toISOString(),
       captured_via: isOnline ? ("online" as const) : ("offline-drain" as const),
@@ -116,11 +120,11 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
     try {
       if (!isOnline) {
         await enqueueMutation("match-event.submit", payload);
-        if (!selectedPlayer || !selectedAction) return;
+        if (!selectedAction) return;
         const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
         addRecentEvent(recentEntry);
         const polarity = POSITIVE_ACTIONS.has(selectedAction) ? "positive" : "negative";
-        startTransition(() => clearAction(polarity));
+        startTransition(() => clearPlayer(polarity));
         return;
       }
 
@@ -132,7 +136,7 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
         const isRetryable = result.error.code === "unknown";
         if (isRetryable) {
           await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
-          if (!selectedPlayer || !selectedAction) return;
+          if (!selectedAction) return;
           const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
           addRecentEvent(recentEntry);
           setError("Erro ao registar — evento guardado para sincronização posterior.");
@@ -142,11 +146,11 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
         return;
       }
 
-      if (!selectedPlayer || !selectedAction) return;
+      if (!selectedAction) return;
       const recentEntry = createRecentEventEntry(payload, selectedAction, zone, selectedPlayer);
       addRecentEvent(recentEntry);
       const polarity = POSITIVE_ACTIONS.has(selectedAction) ? "positive" : "negative";
-      startTransition(() => clearAction(polarity));
+      startTransition(() => clearPlayer(polarity));
     } catch (err) {
       try {
         await enqueueMutation("match-event.submit", { ...payload, captured_via: "offline-drain" });
@@ -162,7 +166,8 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
   };
 
   const handleZoneSelect = async (zone: (typeof MATCH_ZONES)[number]) => {
-    if (!selectedPlayer || !selectedAction) return;
+    if (!selectedAction) return;
+    if (!selectedPlayer && !isOpponentEvent) return;
     if (isSubmitting) return;
 
     // Para goal/card: guardar zona e mostrar 4.º ecrã de contexto

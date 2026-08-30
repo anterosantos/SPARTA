@@ -15,6 +15,7 @@ import {
   Flag,
   DoorOpen,
   DoorClosed,
+  Hourglass,
 } from "lucide-react";
 import type { MatchAction } from "@/lib/stores/match-session";
 import { MATCH_ACTION_INFO } from "@/lib/schemas/match-events";
@@ -42,6 +43,7 @@ const ACTION_ICONS: Record<MatchAction, React.ComponentType<{ className?: string
   entry_opp_area: DoorOpen,
   entry_own_area: DoorClosed,
   match_time_record: Target,
+  half_time: Hourglass,
 };
 
 export const ActionButton = forwardRef<

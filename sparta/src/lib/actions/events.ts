@@ -74,42 +74,46 @@ export async function submitMatchEvent(
     });
   }
 
-  // Verificar player em match_lineups para a sessão (tabela sem tipos — usar any)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: lineup } = await (serviceRole.from as any)("match_lineups")
-    .select("player_id")
-    .eq("session_id", validated.data.session_id)
-    .eq("player_id", validated.data.player_id)
-    .maybeSingle();
+  // player_id null = evento sem jogador (ex: acção do adversário, marcador de
+  // intervalo) — sem convocatória nem processing_restricted para validar.
+  if (validated.data.player_id !== null) {
+    // Verificar player em match_lineups para a sessão (tabela sem tipos — usar any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lineup } = await (serviceRole.from as any)("match_lineups")
+      .select("player_id")
+      .eq("session_id", validated.data.session_id)
+      .eq("player_id", validated.data.player_id)
+      .maybeSingle();
 
-  if (!lineup) {
-    return err({
-      code: "validation",
-      message: "Jogador não está na convocatória desta sessão.",
-    });
-  }
+    if (!lineup) {
+      return err({
+        code: "validation",
+        message: "Jogador não está na convocatória desta sessão.",
+      });
+    }
 
-  // Verificar processing_restricted
-  const { data: player } = await serviceRole
-    .from("players")
-    .select("processing_restricted")
-    .eq("id", validated.data.player_id)
-    .eq("club_id", clubId)
-    .maybeSingle();
+    // Verificar processing_restricted
+    const { data: player } = await serviceRole
+      .from("players")
+      .select("processing_restricted")
+      .eq("id", validated.data.player_id)
+      .eq("club_id", clubId)
+      .maybeSingle();
 
-  if (!player) {
-    return err({
-      code: "not_found",
-      message: "Jogador não encontrado neste clube.",
-    });
-  }
+    if (!player) {
+      return err({
+        code: "not_found",
+        message: "Jogador não encontrado neste clube.",
+      });
+    }
 
-  if (player.processing_restricted === true) {
-    return err({
-      code: "forbidden",
-      message:
-        "Tratamento limitado — não é possível registar eventos para este jogador.",
-    });
+    if (player.processing_restricted === true) {
+      return err({
+        code: "forbidden",
+        message:
+          "Tratamento limitado — não é possível registar eventos para este jogador.",
+      });
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -273,7 +277,7 @@ export async function getRecentMatchEvents(
   if (!events || events.length === 0) return ok([]);
 
   // Step 2: jersey numbers de match_lineups (sem tipos TS — usar cast as any)
-  const playerIds = [...new Set(events.map((e) => e.player_id))];
+  const playerIds = [...new Set(events.map((e) => e.player_id).filter(Boolean))];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lineupRows } = await (serviceRole.from as any)("match_lineups")
@@ -302,7 +306,7 @@ export async function getRecentMatchEvents(
     id: e.id,
     action: e.action as MatchAction,
     zone: e.zone as (typeof MATCH_ZONES)[number],
-    jersey_number: e.player_id ? jerseyMap.get(e.player_id) ?? 0 : 0,
+    jersey_number: e.player_id ? jerseyMap.get(e.player_id) ?? null : null,
     occurred_at: e.occurred_at,
   }));
 

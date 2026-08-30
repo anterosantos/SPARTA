@@ -26,6 +26,7 @@ const ACTION_LABEL: Record<(typeof MATCH_ACTIONS)[number], string> = {
   entry_opp_area: "Entrada área adv.",
   entry_own_area: "Entrada nossa área",
   match_time_record: "Tempos de jogo",
+  half_time: "Intervalo",
 };
 
 const ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {

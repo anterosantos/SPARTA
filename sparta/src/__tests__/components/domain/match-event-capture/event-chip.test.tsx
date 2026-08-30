@@ -104,4 +104,21 @@ describe("<EventChip>", () => {
     fireEvent.click(btn);
     expect(screen.getByText("Remover evento?")).toBeInTheDocument();
   });
+
+  it("jersey_number null (evento do adversário) mostra ADV em vez de #null", () => {
+    const entry: RecentEventEntry = { ...mockEntry, jersey_number: null };
+    render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
+    expect(screen.getByText(/ADV/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Remover evento: Perda de bola ADV MC defensivo centro/i })
+    ).toBeInTheDocument();
+  });
+
+  it("half_time renderiza label 'Intervalo'", () => {
+    const entry: RecentEventEntry = { ...mockEntry, action: "half_time", jersey_number: null };
+    render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
+    expect(
+      screen.getByRole("button", { name: /Remover evento: Intervalo ADV MC defensivo centro/i })
+    ).toBeInTheDocument();
+  });
 });

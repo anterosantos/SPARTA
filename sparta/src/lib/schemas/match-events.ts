@@ -16,6 +16,8 @@ export const MATCH_ACTIONS = [
   "entry_opp_area",
   "entry_own_area",
   "match_time_record",
+  // Marcador de intervalo — fim da 1ª parte / início da 2ª parte
+  "half_time",
 ] as const;
 
 /**
@@ -41,6 +43,7 @@ export const MATCH_ACTION_INFO: Record<
   entry_opp_area: { label: "Entrada área adversária", positive: true },
   entry_own_area: { label: "Entrada na nossa área", positive: false },
   match_time_record: { label: "Tempos de jogo", positive: true },
+  half_time: { label: "Intervalo", positive: true },
 };
 
 // Ações que requerem 4.º ecrã de contexto
@@ -101,7 +104,8 @@ export const MatchEventInputSchema = z.object({
   id: z.string().uuid("ID deve ser UUID válido"),
   action: z.enum(MATCH_ACTIONS),
   zone: z.enum(MATCH_ZONES),
-  player_id: z.string().uuid("ID do jogador inválido"),
+  // null = evento sem jogador associado (ex: acção do adversário, marcador de intervalo)
+  player_id: z.string().uuid("ID do jogador inválido").nullable(),
   session_id: z.string().uuid("ID da sessão inválido"),
   occurred_at: z.string().datetime("Horário inválido"),
   captured_via: z.enum(["online", "offline-drain"]).default("online"),

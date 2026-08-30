@@ -39,6 +39,7 @@ describe("useMatchSession", () => {
     useMatchSession.setState({
       selectedPlayer: null,
       selectedAction: null,
+      isOpponentEvent: false,
       lastActionPolarity: null,
       recentEvents: [],
     });
@@ -141,7 +142,35 @@ describe("useMatchSession", () => {
     expect(useMatchSession.getState().lastActionPolarity).toBe("positive");
   });
 
-  it("clearSelection limpa tudo incluindo lastActionPolarity", () => {
+  it("clearPlayer limpa selectedPlayer mas mantém selectedAction (fluxo Evento→Jogador→Zona)", () => {
+    useMatchSession.getState().setSelectedAction("ball_loss");
+    useMatchSession.getState().setSelectedPlayer(mockPlayer);
+    useMatchSession.getState().clearPlayer("negative");
+
+    expect(useMatchSession.getState().selectedAction).toBe("ball_loss");
+    expect(useMatchSession.getState().selectedPlayer).toBeNull();
+    expect(useMatchSession.getState().lastActionPolarity).toBe("negative");
+  });
+
+  it("clearPlayer também limpa isOpponentEvent", () => {
+    useMatchSession.getState().setSelectedAction("corner");
+    useMatchSession.getState().setOpponentEvent(true);
+    useMatchSession.getState().clearPlayer("positive");
+
+    expect(useMatchSession.getState().isOpponentEvent).toBe(false);
+  });
+
+  it("setOpponentEvent(true) limpa selectedPlayer; setSelectedPlayer limpa isOpponentEvent", () => {
+    useMatchSession.getState().setSelectedPlayer(mockPlayer);
+    useMatchSession.getState().setOpponentEvent(true);
+    expect(useMatchSession.getState().selectedPlayer).toBeNull();
+    expect(useMatchSession.getState().isOpponentEvent).toBe(true);
+
+    useMatchSession.getState().setSelectedPlayer(mockPlayer);
+    expect(useMatchSession.getState().isOpponentEvent).toBe(false);
+  });
+
+  it("clearSelection limpa tudo incluindo lastActionPolarity e isOpponentEvent", () => {
     useMatchSession.getState().setSelectedPlayer(mockPlayer);
     useMatchSession.getState().setSelectedAction("ball_loss");
     useMatchSession.getState().clearAction("negative");
@@ -150,6 +179,7 @@ describe("useMatchSession", () => {
     expect(useMatchSession.getState().selectedPlayer).toBeNull();
     expect(useMatchSession.getState().selectedAction).toBeNull();
     expect(useMatchSession.getState().lastActionPolarity).toBeNull();
+    expect(useMatchSession.getState().isOpponentEvent).toBe(false);
   });
 });
 

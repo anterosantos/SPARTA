@@ -34,14 +34,13 @@ export function MatchTimeRecorders({ sessionId, durationMin, disabled = false }:
     setError(null);
 
     // match_time_record usa zone="mid_def_center" por convenção (sem zona real)
-    // player_id é do primeiro jogador — mas para este tipo usamos o próprio staff
-    // Nota: este evento usa a zone como placeholder; o player_id será o do staff via server action
+    // e player_id null — evento agregado da sessão, sem jogador associado.
     const result = await submitMatchEvent({
       id: newId(),
       session_id: sessionId,
       action: "match_time_record",
       zone: "mid_def_center",
-      player_id: "00000000-0000-0000-0000-000000000000", // placeholder — server action ignora
+      player_id: null,
       occurred_at: new Date().toISOString(),
       captured_via: "online",
       context: {
