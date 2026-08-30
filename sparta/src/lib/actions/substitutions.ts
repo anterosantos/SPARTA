@@ -126,18 +126,22 @@ export async function registerSubstitution(
     return err({ code: "validation", message: "Jogador que entra não está no banco." });
   }
 
-  // Update jogador que sai: ended_minute
+  // Update jogador que sai: volta para "bench" (não fica preso como "starter" com
+  // ended_minute preenchido) — substituições podem ser volantes, um jogador que sai
+  // tem de poder voltar a entrar mais tarde, por isso tem de reaparecer na lista do
+  // banco em getMatchLineupForSubs (que filtra por role === "bench").
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: outError } = (await (serviceRole.from as any)("match_lineups")
-    .update({ ended_minute: minute })
+    .update({ role: "bench", ended_minute: minute })
     .eq("id", outRow.id)) as { error: { message: string } | null };
 
   if (outError) return err({ code: "unknown", message: outError.message });
 
-  // Update jogador que entra: started_minute + role = 'starter'
+  // Update jogador que entra: started_minute + role = 'starter'; limpa ended_minute
+  // de uma eventual saída anterior — está de volta em campo, já não "saiu".
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: inError } = (await (serviceRole.from as any)("match_lineups")
-    .update({ started_minute: minute, role: "starter" })
+    .update({ started_minute: minute, role: "starter", ended_minute: null })
     .eq("id", inRow.id)) as { error: { message: string } | null };
 
   if (inError) return err({ code: "unknown", message: inError.message });

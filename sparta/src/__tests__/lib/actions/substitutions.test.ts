@@ -161,6 +161,55 @@ describe("registerSubstitution", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("substituições são volantes: quem sai volta a 'bench' (pode voltar a entrar), quem entra limpa ended_minute anterior", async () => {
+    setupAuth();
+    const updateCalls: Array<{ table: string; payload: object }> = [];
+
+    let lineupCallCount = 0;
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "sessions") {
+          return makeMaybeSingleChain({ id: SESSION_UUID, duration_min: 90 });
+        }
+        if (table === "match_lineups") {
+          lineupCallCount++;
+          if (lineupCallCount === 1) {
+            return makeMaybeSingleChain({
+              id: LINE_OUT_ID,
+              role: "starter",
+              ended_minute: null,
+            });
+          }
+          if (lineupCallCount === 2) {
+            return makeMaybeSingleChain({ id: LINE_IN_ID, role: "bench" });
+          }
+          // 3ª chamada: update do jogador que sai; 4ª: update do que entra
+          return {
+            update: vi.fn().mockImplementation((payload: object) => {
+              updateCalls.push({ table, payload });
+              return { eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
+            }),
+          };
+        }
+        return {};
+      }),
+    });
+
+    const result = await registerSubstitution(SESSION_UUID, OUT_UUID, IN_UUID, 60);
+
+    expect(result.ok).toBe(true);
+    expect(updateCalls).toHaveLength(2);
+    // Quem sai: role volta a "bench" — reaparece na lista do banco para poder
+    // voltar a entrar mais tarde (substituição volante).
+    expect(updateCalls[0]?.payload).toEqual({ role: "bench", ended_minute: 60 });
+    // Quem entra: fica "starter" e ended_minute limpo (já não "saiu").
+    expect(updateCalls[1]?.payload).toEqual({
+      started_minute: 60,
+      role: "starter",
+      ended_minute: null,
+    });
+  });
+
   it("rejeita minuto > 120", async () => {
     setupAuth();
     mockGetServiceRoleClient.mockReturnValue(buildServiceForSub());
