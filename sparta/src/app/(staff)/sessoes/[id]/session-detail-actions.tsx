@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Users, Video, Gauge } from "lucide-react";
+import { ClipboardList, Users, Video, Gauge, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CancelSessionDialog } from "@/components/dialogs/cancel-session-dialog";
 import type { SessionType } from "@/lib/schemas/sessions";
@@ -11,6 +11,7 @@ interface SessionDetailActionsProps {
   sessionId: string;
   sessionType: SessionType;
   isScheduled: boolean;
+  isCompleted: boolean;
   isCoach: boolean;
   isAnalyst: boolean;
 }
@@ -19,6 +20,7 @@ export function SessionDetailActions({
   sessionId,
   sessionType,
   isScheduled,
+  isCompleted,
   isCoach,
   isAnalyst,
 }: SessionDetailActionsProps) {
@@ -62,6 +64,22 @@ export function SessionDetailActions({
             <Link href={`/sessoes/${sessionId}/convocatoria`}>
               <Users className="h-4 w-4" />
               Convocatória
+            </Link>
+          </Button>
+        )}
+
+        {/* Resumo — estatísticas consolidadas (placar, golos, cartões, minutos por
+            jogador). Sempre disponível para jogos/amigáveis, staff (coach + analyst);
+            destaque (primary) quando o jogo já foi fechado. */}
+        {isMatchOrFriendly && (isCoach || isAnalyst) && (
+          <Button
+            asChild
+            variant={isCompleted ? "primary" : "ghost"}
+            className="w-full justify-start gap-2"
+          >
+            <Link href={`/sessoes/${sessionId}/resumo`}>
+              <ListOrdered className="h-4 w-4" />
+              Resumo
             </Link>
           </Button>
         )}

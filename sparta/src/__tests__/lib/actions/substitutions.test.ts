@@ -111,6 +111,42 @@ function makeUpdateNoSelectChain(error: object | null = null) {
   return { update: vi.fn().mockReturnValue({ eq: firstEq }) };
 }
 
+// match_lineup_stints, usado por registerSubstitution: fecha o período de quem sai
+// (.update().eq().eq().is()) e abre um novo período para quem entra (.insert()).
+function makeStintsChainForSub(
+  closeError: object | null = null,
+  insertError: object | null = null
+) {
+  return {
+    update: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockResolvedValue({ error: closeError }),
+        }),
+      }),
+    }),
+    insert: vi.fn().mockResolvedValue({ error: insertError }),
+  };
+}
+
+// match_lineup_stints, usado por closeMatchRecord: fecha todos os períodos em aberto
+// (.update().eq().is()).
+function makeStintsChainForClose(error: object | null = null) {
+  return {
+    update: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        is: vi.fn().mockResolvedValue({ error }),
+      }),
+    }),
+  };
+}
+
+// sessions.update({ status: "completed" }) — chamado por closeMatchRecord depois de
+// fetchar a sessão (mesma tabela, 2ª chamada).
+function makeSessionsUpdateChain(error: object | null = null) {
+  return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error }) }) };
+}
+
 // ─── registerSubstitution ─────────────────────────────────────────────────────
 
 describe("registerSubstitution", () => {
@@ -147,6 +183,7 @@ describe("registerSubstitution", () => {
             return makeUpdateNoSelectChain(outUpdateError);
           return makeUpdateNoSelectChain(inUpdateError);
         }
+        if (table === "match_lineup_stints") return makeStintsChainForSub();
         return {};
       }),
     };
@@ -191,6 +228,7 @@ describe("registerSubstitution", () => {
             }),
           };
         }
+        if (table === "match_lineup_stints") return makeStintsChainForSub();
         return {};
       }),
     });
@@ -336,18 +374,29 @@ describe("closeMatchRecord", () => {
     sessionData?: object | null;
     updatedRows?: object[];
     updateError?: object | null;
+    stintsError?: object | null;
+    sessionCompleteError?: object | null;
   } = {}) {
     const {
       sessionData = { id: SESSION_UUID, duration_min: 90 },
       updatedRows = [{ id: LINE_OUT_ID }, { id: LINE_IN_ID }],
       updateError = null,
+      stintsError = null,
+      sessionCompleteError = null,
     } = opts;
 
+    let sessionsCallCount = 0;
     return {
       from: vi.fn().mockImplementation((table: string) => {
-        if (table === "sessions") return makeMaybeSingleChain(sessionData);
+        if (table === "sessions") {
+          sessionsCallCount++;
+          // 1ª chamada: fetch da sessão; 2ª: marcar status='completed'
+          if (sessionsCallCount === 1) return makeMaybeSingleChain(sessionData);
+          return makeSessionsUpdateChain(sessionCompleteError);
+        }
         if (table === "match_lineups")
           return makeUpdateSelectChain(updatedRows, updateError);
+        if (table === "match_lineup_stints") return makeStintsChainForClose(stintsError);
         return {};
       }),
     };
@@ -363,6 +412,46 @@ describe("closeMatchRecord", () => {
     if (result.ok) {
       expect(result.data.updated_count).toBe(2);
     }
+  });
+
+  it("marca a sessão como 'completed' (consolida estatísticas) e fecha períodos em aberto em match_lineup_stints", async () => {
+    setupAuth();
+    const sessionUpdatePayloads: object[] = [];
+    const stintsUpdatePayloads: object[] = [];
+
+    let sessionsCallCount = 0;
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "sessions") {
+          sessionsCallCount++;
+          if (sessionsCallCount === 1) {
+            return makeMaybeSingleChain({ id: SESSION_UUID, duration_min: 90 });
+          }
+          return {
+            update: vi.fn().mockImplementation((payload: object) => {
+              sessionUpdatePayloads.push(payload);
+              return { eq: vi.fn().mockResolvedValue({ error: null }) };
+            }),
+          };
+        }
+        if (table === "match_lineup_stints") {
+          return {
+            update: vi.fn().mockImplementation((payload: object) => {
+              stintsUpdatePayloads.push(payload);
+              return { eq: vi.fn().mockReturnValue({ is: vi.fn().mockResolvedValue({ error: null }) }) };
+            }),
+          };
+        }
+        if (table === "match_lineups") return makeUpdateSelectChain([{ id: LINE_OUT_ID }]);
+        return {};
+      }),
+    });
+
+    const result = await closeMatchRecord(SESSION_UUID);
+
+    expect(result.ok).toBe(true);
+    expect(sessionUpdatePayloads).toEqual([{ status: "completed" }]);
+    expect(stintsUpdatePayloads).toEqual([{ ended_minute: 90 }]);
   });
 
   it("idempotente: 0 rows actualizados quando já encerrado", async () => {

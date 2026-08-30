@@ -146,6 +146,31 @@ export async function registerSubstitution(
 
   if (inError) return err({ code: "unknown", message: inError.message });
 
+  // Fecha o período em aberto do jogador que sai (match_lineup_stints, migration
+  // 000399) — usado para somar minutos jogados correctamente mesmo com múltiplas
+  // entradas/saídas do mesmo jogador (substituições volantes).
+  const { error: closeStintError } = await serviceRole
+    .from("match_lineup_stints")
+    .update({ ended_minute: minute })
+    .eq("session_id", sessionId)
+    .eq("player_id", outPlayerId)
+    .is("ended_minute", null);
+  if (closeStintError) {
+    return err({ code: "unknown", message: closeStintError.message });
+  }
+
+  // Abre um NOVO período para o jogador que entra — nunca reutiliza uma linha antiga,
+  // para poder somar todos os períodos se este jogador voltar a ser substituído mais
+  // tarde no mesmo jogo.
+  const { error: openStintError } = await serviceRole.from("match_lineup_stints").insert({
+    session_id: sessionId,
+    player_id: inPlayerId,
+    started_minute: minute,
+  });
+  if (openStintError) {
+    return err({ code: "unknown", message: openStintError.message });
+  }
+
   after(() =>
     logAccess("lineup.substitution", "session", sessionId, {
       out_player_id: outPlayerId,
@@ -175,6 +200,16 @@ export async function closeMatchRecord(
 
   if (!session) return err({ code: "not_found", message: "Sessão não encontrada." });
 
+  // Fecha os períodos ainda em aberto em match_lineup_stints (jogadores em campo ao
+  // apito final) — sem isto, "minutos jogados" ficaria incompleto para quem terminou
+  // o jogo em campo.
+  const { error: stintsError } = await serviceRole
+    .from("match_lineup_stints")
+    .update({ ended_minute: session.duration_min })
+    .eq("session_id", sessionId)
+    .is("ended_minute", null);
+  if (stintsError) return err({ code: "unknown", message: stintsError.message });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: updated, error } = (await (serviceRole.from as any)("match_lineups")
     .update({ ended_minute: session.duration_min })
@@ -187,6 +222,18 @@ export async function closeMatchRecord(
   };
 
   if (error) return err({ code: "unknown", message: error.message });
+
+  // "Fechar o jogo" consolida as estatísticas: marca a sessão como concluída, o que
+  // activa as views agregadas (v_athlete_stats_per_season, v_clean_sheets) — filtram
+  // por status='completed', e nada as preenchia até agora porque nenhum sítio do
+  // código marcava uma sessão como concluída.
+  const { error: sessionUpdateError } = await serviceRole
+    .from("sessions")
+    .update({ status: "completed" })
+    .eq("id", sessionId);
+  if (sessionUpdateError) {
+    return err({ code: "unknown", message: sessionUpdateError.message });
+  }
 
   const updated_count = updated?.length ?? 0;
 

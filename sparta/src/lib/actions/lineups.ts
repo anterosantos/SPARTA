@@ -566,6 +566,33 @@ export async function setStartingLineup(
     }
   }
 
+  // Regista o período inicial em campo (minuto 0) de cada titular — necessário para
+  // somar minutos jogados correctamente com substituições volantes (ver
+  // match_lineup_stints, migration 000399). Só na primeira vez: se esta acção for
+  // chamada de novo para a mesma sessão, não duplica o período já criado (evita
+  // somar minutos a mais).
+  const { data: existingStints, error: existingStintsError } = await serviceRole
+    .from("match_lineup_stints")
+    .select("player_id")
+    .eq("session_id", sessionId);
+  if (existingStintsError) {
+    return err({ code: "unknown", message: existingStintsError.message });
+  }
+  const playersWithStint = new Set((existingStints ?? []).map((r) => r.player_id));
+  const newStinters = starterPlayerIds.filter((id) => !playersWithStint.has(id));
+  if (newStinters.length > 0) {
+    const { error: stintError } = await serviceRole.from("match_lineup_stints").insert(
+      newStinters.map((playerId) => ({
+        session_id: sessionId,
+        player_id: playerId,
+        started_minute: 0,
+      }))
+    );
+    if (stintError) {
+      return err({ code: "unknown", message: stintError.message });
+    }
+  }
+
   try {
     await logAccess("lineup.starters_set", "session", sessionId);
   } catch (e) {

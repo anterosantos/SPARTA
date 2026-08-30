@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw, ArrowLeftRight, Flag, Timer, Maximize2, Minimize2 } from "lucide-react";
 import {
   useMatchSession,
@@ -29,6 +30,7 @@ interface MatchEventCaptureProps {
 }
 
 export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithinEditWindow = true }: MatchEventCaptureProps) {
+  const router = useRouter();
   const selectedPlayer = useSelectedPlayer();
   const lastPolarity = useLastActionPolarity();
   const { clearSelection } = useMatchSession();
@@ -86,7 +88,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
 
   const handleCloseMatch = async () => {
     const confirmed = window.confirm(
-      `Encerrar registo de jogo (${durationMin} min)? Os minutos finais serão registados.`
+      `Encerrar registo de jogo (${durationMin} min)? Consolida as estatísticas e disponibiliza-as no resumo.`
     );
     if (!confirmed) return;
     const result = await closeMatchRecord(sessionId);
@@ -94,9 +96,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
       setCloseError(result.error.message);
     } else {
       setCloseError(null);
-      window.alert(
-        `Registo encerrado. ${result.data.updated_count} jogador(es) actualizados.`
-      );
+      router.push(`/sessoes/${sessionId}/resumo`);
     }
   };
 

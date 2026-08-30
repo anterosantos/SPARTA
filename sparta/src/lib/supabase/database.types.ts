@@ -612,6 +612,51 @@ export type Database = {
           },
         ]
       }
+      match_lineup_stints: {
+        Row: {
+          id: string
+          session_id: string
+          player_id: string
+          started_minute: number
+          ended_minute: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          player_id: string
+          started_minute?: number
+          ended_minute?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          player_id?: string
+          started_minute?: number
+          ended_minute?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_lineup_stints_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_lineup_stints_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_lineups: {
         Row: {
           created_at: string
@@ -2043,15 +2088,13 @@ export type Database = {
       match_minutes_played: {
         Row: {
           duration_min: number | null
-          ended_minute: number | null
           minutes_played: number | null
           player_id: string | null
           session_id: string | null
-          started_minute: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "match_lineups_player_id_fkey"
+            foreignKeyName: "match_lineup_stints_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
