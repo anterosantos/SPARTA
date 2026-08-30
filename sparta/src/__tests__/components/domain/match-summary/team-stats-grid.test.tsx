@@ -31,7 +31,7 @@ describe("<TeamStatsGrid>", () => {
     expect(screen.getByText("Passe completado")).toBeInTheDocument();
   });
 
-  it("clicar numa estatística com eventos abre o detalhe com jogador e zona", () => {
+  it("clicar numa estatística com eventos abre o detalhe com jogador e mini-campo por zona", () => {
     render(<TeamStatsGrid stats={stats} />);
     fireEvent.click(screen.getByRole("button", { name: /Canto: 2/i }));
 
@@ -39,8 +39,18 @@ describe("<TeamStatsGrid>", () => {
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("Jogador A")).toBeInTheDocument();
     expect(screen.getByText("Adversário")).toBeInTheDocument();
-    expect(screen.getByText("Ataque esquerda")).toBeInTheDocument();
-    expect(screen.getByText("Ataque direita")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Zona: Ataque esquerda" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Zona: Ataque direita" })).toBeInTheDocument();
+  });
+
+  it("mostra o mini-campo agregado 'Distribuição por zona' no fim da lista", () => {
+    render(<TeamStatsGrid stats={stats} />);
+    fireEvent.click(screen.getByRole("button", { name: /Canto: 2/i }));
+
+    expect(screen.getByText("Distribuição por zona")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Distribuição de eventos por zona do campo" })
+    ).toBeInTheDocument();
   });
 
   it("estatística com count=0 fica desabilitada e não abre detalhe", () => {

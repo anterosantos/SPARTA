@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { MATCH_ZONE_LABEL, type MATCH_ZONES } from "@/lib/schemas/match-events";
+import { useMemo, useState } from "react";
 import type { MatchSummaryActionTotal } from "@/lib/actions/match-summary";
+import { ZoneMiniPitch } from "./zone-mini-pitch";
 
 interface TeamStatsGridProps {
   stats: MatchSummaryActionTotal[];
@@ -10,6 +10,15 @@ interface TeamStatsGridProps {
 
 export function TeamStatsGrid({ stats }: TeamStatsGridProps) {
   const [selected, setSelected] = useState<MatchSummaryActionTotal | null>(null);
+
+  const zoneCounts = useMemo(() => {
+    if (!selected) return {};
+    const counts: Partial<Record<string, number>> = {};
+    for (const ev of selected.events) {
+      counts[ev.zone] = (counts[ev.zone] ?? 0) + 1;
+    }
+    return counts;
+  }, [selected]);
 
   return (
     <>
@@ -61,7 +70,7 @@ export function TeamStatsGrid({ stats }: TeamStatsGridProps) {
                 ✕
               </button>
             </div>
-            <ul className="divide-y divide-border rounded-lg border border-border overflow-y-auto">
+            <ul className="divide-y divide-border rounded-lg border border-border overflow-y-auto flex-1 min-h-0">
               {selected.events.map((ev, i) => (
                 <li key={i} className="px-4 py-2.5 flex items-center justify-between gap-3">
                   <span className="text-sm text-foreground">
@@ -72,12 +81,15 @@ export function TeamStatsGrid({ stats }: TeamStatsGridProps) {
                     )}
                     {ev.playerName ?? "Adversário"}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {MATCH_ZONE_LABEL[ev.zone as (typeof MATCH_ZONES)[number]] ?? ev.zone}
-                  </span>
+                  <ZoneMiniPitch highlightZone={ev.zone} size="sm" />
                 </li>
               ))}
             </ul>
+
+            <div className="mt-4 pt-3 border-t border-border flex flex-col items-center gap-2 shrink-0">
+              <p className="text-xs font-medium text-muted-foreground">Distribuição por zona</p>
+              <ZoneMiniPitch counts={zoneCounts} size="lg" />
+            </div>
           </div>
         </div>
       )}
