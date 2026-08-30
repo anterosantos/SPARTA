@@ -668,11 +668,14 @@ export async function getPlayerAttendanceTabData(
  * getPlayerStatisticsTabData — Match events aggregated per game with per-90 stats.
  *
  * Queries match_events for all match-type sessions involving this player.
+ * `sessionType` filtra por "match" (jogos) ou "friendly" (amigáveis); omitido/null
+ * devolve ambos.
  * Uses auditedRead() — performance health data (FR50).
  */
 export async function getPlayerStatisticsTabData(
   playerId: string,
-  seasonId?: string | null
+  seasonId?: string | null,
+  sessionType?: "match" | "friendly" | null
 ): Promise<Result<StatisticsTabData, AppError>> {
   if (!playerId?.trim()) {
     return err({ code: "not_found", message: "Recurso não encontrado" });
@@ -760,6 +763,10 @@ export async function getPlayerStatisticsTabData(
     sessionInfoQuery = sessionInfoQuery
       .gte("scheduled_at", `${seasonDateFilter.start}T00:00:00Z`)
       .lte("scheduled_at", `${seasonDateFilter.end}T23:59:59Z`);
+  }
+
+  if (sessionType) {
+    sessionInfoQuery = sessionInfoQuery.eq("type", sessionType);
   }
 
   const { data: sessionInfos } = await sessionInfoQuery;

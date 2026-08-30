@@ -445,6 +445,73 @@ describe("getPlayerStatisticsTabData", () => {
     }
   });
 
+  it("filtra sessões por tipo quando sessionType é passado (jogos/amigáveis)", async () => {
+    setupAuth();
+    const playerMock = createChainableMock({ data: { id: PLAYER_ID, club_id: CLUB_ID }, error: null });
+    const events = [
+      { session_id: "sess-friendly-1", action: "ball_loss", zone: "mid_def_center", occurred_at: "2026-05-10T16:00:00Z" },
+    ];
+    const eventsMock = createChainableMock({ data: events, error: null });
+    // Simula a resposta já filtrada pela BD (o mock não filtra sozinho — só
+    // confirmamos que o .eq("type", ...) correcto é pedido).
+    const sessionInfo = [
+      { id: "sess-friendly-1", type: "friendly", scheduled_at: "2026-05-10T15:00:00Z", duration_min: 90 },
+    ];
+    const sessionsMock = createChainableMock({ data: sessionInfo, error: null });
+    const minutesMock = createChainableMock({ data: [], error: null });
+
+    const serviceClient = {
+      from: vi.fn((table: string) => {
+        if (table === "players") return playerMock;
+        if (table === "match_events") return eventsMock;
+        if (table === "sessions") return sessionsMock;
+        if (table === "match_minutes_played") return minutesMock;
+        return createChainableMock({ data: [], error: null });
+      }),
+    };
+    (getServiceRoleClient as ReturnType<typeof vi.fn>).mockReturnValue(serviceClient);
+
+    const result = await getPlayerStatisticsTabData(PLAYER_ID, null, "friendly");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.rows).toHaveLength(1);
+      expect(result.data.rows[0]?.session_type).toBe("friendly");
+    }
+    expect((sessionsMock.eq as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "type",
+      "friendly",
+    ]);
+  });
+
+  it("sem sessionType (ou 'all' resolvido para null) não filtra por tipo", async () => {
+    setupAuth();
+    const playerMock = createChainableMock({ data: { id: PLAYER_ID, club_id: CLUB_ID }, error: null });
+    const events = [
+      { session_id: "sess-1", action: "ball_loss", zone: "mid_def_center", occurred_at: "2026-05-10T16:00:00Z" },
+    ];
+    const eventsMock = createChainableMock({ data: events, error: null });
+    const sessionInfo = [{ id: "sess-1", type: "match", scheduled_at: "2026-05-10T15:00:00Z", duration_min: 90 }];
+    const sessionsMock = createChainableMock({ data: sessionInfo, error: null });
+
+    const serviceClient = {
+      from: vi.fn((table: string) => {
+        if (table === "players") return playerMock;
+        if (table === "match_events") return eventsMock;
+        if (table === "sessions") return sessionsMock;
+        return createChainableMock({ data: [], error: null });
+      }),
+    };
+    (getServiceRoleClient as ReturnType<typeof vi.fn>).mockReturnValue(serviceClient);
+
+    await getPlayerStatisticsTabData(PLAYER_ID, null, null);
+
+    const typeCalls = (sessionsMock.eq as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) => c[0] === "type"
+    );
+    expect(typeCalls).toHaveLength(0);
+  });
+
   it("retorna estrutura vazia quando sem eventos", async () => {
     setupAuth();
     const playerMock = createChainableMock({ data: { id: PLAYER_ID, club_id: CLUB_ID }, error: null });

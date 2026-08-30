@@ -15,6 +15,14 @@ interface EstatisticasTabProps {
   isCumulative: boolean;
 }
 
+type SessionTypeFilter = "all" | "match" | "friendly";
+
+const SESSION_TYPE_OPTIONS: { value: SessionTypeFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "match", label: "Jogos" },
+  { value: "friendly", label: "Amigáveis" },
+];
+
 // Named zone values as stored in match_events.zone (migration 000330)
 const ZONE_ORDER = [
   "def_left", "def_center", "def_right",
@@ -59,6 +67,7 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentSeasonId, setCurrentSeasonId] = useState<string | null>(null);
+  const [sessionTypeFilter, setSessionTypeFilter] = useState<SessionTypeFilter>("all");
   const seasonFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -78,7 +87,8 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
       setLoading(true);
       setError(null);
       const seasonId = isCumulative ? null : currentSeasonId;
-      const result = await getPlayerStatisticsTabData(playerId, seasonId);
+      const sessionType = sessionTypeFilter === "all" ? null : sessionTypeFilter;
+      const result = await getPlayerStatisticsTabData(playerId, seasonId, sessionType);
       if (controller.signal.aborted) return;
       if (result.ok) {
         setData(result.data);
@@ -90,7 +100,7 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
     void load();
 
     return () => controller.abort();
-  }, [playerId, isCumulative, currentSeasonId]);
+  }, [playerId, isCumulative, currentSeasonId, sessionTypeFilter]);
 
   if (loading) {
     return (
@@ -111,10 +121,33 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
     );
   }
 
+  const sessionTypeToggle = (
+    <div className="flex gap-2" role="group" aria-label="Filtro por tipo de sessão">
+      {SESSION_TYPE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => setSessionTypeFilter(opt.value)}
+          aria-pressed={sessionTypeFilter === opt.value}
+          className={`min-h-[44px] rounded-full px-4 text-sm font-medium transition-colors ${
+            sessionTypeFilter === opt.value
+              ? "bg-foreground text-background"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+
   if (!data || data.rows.length === 0) {
     return (
       <>
-        <SeasonToggle isCumulative={isCumulative} />
+        <div className="flex flex-wrap items-center gap-2">
+          <SeasonToggle isCumulative={isCumulative} />
+          {sessionTypeToggle}
+        </div>
         <EmptyState
           icon={<BarChart2 className="h-8 w-8 text-muted-foreground" />}
           title="Sem jogos registados"
@@ -131,7 +164,10 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
 
   return (
     <div className="space-y-6">
-      <SeasonToggle isCumulative={isCumulative} />
+      <div className="flex flex-wrap items-center gap-2">
+        <SeasonToggle isCumulative={isCumulative} />
+        {sessionTypeToggle}
+      </div>
 
       {/* Match stats table */}
       <div className="overflow-x-auto -mx-4 px-4">
