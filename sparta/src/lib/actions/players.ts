@@ -46,7 +46,7 @@ export interface PlayerWithPositions {
   id: string;
   club_id: string;
   profile_id: string | null;
-  jersey_num: number;
+  jersey_num: number | null;
   full_name: string;
   birthdate: string;
   age_group: string;
@@ -410,7 +410,7 @@ export async function createPlayer(
     club_id: profile.club_id,
     full_name: validated.data.fullName,
     birthdate: validated.data.birthdate,
-    jersey_num: validated.data.jerseyNum,
+    jersey_num: validated.data.jerseyNum ?? null,
     age_group: validated.data.ageGroup,
   });
 
@@ -554,7 +554,7 @@ export async function updatePlayer(
     .update({
       full_name: validated.data.fullName,
       birthdate: validated.data.birthdate,
-      jersey_num: validated.data.jerseyNum,
+      jersey_num: validated.data.jerseyNum ?? null,
       age_group: validated.data.ageGroup,
     })
     .eq("id", validated.data.playerId);

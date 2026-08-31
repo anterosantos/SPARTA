@@ -83,6 +83,24 @@ describe("PlayerCreateSchema", () => {
     }
   });
 
+  it("aceita jerseyNum ausente (undefined) — número de camisola deixou de ser obrigatório", () => {
+    const { jerseyNum: _jerseyNum, ...withoutJersey } = validInput;
+    const result = PlayerCreateSchema.safeParse(withoutJersey);
+    expect(result.success).toBe(true);
+  });
+
+  it("aceita jerseyNum null", () => {
+    const result = PlayerCreateSchema.safeParse({ ...validInput, jerseyNum: null });
+    expect(result.success).toBe(true);
+  });
+
+  it("continua a validar min/max quando jerseyNum é indicado", () => {
+    const tooLow = PlayerCreateSchema.safeParse({ ...validInput, jerseyNum: 0 });
+    const tooHigh = PlayerCreateSchema.safeParse({ ...validInput, jerseyNum: 100 });
+    expect(tooLow.success).toBe(false);
+    expect(tooHigh.success).toBe(false);
+  });
+
   it("rejects invalid age_group", () => {
     const result = PlayerCreateSchema.safeParse({ ...validInput, ageGroup: "u16" });
     expect(result.success).toBe(false);
@@ -340,6 +358,30 @@ describe("createPlayer", () => {
 
     expect(redirect).toHaveBeenCalledWith(
       expect.stringContaining("/plantel/new-player-uuid-12345")
+    );
+  });
+
+  it("cria jogador sem número de camisola (jersey_num fica null)", async () => {
+    (createServerClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockSupabase);
+    mockGetServiceRoleClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+
+    const { jerseyNum: _jerseyNum, ...withoutJersey } = validInput;
+    await createPlayer(withoutJersey).catch(() => {
+      // redirect() throws in Next.js — catch expected
+    });
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ jersey_num: null })
     );
   });
 });

@@ -33,7 +33,9 @@ export const PlayerCreateSchema = z.object({
     .number({ message: "Número de camisola inválido" })
     .int("Número inteiro obrigatório")
     .min(1, "Mínimo 1")
-    .max(99, "Máximo 99"),
+    .max(99, "Máximo 99")
+    .nullable()
+    .optional(),
   ageGroup: z.enum(AGE_GROUPS, { error: "Escalão inválido" }),
   positions: z
     .array(PositionSchema)

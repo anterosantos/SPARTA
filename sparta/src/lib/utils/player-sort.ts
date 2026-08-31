@@ -23,7 +23,9 @@ export function sortPlayers(
 ): PlayerWithPositions[] {
   const sorted = [...players];
   if (sort === "numero") {
-    sorted.sort((a, b) => a.jersey_num - b.jersey_num);
+    // Sem camisola (jersey_num null) fica no fim, tal como "posicao" faz para
+    // posições não reconhecidas.
+    sorted.sort((a, b) => (a.jersey_num ?? Infinity) - (b.jersey_num ?? Infinity));
   } else if (sort === "posicao") {
     sorted.sort((a, b) => {
       const posA = primaryPositionOf(a);

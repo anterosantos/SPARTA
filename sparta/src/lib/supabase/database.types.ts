@@ -1248,7 +1248,7 @@ export type Database = {
           invite_sent_at: string | null
           is_active: boolean
           is_archived: boolean
-          jersey_num: number
+          jersey_num: number | null
           photo_path: string | null
           processing_restricted: boolean
           profile_id: string | null
@@ -1268,7 +1268,7 @@ export type Database = {
           invite_sent_at?: string | null
           is_active?: boolean
           is_archived?: boolean
-          jersey_num: number
+          jersey_num?: number | null
           photo_path?: string | null
           processing_restricted?: boolean
           profile_id?: string | null
@@ -1288,7 +1288,7 @@ export type Database = {
           invite_sent_at?: string | null
           is_active?: boolean
           is_archived?: boolean
-          jersey_num?: number
+          jersey_num?: number | null
           photo_path?: string | null
           processing_restricted?: boolean
           profile_id?: string | null

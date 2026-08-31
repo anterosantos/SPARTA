@@ -78,6 +78,20 @@ describe("sortPlayers", () => {
     sortPlayers(players, "numero");
     expect(players).toEqual(original);
   });
+
+  it("'numero' coloca jogadores sem camisola (jersey_num null) no fim", () => {
+    const withNull: PlayerWithPositions[] = [
+      ...players,
+      makePlayer({ id: "4", full_name: "Sem Camisola", jersey_num: null }),
+    ];
+    const sorted = sortPlayers(withNull, "numero");
+    expect(sorted.map((p) => p.full_name)).toEqual([
+      "Davi Araujo",
+      "Tomás Alves",
+      "David Correia",
+      "Sem Camisola",
+    ]);
+  });
 });
 
 describe("filterPlayersByPosition", () => {
