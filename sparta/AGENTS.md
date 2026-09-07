@@ -544,4 +544,4 @@ Ver `_bmad-output/implementation-artifacts/spec-horario-saida-risco-atraso.md` p
 
 **Helpers:** `addWeeksInTimeZone(iso, weeks, tz?)`, `zonedParts(date, tz?)`, `zonedWallClockToUtc(y, m, d, h, min, tz?)` — todos com refinação única do offset (resolve DST). Testes em `src/lib/session-time.test.ts`.
 
-**Correção de dados históricos:** `scripts/fix-dst-session-times.mjs` (dry-run por omissão; `--apply` para gravar). Agrupa séries por `created_at` idêntico, toma a hora da 1ª ocorrência como intenção e recalcula as seguintes; só ajusta deltas de exatamente ±1h.
+**Correção de dados históricos:** `scripts/fix-dst-session-times.mjs` (Node/service role, dry-run por omissão; `--apply` para gravar) ou `scripts/fix-dst-training-times.sql` (psql/Studio; PASSO 1 pré-visualiza, PASSO 2 aplica em transação). Ambos agrupam séries por `created_at` idêntico, tomam a hora da 1ª ocorrência como intenção e recalculam as seguintes em `Europe/Lisbon`; só ajustam deltas de exatamente +1h e status `scheduled`. Verificado com pglite (Postgres 18): treinos avulsos, séries de inverno e outros tipos não são tocados; idempotente.
