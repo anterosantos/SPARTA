@@ -13,6 +13,7 @@ import {
 import type { SessionCreate, SessionUpdate, Session } from "@/lib/schemas/sessions";
 import type { Result, AppError } from "@/lib/types";
 import { ok, err } from "@/lib/types";
+import { addWeeksInTimeZone } from "@/lib/session-time";
 
 const SessionFiltersSchema = z.object({
   season_id: z.string().uuid().optional(),
@@ -196,18 +197,23 @@ export async function createSession(
   // Repetição semanal: gera N sessões independentes, uma por semana a partir da
   // data escolhida, no mesmo dia da semana e à mesma hora. Sem repetição,
   // occurrences=1 mantém o comportamento original (uma única sessão).
+  //
+  // As ocorrências avançam por semanas de calendário em Europe/Lisbon
+  // (addWeeksInTimeZone) e não por 7×24h fixos — caso contrário a hora de parede
+  // saltava 1h ao atravessar a mudança de hora (ex.: 19:45 → 18:45 na última
+  // semana de outubro).
   const seasonId = seasonResult.data.id;
   const occurrences =
     validated.data.repeatWeekly && validated.data.repeatWeeks
       ? validated.data.repeatWeeks
       : 1;
-  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-  const baseScheduledAt = new Date(validated.data.scheduledAt).getTime();
+  const baseIso = new Date(validated.data.scheduledAt).toISOString();
   const rowsToInsert = Array.from({ length: occurrences }, (_, i) => ({
     club_id: profile.club_id,
     season_id: seasonId,
     type: validated.data.type,
-    scheduled_at: new Date(baseScheduledAt + i * ONE_WEEK_MS).toISOString(),
+    scheduled_at:
+      i === 0 ? baseIso : addWeeksInTimeZone(baseIso, i).toISOString(),
     duration_min: validated.data.durationMin,
     location: validated.data.location ?? null,
     notes: validated.data.notes ?? null,

@@ -533,3 +533,15 @@ Sistema que avisa o treinador quando um jogador pode chegar atrasado a uma sess�
 **Regra:** não é dado de saúde — fora do escopo de `auditedRead()`/`no-direct-health-data-read`.
 
 Ver `_bmad-output/implementation-artifacts/spec-horario-saida-risco-atraso.md` para o spec completo e review findings.
+
+---
+
+### 20. Datas recorrentes — avançar semanas/dias em timezone, nunca somar N×24h
+
+**Regra:** Ao gerar ocorrências recorrentes (repetição semanal de sessões, etc.), avançar **semanas de calendário em `Europe/Lisbon`** com `addWeeksInTimeZone()` (`lib/session-time.ts`). Somar `7 * 24 * 60 * 60 * 1000` ms mantém o *instante UTC* fixo, não a hora de parede: ao atravessar a mudança de hora (último domingo de outubro/março) a hora salta 1h — um treino às 19:45 passa a mostrar 18:45 a partir dessa semana.
+
+**Porquê:** `createSession()` gerava as ocorrências com `base + i * ONE_WEEK_MS`. Bug real reportado em outubro de 2026 (sessões de 27/10 em diante 1h mais cedo).
+
+**Helpers:** `addWeeksInTimeZone(iso, weeks, tz?)`, `zonedParts(date, tz?)`, `zonedWallClockToUtc(y, m, d, h, min, tz?)` — todos com refinação única do offset (resolve DST). Testes em `src/lib/session-time.test.ts`.
+
+**Correção de dados históricos:** `scripts/fix-dst-session-times.mjs` (dry-run por omissão; `--apply` para gravar). Agrupa séries por `created_at` idêntico, toma a hora da 1ª ocorrência como intenção e recalcula as seguintes; só ajusta deltas de exatamente ±1h.
