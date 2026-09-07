@@ -468,7 +468,7 @@ describe("createSession", () => {
     if (!result.ok) expect(result.error.code).toBe("validation");
   });
 
-  it("repeatWeekly=true com repeatWeeks gera N sessões espaçadas por 7 dias", async () => {
+  it("repeatWeekly=true com repeatWeeks gera N sessões, uma por semana", async () => {
     vi.mocked(getCurrentSeason).mockResolvedValue({
       ok: true,
       data: mockCurrentSeason,
@@ -488,11 +488,59 @@ describe("createSession", () => {
     const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
     const insertedRows = insertCall[0] as { scheduled_at: string }[];
     expect(insertedRows).toHaveLength(3);
-    const base = new Date(FUTURE_AT).getTime();
-    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-    expect(new Date(insertedRows[0]!.scheduled_at).getTime()).toBe(base);
-    expect(new Date(insertedRows[1]!.scheduled_at).getTime()).toBe(base + ONE_WEEK_MS);
-    expect(new Date(insertedRows[2]!.scheduled_at).getTime()).toBe(base + 2 * ONE_WEEK_MS);
+    expect(insertedRows[0]!.scheduled_at).toBe(new Date(FUTURE_AT).toISOString());
+    // Cada ocorrência 7 dias de calendário depois da anterior, mesmo dia da semana.
+    for (let i = 0; i < 3; i++) {
+      expect(new Date(insertedRows[i]!.scheduled_at).getUTCDay()).toBe(
+        new Date(FUTURE_AT).getUTCDay()
+      );
+    }
+  });
+
+  it("repeatWeekly mantém a hora de parede (Europe/Lisbon) ao atravessar a mudança de hora de outubro", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-01T09:00:00.000Z"));
+    try {
+      vi.mocked(getCurrentSeason).mockResolvedValue({
+        ok: true,
+        data: mockCurrentSeason,
+      });
+      const mock = makeSupabaseMock();
+      vi.mocked(createServerClient).mockResolvedValue(mock as never);
+      vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+      // 19:45 de Lisboa em pleno verão (UTC+1) → 18:45Z. 4 semanas: 20/10, 27/10,
+      // 03/11, 10/11 — as três últimas já depois da mudança de hora (25/10).
+      const result = await createSession({
+        ...validInput,
+        scheduledAt: "2026-10-20T18:45:00.000Z",
+        repeatWeekly: true,
+        repeatWeeks: 4,
+      });
+      expect(result.ok).toBe(true);
+
+      const sessionsTable = mock.from("sessions");
+      const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
+      const rows = insertCall[0] as { scheduled_at: string }[];
+      expect(rows).toHaveLength(4);
+
+      const lisbon = (iso: string) =>
+        new Date(iso).toLocaleTimeString("pt-PT", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: "Europe/Lisbon",
+        });
+
+      for (const row of rows) {
+        expect(lisbon(row.scheduled_at)).toBe("19:45");
+      }
+      // Depois da mudança, o instante UTC passa a 19:45Z (Lisboa em UTC+0)
+      expect(rows[1]!.scheduled_at).toBe("2026-10-27T19:45:00.000Z");
+      expect(rows[3]!.scheduled_at).toBe("2026-11-10T19:45:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("repeatWeekly=false (omissão) insere apenas 1 sessão", async () => {
