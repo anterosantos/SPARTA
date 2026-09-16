@@ -218,6 +218,7 @@ export async function createSession(
     location: validated.data.location ?? null,
     notes: validated.data.notes ?? null,
     opponent_name: validated.data.opponentName ?? null,
+    is_home: validated.data.isHome ?? null,
     created_by: profile.id,
   }));
 
@@ -304,6 +305,7 @@ export async function updateSession(
       location: validated.data.location ?? null,
       notes: validated.data.notes ?? null,
       opponent_name: validated.data.opponentName ?? null,
+      is_home: validated.data.isHome ?? null,
     })
     .eq("id", validated.data.id)
     .eq("club_id", profile.club_id)

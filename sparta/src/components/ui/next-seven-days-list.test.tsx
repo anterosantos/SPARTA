@@ -27,6 +27,7 @@ function makeSession(scheduledAt: string, id = "sess-1", overrides: Partial<Sess
     created_at: "2026-06-01T08:00:00.000Z",
     concentration_time: null,
     opponent_name: null,
+    is_home: null,
     ...overrides,
   }
 }

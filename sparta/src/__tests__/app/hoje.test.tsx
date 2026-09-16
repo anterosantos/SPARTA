@@ -22,6 +22,7 @@ const mockSession = {
   created_at: "2026-05-19T00:00:00Z",
   concentration_time: null,
   opponent_name: null,
+  is_home: null,
 };
 
 vi.mock("next/navigation", () => ({

@@ -60,6 +60,7 @@ const mockSession: Session = {
   created_at: "2026-05-19T00:00:00Z",
   concentration_time: null,
   opponent_name: null,
+  is_home: null,
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -180,6 +181,69 @@ describe("SessionForm — modo create", () => {
     });
     const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
     expect(submittedPayload.opponentName).toBeUndefined();
+  });
+
+  it("campo 'Casa ou fora' só aparece para Jogo/Jogo amigável", () => {
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    expect(screen.queryByLabelText(/^casa$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^fora$/i)).not.toBeInTheDocument();
+
+    const select = screen.getByLabelText(/tipo de sessão/i);
+    fireEvent.change(select, { target: { value: "match" } });
+    expect(screen.getByLabelText(/^casa$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^fora$/i)).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "training" } });
+    expect(screen.queryByLabelText(/^casa$/i)).not.toBeInTheDocument();
+  });
+
+  it("envia isHome=true ao criar um Jogo com 'Casa' selecionada", async () => {
+    vi.mocked(createSession).mockResolvedValue({ ok: true, data: mockSession });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    fireEvent.change(screen.getByLabelText(/tipo de sessão/i), { target: { value: "match" } });
+    fireEvent.click(screen.getByLabelText(/^casa$/i));
+    fillSessionDates(FUTURE_AT);
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => expect(createSession).toHaveBeenCalled());
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.isHome).toBe(true);
+  });
+
+  it("envia isHome=false ao criar um Jogo com 'Fora' selecionada", async () => {
+    vi.mocked(createSession).mockResolvedValue({ ok: true, data: mockSession });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    fireEvent.change(screen.getByLabelText(/tipo de sessão/i), { target: { value: "match" } });
+    fireEvent.click(screen.getByLabelText(/^fora$/i));
+    fillSessionDates(FUTURE_AT);
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => expect(createSession).toHaveBeenCalled());
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.isHome).toBe(false);
+  });
+
+  it("não envia isHome se o tipo for trocado de volta para Treino antes de submeter (regressão)", async () => {
+    vi.mocked(createSession).mockResolvedValue({ ok: true, data: mockSession });
+
+    render(<SessionForm mode="create" hasSeason={true} />);
+
+    const select = screen.getByLabelText(/tipo de sessão/i);
+    fireEvent.change(select, { target: { value: "match" } });
+    fireEvent.click(screen.getByLabelText(/^casa$/i));
+    fireEvent.change(select, { target: { value: "training" } });
+
+    fillSessionDates(FUTURE_AT);
+    fireEvent.click(screen.getByRole("button", { name: /criar sessão/i }));
+
+    await waitFor(() => expect(createSession).toHaveBeenCalled());
+    const [submittedPayload] = vi.mocked(createSession).mock.calls[0]!;
+    expect(submittedPayload.isHome).toBeUndefined();
   });
 
   it("chama createSession ao submeter e mostra confirmação", async () => {
@@ -435,5 +499,21 @@ describe("SessionForm — modo edit", () => {
     await waitFor(() => {
       expect(updateSession).toHaveBeenCalled();
     });
+  });
+
+  it("pré-preenche 'Casa' quando session.is_home=true e envia isHome ao actualizar", async () => {
+    vi.mocked(updateSession).mockResolvedValue({ ok: true, data: mockSession });
+    const homeMatch: Session = { ...mockSession, type: "match", opponent_name: "SC Vilanovense", is_home: true };
+
+    render(<SessionForm mode="edit" session={homeMatch} />);
+
+    expect(screen.getByLabelText(/^casa$/i)).toBeChecked();
+    expect(screen.getByLabelText(/^fora$/i)).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: /actualizar sessão/i }));
+
+    await waitFor(() => expect(updateSession).toHaveBeenCalled());
+    const [submittedPayload] = vi.mocked(updateSession).mock.calls[0]!;
+    expect(submittedPayload.isHome).toBe(true);
   });
 });

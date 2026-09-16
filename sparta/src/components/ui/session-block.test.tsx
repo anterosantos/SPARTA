@@ -28,6 +28,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     created_at: "2026-06-01T09:00:00.000Z",
     concentration_time: null,
     opponent_name: null,
+    is_home: null,
     ...overrides,
   }
 }
