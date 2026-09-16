@@ -42,6 +42,7 @@ const BASE_SESSION = {
   created_at: "2026-08-01T00:00:00Z",
   concentration_time: null,
   opponent_name: null,
+  is_home: null,
 };
 
 function mockAuthenticatedPlayer() {

@@ -15,17 +15,40 @@ export const SESSION_TYPE_COLORS: Record<SessionType, SessionColorConfig> = {
   other:    { bg: "#64748B", bgDark: "rgba(100,116,139,0.8)", label: "Outros" },
 }
 
+type OpponentSession = {
+  type: SessionType
+  opponent_name?: string | null
+  is_home?: boolean | null
+}
+
+/** " (C)" em casa, " (F)" fora, "" quando is_home não está definido. */
+function homeAwaySuffix(session: Pick<OpponentSession, "is_home">): string {
+  if (session.is_home === true) return " (C)"
+  if (session.is_home === false) return " (F)"
+  return ""
+}
+
 /**
- * Appends " vs {adversário}" to a session type label for Jogo/Amigável when
- * opponent_name is set. Used everywhere a session's type label is displayed,
- * so the opponent (captured on the session form) is actually visible.
+ * Appends " vs {adversário} (C|F)" to a session type label for Jogo/Amigável
+ * when opponent_name is set. Used everywhere a session's type label is
+ * displayed, so o adversário e casa/fora (capturados no formulário) ficam
+ * visíveis.
  */
-export function sessionLabelWithOpponent(
-  label: string,
-  session: { type: SessionType; opponent_name?: string | null }
-): string {
+export function sessionLabelWithOpponent(label: string, session: OpponentSession): string {
   if ((session.type === "match" || session.type === "friendly") && session.opponent_name) {
-    return `${label} vs ${session.opponent_name}`
+    return `${label} vs ${session.opponent_name}${homeAwaySuffix(session)}`
+  }
+  return label
+}
+
+/**
+ * Versão compacta para espaços apertados (chip do calendário mensal): omite a
+ * palavra do tipo ("Jogo"/"Amigável") — a cor do chip já a substitui — e
+ * mostra directamente "vs Adversário (C|F)".
+ */
+export function sessionCompactLabel(label: string, session: OpponentSession): string {
+  if ((session.type === "match" || session.type === "friendly") && session.opponent_name) {
+    return `vs ${session.opponent_name}${homeAwaySuffix(session)}`
   }
   return label
 }

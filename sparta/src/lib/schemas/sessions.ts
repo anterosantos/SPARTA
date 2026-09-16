@@ -26,6 +26,9 @@ export const SessionCreateSchema = z
       .string()
       .max(100, "Nome da equipa adversária demasiado longo (máx. 100 caracteres)")
       .optional(),
+    // Casa/fora — só relevante para jogo/amigável; undefined = não aplicável
+    // (treino/palestra/etc.) ou não definido pelo treinador.
+    isHome: z.boolean().optional(),
     // Repetição semanal — gera N sessões independentes (mesmo dia da semana e
     // hora), uma por semana a partir de scheduledAt. Só aplicável na criação.
     repeatWeekly: z.boolean().optional().default(false),
@@ -75,6 +78,7 @@ export const SessionUpdateSchema = z
       .string()
       .max(100, "Nome da equipa adversária demasiado longo (máx. 100 caracteres)")
       .optional(),
+    isHome: z.boolean().optional(),
   })
   .refine(
     (data) => {
@@ -114,4 +118,5 @@ export type Session = {
   created_at: string;
   concentration_time: string | null;
   opponent_name: string | null;
+  is_home: boolean | null;
 };

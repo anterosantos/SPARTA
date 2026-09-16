@@ -19,6 +19,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     created_at: "2026-08-01T00:00:00.000Z",
     concentration_time: null,
     opponent_name: null,
+    is_home: null,
     ...overrides,
   }
 }
@@ -102,6 +103,46 @@ describe("MonthGrid", () => {
 
     screen.getByRole("gridcell", { name: /^5 de agosto.*0 sessões/i }).click()
     expect(onSelectDay).toHaveBeenCalledTimes(1)
+  })
+
+  it("mostra 'vs Adversário (C)' para jogo em casa com opponent_name (em vez de só 'Jogo')", () => {
+    render(
+      <MonthGrid
+        sessions={[
+          makeSession({
+            type: "match",
+            opponent_name: "O Elvas",
+            is_home: true,
+            scheduled_at: "2026-08-05T10:00:00.000Z",
+          }),
+        ]}
+        month={MONTH}
+        onSelectDay={vi.fn()}
+      />
+    )
+    const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*1 sessão/i })
+    const chip = cell.querySelector("div[aria-hidden]")
+    expect(chip?.textContent).toMatch(/^\d{2}:\d{2} vs O Elvas \(C\)$/)
+  })
+
+  it("mostra 'vs Adversário (F)' para jogo fora", () => {
+    render(
+      <MonthGrid
+        sessions={[
+          makeSession({
+            type: "match",
+            opponent_name: "O Elvas",
+            is_home: false,
+            scheduled_at: "2026-08-05T10:00:00.000Z",
+          }),
+        ]}
+        month={MONTH}
+        onSelectDay={vi.fn()}
+      />
+    )
+    const cell = screen.getByRole("gridcell", { name: /^5 de agosto.*1 sessão/i })
+    const chip = cell.querySelector("div[aria-hidden]")
+    expect(chip?.textContent).toMatch(/^\d{2}:\d{2} vs O Elvas \(F\)$/)
   })
 
   it("mostra Médico/Fisio e Outros com a cor e label correctos", () => {

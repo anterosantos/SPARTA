@@ -84,6 +84,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
     staffTeams.length === 1 && staffTeams[0] ? new Set([staffTeams[0].id]) : new Set()
   );
   const [endAt, setEndAt] = useState("");
+  const [isHome, setIsHome] = useState<boolean | undefined>(undefined);
 
   const form = useForm<SessionCreateInput>({
     resolver: zodResolver(SessionCreateSchema),
@@ -151,6 +152,7 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
             // Only match/friendly sessions have an opponent — a leftover value
             // from a type the user switched away from must not be persisted.
             opponentName: isSingleTeamType ? data.opponentName || undefined : undefined,
+            isHome: isSingleTeamType ? isHome : undefined,
             repeatWeekly: data.repeatWeekly ?? false,
             repeatWeeks: data.repeatWeekly ? data.repeatWeeks : undefined,
           },
@@ -236,6 +238,36 @@ function SessionCreateForm({ hasSeason, staffTeams = [], returnTo = "/calendario
                   {form.formState.errors.opponentName.message}
                 </p>
               )}
+            </div>
+          )}
+
+          {isSingleTeamType && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Casa ou fora</p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                  <input
+                    type="radio"
+                    name="session-is-home"
+                    checked={isHome === true}
+                    onChange={() => setIsHome(true)}
+                    disabled={!hasSeason}
+                    className="h-4 w-4 border-border text-primary focus:ring-primary"
+                  />
+                  Casa
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                  <input
+                    type="radio"
+                    name="session-is-home"
+                    checked={isHome === false}
+                    onChange={() => setIsHome(false)}
+                    disabled={!hasSeason}
+                    className="h-4 w-4 border-border text-primary focus:ring-primary"
+                  />
+                  Fora
+                </label>
+              </div>
             </div>
           )}
 
@@ -418,6 +450,7 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
   const [endAt, setEndAt] = useState(() =>
     endLocalFromDuration(session.scheduled_at, session.duration_min)
   );
+  const [isHome, setIsHome] = useState<boolean | undefined>(session.is_home ?? undefined);
 
   const isLocked =
     session.status === "cancelled" || session.status === "completed";
@@ -496,6 +529,7 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
           // Only match/friendly sessions have an opponent — a leftover value
           // from a type the user switched away from must not be persisted.
           opponentName: isSingleTeamType ? data.opponentName || undefined : undefined,
+          isHome: isSingleTeamType ? isHome : undefined,
         });
         if (!result.ok) {
           form.setError("root", { message: result.error.message });
@@ -580,6 +614,36 @@ function SessionEditForm({ session, staffTeams = [] }: SessionFormEditProps) {
                   {form.formState.errors.opponentName.message}
                 </p>
               )}
+            </div>
+          )}
+
+          {isSingleTeamType && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Casa ou fora</p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                  <input
+                    type="radio"
+                    name="session-is-home"
+                    checked={isHome === true}
+                    onChange={() => setIsHome(true)}
+                    disabled={isLocked}
+                    className="h-4 w-4 border-border text-primary focus:ring-primary"
+                  />
+                  Casa
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                  <input
+                    type="radio"
+                    name="session-is-home"
+                    checked={isHome === false}
+                    onChange={() => setIsHome(false)}
+                    disabled={isLocked}
+                    className="h-4 w-4 border-border text-primary focus:ring-primary"
+                  />
+                  Fora
+                </label>
+              </div>
             </div>
           )}
 

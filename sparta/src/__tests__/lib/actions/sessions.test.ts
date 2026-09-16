@@ -560,6 +560,40 @@ describe("createSession", () => {
     expect(insertedRows).toHaveLength(1);
   });
 
+  it("persiste is_home (true/false) e opponentName na linha inserida", async () => {
+    vi.mocked(getCurrentSeason).mockResolvedValue({ ok: true, data: mockCurrentSeason });
+    const mock = makeSupabaseMock();
+    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+    await createSession({
+      ...validInput,
+      type: "match",
+      opponentName: "O Elvas",
+      isHome: true,
+    });
+
+    const sessionsTable = mock.from("sessions");
+    const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
+    const [row] = insertCall[0] as { opponent_name: string; is_home: boolean }[];
+    expect(row!.opponent_name).toBe("O Elvas");
+    expect(row!.is_home).toBe(true);
+  });
+
+  it("is_home fica null quando não fornecido (treino, ou jogo sem casa/fora escolhida)", async () => {
+    vi.mocked(getCurrentSeason).mockResolvedValue({ ok: true, data: mockCurrentSeason });
+    const mock = makeSupabaseMock();
+    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+    await createSession(validInput);
+
+    const sessionsTable = mock.from("sessions");
+    const insertCall = vi.mocked(sessionsTable.insert).mock.calls[0]!;
+    const [row] = insertCall[0] as { is_home: boolean | null }[];
+    expect(row!.is_home).toBeNull();
+  });
+
   it("devolve validation error se repeatWeekly=true sem indicar repeatWeeks", async () => {
     const result = await createSession({
       ...validInput,
@@ -611,6 +645,20 @@ describe("updateSession", () => {
 
     const result = await updateSession(validInput);
     expect(result.ok).toBe(true);
+  });
+
+  it("envia is_home no payload do update", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createServerClient).mockResolvedValue(mock as never);
+    vi.mocked(getServiceRoleClient).mockReturnValue(mock as never);
+
+    await updateSession({ ...validInput, opponentName: "O Elvas", isHome: false });
+
+    const sessionsTable = mock.from("sessions");
+    const updateCall = vi.mocked(sessionsTable.update).mock.calls[0]!;
+    const patch = updateCall[0] as { is_home: boolean | null; opponent_name: string | null };
+    expect(patch.is_home).toBe(false);
+    expect(patch.opponent_name).toBe("O Elvas");
   });
 
   it("bloqueia actualização de sessão cancelada", async () => {

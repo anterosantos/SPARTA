@@ -1818,6 +1818,7 @@ export type Database = {
           created_by: string
           duration_min: number
           id: string
+          is_home: boolean | null
           location: string | null
           notes: string | null
           opponent_name: string | null
@@ -1834,6 +1835,7 @@ export type Database = {
           created_by: string
           duration_min?: number
           id?: string
+          is_home?: boolean | null
           location?: string | null
           notes?: string | null
           opponent_name?: string | null
@@ -1850,6 +1852,7 @@ export type Database = {
           created_by?: string
           duration_min?: number
           id?: string
+          is_home?: boolean | null
           location?: string | null
           notes?: string | null
           opponent_name?: string | null
