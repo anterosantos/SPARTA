@@ -14,7 +14,7 @@ import {
 import { pt } from "date-fns/locale"
 import { Cake } from "lucide-react"
 import type { Session } from "@/lib/schemas/sessions"
-import { SESSION_TYPE_COLORS, sessionCompactLabel } from "@/lib/constants/session-colors"
+import { SESSION_TYPE_COLORS, sessionCompactLabel, sessionBackground } from "@/lib/constants/session-colors"
 import type { BirthdayEntry } from "@/components/ui/calendar-month-view"
 
 const DAY_HEADERS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
@@ -135,7 +135,10 @@ export function MonthGrid({ sessions, month, onSelectDay, birthdays = [] }: Mont
                     <div
                       key={s.id}
                       className="w-full rounded-sm px-1.5 py-1 overflow-hidden"
-                      style={{ backgroundColor: config?.bg, opacity: isCancelled ? 0.5 : 1 }}
+                      style={{
+                        backgroundColor: config ? sessionBackground(config, s, false) : undefined,
+                        opacity: isCancelled ? 0.5 : 1,
+                      }}
                       aria-hidden="true"
                     >
                       <span className="block truncate text-[11px] leading-tight font-medium text-white">

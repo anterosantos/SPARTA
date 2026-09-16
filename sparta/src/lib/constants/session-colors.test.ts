@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { sessionLabelWithOpponent, sessionCompactLabel } from "./session-colors"
+import { sessionLabelWithOpponent, sessionCompactLabel, sessionBackground, SESSION_TYPE_COLORS } from "./session-colors"
 
 describe("sessionLabelWithOpponent", () => {
   it("acrescenta ' vs adversário' para jogo com opponent_name", () => {
@@ -59,5 +59,28 @@ describe("sessionCompactLabel", () => {
 
   it("cai de volta ao label para treino", () => {
     expect(sessionCompactLabel("Treino", { type: "training", opponent_name: null })).toBe("Treino")
+  })
+})
+
+describe("sessionBackground", () => {
+  it("casa (is_home=true) usa a cor forte do tipo", () => {
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, { is_home: true }, false)).toBe("#DC2626")
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, { is_home: true }, true)).toBe("rgba(220,38,38,0.8)")
+  })
+
+  it("fora (is_home=false) usa a variante clara bgAway do tipo", () => {
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, { is_home: false }, false)).toBe("#F87171")
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, { is_home: false }, true)).toBe("rgba(248,113,113,0.8)")
+    expect(sessionBackground(SESSION_TYPE_COLORS.friendly, { is_home: false }, false)).toBe("#FACC15")
+  })
+
+  it("is_home null/undefined usa a cor forte (comportamento por omissão inalterado)", () => {
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, { is_home: null }, false)).toBe("#DC2626")
+    expect(sessionBackground(SESSION_TYPE_COLORS.match, {}, false)).toBe("#DC2626")
+  })
+
+  it("tipos sem bgAway (treino, palestra, médico, outros) ignoram is_home=false", () => {
+    expect(sessionBackground(SESSION_TYPE_COLORS.training, { is_home: false }, false)).toBe("#2563EB")
+    expect(sessionBackground(SESSION_TYPE_COLORS.lecture, { is_home: false }, false)).toBe("#7C3AED")
   })
 })
