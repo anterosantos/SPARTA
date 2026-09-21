@@ -1,9 +1,35 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { ZoneCell } from "./zone-cell";
+import { ZoneCell, type ZoneAccentSide, type ZoneAccentColor } from "./zone-cell";
 import { MATCH_ZONES, requiresContext } from "@/lib/schemas/match-events";
 import type { ContextAction, GoalContext, CardContext } from "@/lib/schemas/match-events";
+
+// Linhas de destaque no selector de zonas (só orientação visual — não afecta
+// os dados guardados nem os rótulos):
+//   - divisória branca entre "Meio campo ofensivo" e "Meio campo defensivo"
+//   - caixa verde à volta do bloco central de ataque (2×2)
+//   - caixa vermelha à volta da zona de perigo perto da própria baliza
+const ZONE_ACCENT_BORDERS: Partial<
+  Record<(typeof MATCH_ZONES)[number], Partial<Record<ZoneAccentSide, ZoneAccentColor>>>
+> = {
+  mid_back_left: { top: "white" },
+  mid_back_midleft: { top: "white" },
+  mid_back_midright: { top: "white" },
+  mid_back_right: { top: "white" },
+
+  att_end_midleft: { top: "green", left: "green" },
+  att_end_midright: { top: "green", right: "green" },
+  att_box_midleft: { bottom: "green", left: "green" },
+  att_box_midright: { bottom: "green", right: "green" },
+
+  def_box_midleft: { top: "red", left: "red" },
+  def_box_midright: { top: "red", right: "red" },
+  def_end_left: { top: "red", bottom: "red", left: "red" },
+  def_end_midleft: { bottom: "red" },
+  def_end_midright: { bottom: "red" },
+  def_end_right: { top: "red", bottom: "red", right: "red" },
+};
 import {
   useMatchSession,
   useSelectedPlayer,
@@ -246,6 +272,7 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
             onClick={handleZoneSelect}
             disabled={isSubmitting}
             ref={i === 0 ? firstCellRef : undefined}
+            accentBorders={ZONE_ACCENT_BORDERS[zone]}
           />
         ))}
       </div>

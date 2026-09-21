@@ -177,4 +177,30 @@ describe("<ZoneSelectorSheet>", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
   });
+
+  it("linhas de destaque: divisória branca, caixa verde de ataque e caixa vermelha de perigo", () => {
+    useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
+    render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
+
+    const cellByLabel = (name: string) => screen.getByRole("gridcell", { name });
+
+    // Divisória branca entre "Meio campo ofensivo" e "Meio campo defensivo"
+    expect(cellByLabel("Meio campo defensivo esquerda").style.borderTopColor).toBe("rgb(255, 255, 255)");
+    expect(cellByLabel("Meio campo defensivo direita").style.borderTopColor).toBe("rgb(255, 255, 255)");
+    // Linha acima (meio campo ofensivo) não tem destaque
+    expect(cellByLabel("Meio campo ofensivo esquerda").style.borderBottomColor).toBe("");
+
+    // Caixa verde — bloco central de ataque (2×2)
+    expect(cellByLabel("Ataque linha de fundo centro esquerda").style.borderTopColor).toBe("rgb(34, 197, 94)");
+    expect(cellByLabel("Ataque entrada área centro direita").style.borderRightColor).toBe("rgb(34, 197, 94)");
+    // Cantos fora da caixa não têm destaque
+    expect(cellByLabel("Ataque linha de fundo esquerda").style.borderTopColor).toBe("");
+
+    // Caixa vermelha — zona de perigo perto da própria baliza
+    expect(cellByLabel("Defesa linha de fundo esquerda").style.borderLeftColor).toBe("rgb(239, 68, 68)");
+    expect(cellByLabel("Defesa linha de fundo direita").style.borderRightColor).toBe("rgb(239, 68, 68)");
+    expect(cellByLabel("Defesa entrada área centro esquerda").style.borderTopColor).toBe("rgb(239, 68, 68)");
+    // Os cantos da linha "entrada área" (fora da caixa) não têm destaque
+    expect(cellByLabel("Defesa entrada área esquerda").style.borderTopColor).toBe("");
+  });
 });
