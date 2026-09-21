@@ -98,3 +98,58 @@ describe("<EstatisticasTab> — filtro por tipo de sessão", () => {
     });
   });
 });
+
+describe("<EstatisticasTab> — zonas de acção (esquema legado vs. actual)", () => {
+  beforeEach(() => {
+    mockGetStats.mockReset();
+  });
+
+  it("só zonas legadas (jogos antigos) — mostra só o mapa 3×4, sem sufixo no título", async () => {
+    mockGetStats.mockResolvedValue({
+      ok: true,
+      data: { ...sampleData, zoneHeatmap: { att_center: 1, def_left: 2 } },
+    });
+    render(<EstatisticasTab playerId="player-1" isCumulative={false} />);
+    await waitFor(() => expect(mockGetStats).toHaveBeenCalled());
+
+    expect(screen.getByRole("heading", { name: "Zonas de acção" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Grelha 3×4 de intensidade de acções por zona")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Grelha 4×6 de intensidade de acções por zona")).not.toBeInTheDocument();
+  });
+
+  it("só zonas do esquema actual (jogos novos) — mostra só o mapa 4×6, sem sufixo no título", async () => {
+    mockGetStats.mockResolvedValue({
+      ok: true,
+      data: { ...sampleData, zoneHeatmap: { att_end_left: 3 } },
+    });
+    render(<EstatisticasTab playerId="player-1" isCumulative={false} />);
+    await waitFor(() => expect(mockGetStats).toHaveBeenCalled());
+
+    expect(screen.getByRole("heading", { name: "Zonas de acção" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Grelha 4×6 de intensidade de acções por zona")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Grelha 3×4 de intensidade de acções por zona")).not.toBeInTheDocument();
+  });
+
+  it("os dois esquemas presentes (histórico misto) — mostra os dois mapas, títulos desambiguados", async () => {
+    mockGetStats.mockResolvedValue({
+      ok: true,
+      data: { ...sampleData, zoneHeatmap: { att_center: 1, att_end_left: 3 } },
+    });
+    render(<EstatisticasTab playerId="player-1" isCumulative={false} />);
+    await waitFor(() => expect(mockGetStats).toHaveBeenCalled());
+
+    expect(screen.getByRole("heading", { name: "Zonas de acção (esquema anterior)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Zonas de acção (esquema actual)" })).toBeInTheDocument();
+  });
+
+  it("sem nenhuma zona registada — não mostra nenhum mapa", async () => {
+    mockGetStats.mockResolvedValue({
+      ok: true,
+      data: { ...sampleData, zoneHeatmap: {} },
+    });
+    render(<EstatisticasTab playerId="player-1" isCumulative={false} />);
+    await waitFor(() => expect(mockGetStats).toHaveBeenCalled());
+
+    expect(screen.queryByRole("heading", { name: /Zonas de acção/ })).not.toBeInTheDocument();
+  });
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import type { MATCH_ZONES } from "@/lib/schemas/match-events";
+import { MATCH_ZONE_LABEL, type MATCH_ZONES } from "@/lib/schemas/match-events";
 import { cn } from "@/lib/utils";
 
 type MatchZone = (typeof MATCH_ZONES)[number];
@@ -12,24 +12,9 @@ interface ZoneCellProps {
   disabled?: boolean;
 }
 
-const ZONES_MAP: Record<MatchZone, string> = {
-  def_left: "Defesa esquerda",
-  def_center: "Defesa centro",
-  def_right: "Defesa direita",
-  mid_def_left: "MC defensivo esq.",
-  mid_def_center: "MC defensivo centro",
-  mid_def_right: "MC defensivo dir.",
-  mid_att_left: "MC ofensivo esq.",
-  mid_att_center: "MC ofensivo centro",
-  mid_att_right: "MC ofensivo dir.",
-  att_left: "Ataque esquerda",
-  att_center: "Ataque centro",
-  att_right: "Ataque direita",
-};
-
 export const ZoneCell = forwardRef<HTMLButtonElement, ZoneCellProps>(
   ({ zone, onClick, disabled }, ref) => {
-    const label = ZONES_MAP[zone] ?? zone;
+    const label = MATCH_ZONE_LABEL[zone] ?? zone;
 
     return (
       <button

@@ -20,7 +20,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import type { RecentEventEntry, MatchAction } from "@/lib/stores/match-session";
-import type { MATCH_ZONES } from "@/lib/schemas/match-events";
+import { MATCH_ZONE_LABEL, type MATCH_ZONES } from "@/lib/schemas/match-events";
 import { TooltipExplain } from "@/components/ui/tooltip-explain";
 
 const ACTION_ICON: Record<MatchAction, React.ElementType> = {
@@ -66,34 +66,34 @@ const ACTION_LABEL: Record<MatchAction, string> = {
 };
 
 const ZONE_ABBR: Record<(typeof MATCH_ZONES)[number], string> = {
-  def_left: "DE",
-  def_center: "DC",
-  def_right: "DD",
-  mid_def_left: "MDE",
-  mid_def_center: "MDC",
-  mid_def_right: "MDD",
-  mid_att_left: "MOE",
-  mid_att_center: "MOC",
-  mid_att_right: "MOD",
-  att_left: "AE",
-  att_center: "AC",
-  att_right: "AD",
+  att_end_left: "ALF-E",
+  att_end_midleft: "ALF-CE",
+  att_end_midright: "ALF-CD",
+  att_end_right: "ALF-D",
+  att_box_left: "AEA-E",
+  att_box_midleft: "AEA-CE",
+  att_box_midright: "AEA-CD",
+  att_box_right: "AEA-D",
+  mid_off_left: "MCO-E",
+  mid_off_midleft: "MCO-CE",
+  mid_off_midright: "MCO-CD",
+  mid_off_right: "MCO-D",
+  mid_back_left: "MCD-E",
+  mid_back_midleft: "MCD-CE",
+  mid_back_midright: "MCD-CD",
+  mid_back_right: "MCD-D",
+  def_box_left: "DEA-E",
+  def_box_midleft: "DEA-CE",
+  def_box_midright: "DEA-CD",
+  def_box_right: "DEA-D",
+  def_end_left: "DLF-E",
+  def_end_midleft: "DLF-CE",
+  def_end_midright: "DLF-CD",
+  def_end_right: "DLF-D",
 };
 
-const ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
-  def_left: "Defesa esquerda",
-  def_center: "Defesa centro",
-  def_right: "Defesa direita",
-  mid_def_left: "MC defensivo esq.",
-  mid_def_center: "MC defensivo centro",
-  mid_def_right: "MC defensivo dir.",
-  mid_att_left: "MC ofensivo esq.",
-  mid_att_center: "MC ofensivo centro",
-  mid_att_right: "MC ofensivo dir.",
-  att_left: "Ataque esquerda",
-  att_center: "Ataque centro",
-  att_right: "Ataque direita",
-};
+// Reexporta os rótulos completos (PT) do schema — fonte única partilhada.
+const ZONE_LABEL = MATCH_ZONE_LABEL;
 
 interface EventChipProps {
   entry: RecentEventEntry;

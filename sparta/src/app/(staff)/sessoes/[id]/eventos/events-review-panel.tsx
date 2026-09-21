@@ -6,6 +6,8 @@ import { TooltipExplain } from "@/components/ui/tooltip-explain";
 import {
   MATCH_ACTIONS,
   MATCH_ZONES,
+  MATCH_ZONE_LABEL,
+  resolveZoneLabel,
   type SessionEventEntry,
   type MatchEventUpdate,
 } from "@/lib/schemas/match-events";
@@ -31,20 +33,10 @@ const ACTION_LABEL: Record<(typeof MATCH_ACTIONS)[number], string> = {
   second_half_start: "Início da 2ª parte",
 };
 
-const ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
-  def_left: "Defesa esq.",
-  def_center: "Defesa cen.",
-  def_right: "Defesa dir.",
-  mid_def_left: "MC def. esq.",
-  mid_def_center: "MC def. cen.",
-  mid_def_right: "MC def. dir.",
-  mid_att_left: "MC of. esq.",
-  mid_att_center: "MC of. cen.",
-  mid_att_right: "MC of. dir.",
-  att_left: "Ataque esq.",
-  att_center: "Ataque cen.",
-  att_right: "Ataque dir.",
-};
+// Reexporta os rótulos das 24 zonas activas (PT) do schema — usado no dropdown
+// de edição (só oferece zonas novas; zonas legadas resolvem-se com
+// resolveZoneLabel() na célula de leitura, mais abaixo).
+const ZONE_LABEL = MATCH_ZONE_LABEL;
 
 interface EventsReviewPanelProps {
   events: SessionEventEntry[];
@@ -233,7 +225,7 @@ export function EventsReviewPanel({
               <tr key={entry.id} className="border-b border-border">
                 <td className="py-2 pr-3 text-muted-foreground">{time}</td>
                 <td className="py-2 pr-3">{ACTION_LABEL[entry.action] ?? entry.action}</td>
-                <td className="py-2 pr-3">{ZONE_LABEL[entry.zone] ?? entry.zone}</td>
+                <td className="py-2 pr-3">{resolveZoneLabel(entry.zone)}</td>
                 <td className="py-2 pr-3 text-muted-foreground">
                   {entry.jersey_number != null ? `nº${entry.jersey_number} ` : ""}
                   {entry.player_name ?? "—"}

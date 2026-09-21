@@ -151,7 +151,7 @@ export function MatchEventCapture({ sessionId, scheduledAt, durationMin, isWithi
       id: newId(),
       session_id: sessionId,
       action,
-      zone: "mid_def_center" as const,
+      zone: "mid_off_left" as const,
       player_id: null,
       occurred_at: new Date().toISOString(),
       captured_via: "online" as const,

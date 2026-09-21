@@ -6,7 +6,7 @@ import type { RecentEventEntry } from "@/lib/stores/match-session";
 const mockEntry: RecentEventEntry = {
   id: "01920a4b-c8d3-7000-9c4e-000000000001",
   action: "ball_loss",
-  zone: "mid_def_center",
+  zone: "mid_back_midleft",
   jersey_number: 10,
   occurred_at: "2026-05-30T15:00:00.000Z",
 };
@@ -15,12 +15,12 @@ describe("<EventChip>", () => {
   it("renderiza jersey e abreviatura de zona no estado normal", () => {
     render(<EventChip entry={mockEntry} onDelete={vi.fn()} isDeleting={false} />);
     expect(screen.getByText(/#10/)).toBeInTheDocument();
-    expect(screen.getByText(/MDC/)).toBeInTheDocument();
+    expect(screen.getByText(/MCD-CE/)).toBeInTheDocument();
   });
 
   it("tem aria-label descritiva no estado normal", () => {
     render(<EventChip entry={mockEntry} onDelete={vi.fn()} isDeleting={false} />);
-    const btn = screen.getByRole("button", { name: /Remover evento: Perda de bola #10 MC defensivo centro/i });
+    const btn = screen.getByRole("button", { name: /Remover evento: Perda de bola #10 Meio campo defensivo centro esquerda/i });
     expect(btn).toBeInTheDocument();
   });
 
@@ -58,10 +58,10 @@ describe("<EventChip>", () => {
     expect(svgIcon).toBeInTheDocument();
   });
 
-  it("ball_recovery usa abreviatura de zona correcta (att_left → AE)", () => {
-    const entry: RecentEventEntry = { ...mockEntry, action: "ball_recovery", zone: "att_left" };
+  it("ball_recovery usa abreviatura de zona correcta (att_end_left → ALF-E)", () => {
+    const entry: RecentEventEntry = { ...mockEntry, action: "ball_recovery", zone: "att_end_left" };
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
-    expect(screen.getByText(/AE/)).toBeInTheDocument();
+    expect(screen.getByText(/ALF-E/)).toBeInTheDocument();
   });
 
   it("desabilitado quando isDeleting=true", () => {
@@ -110,7 +110,7 @@ describe("<EventChip>", () => {
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
     expect(screen.getByText(/ADV/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Remover evento: Perda de bola ADV MC defensivo centro/i })
+      screen.getByRole("button", { name: /Remover evento: Perda de bola ADV Meio campo defensivo centro esquerda/i })
     ).toBeInTheDocument();
   });
 
@@ -118,7 +118,7 @@ describe("<EventChip>", () => {
     const entry: RecentEventEntry = { ...mockEntry, action: "half_time", jersey_number: null };
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
     expect(
-      screen.getByRole("button", { name: /Remover evento: Fim da 1ª parte ADV MC defensivo centro/i })
+      screen.getByRole("button", { name: /Remover evento: Fim da 1ª parte ADV Meio campo defensivo centro esquerda/i })
     ).toBeInTheDocument();
   });
 
@@ -126,7 +126,7 @@ describe("<EventChip>", () => {
     const entry: RecentEventEntry = { ...mockEntry, action: "match_start", jersey_number: null };
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
     expect(
-      screen.getByRole("button", { name: /Remover evento: Início do jogo ADV MC defensivo centro/i })
+      screen.getByRole("button", { name: /Remover evento: Início do jogo ADV Meio campo defensivo centro esquerda/i })
     ).toBeInTheDocument();
   });
 
@@ -134,7 +134,7 @@ describe("<EventChip>", () => {
     const entry: RecentEventEntry = { ...mockEntry, action: "second_half_start", jersey_number: null };
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
     expect(
-      screen.getByRole("button", { name: /Remover evento: Início da 2ª parte ADV MC defensivo centro/i })
+      screen.getByRole("button", { name: /Remover evento: Início da 2ª parte ADV Meio campo defensivo centro esquerda/i })
     ).toBeInTheDocument();
   });
 });

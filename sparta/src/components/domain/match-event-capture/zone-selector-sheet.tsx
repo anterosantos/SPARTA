@@ -233,9 +233,9 @@ export function ZoneSelectorSheet({ sessionId, scheduledAt, durationMin }: ZoneS
         </div>
       </div>
 
-      {/* Zone Grid — fills remaining space */}
+      {/* Zone Grid — fills remaining space — 24 zonas, 4 colunas × 6 linhas */}
       <div
-        className="flex-1 min-h-0 grid grid-cols-3 gap-2 p-2 sm:p-3 [grid-auto-rows:1fr]"
+        className="flex-1 min-h-0 grid grid-cols-4 gap-2 p-2 sm:p-3 [grid-auto-rows:1fr]"
         role="grid"
         aria-label="Selector de zonas do campo"
       >

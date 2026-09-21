@@ -48,7 +48,7 @@ function makePayload(overrides: Record<string, unknown> = {}) {
   return {
     id: EVENT_UUID,
     action: "ball_loss" as const,
-    zone: "mid_def_center" as const,
+    zone: "mid_back_midleft" as const,
     player_id: PLAYER_UUID,
     session_id: SESSION_UUID,
     occurred_at: "2026-05-28T16:30:00.000Z", // Past timestamp to avoid future validation errors
@@ -177,8 +177,8 @@ describe("MATCH_ACTIONS e MATCH_ZONES — enums exportados", () => {
     expect(MATCH_ACTIONS).toHaveLength(17);
   });
 
-  it("MATCH_ZONES tem 12 zonas", () => {
-    expect(MATCH_ZONES).toHaveLength(12);
+  it("MATCH_ZONES tem 24 zonas (6 linhas × 4 colunas)", () => {
+    expect(MATCH_ZONES).toHaveLength(24);
   });
 });
 
@@ -518,7 +518,7 @@ function buildServiceRoleForRecentEvents(opts: {
       {
         id: EVENT_UUID,
         action: "ball_loss",
-        zone: "mid_def_center",
+        zone: "mid_back_midleft",
         occurred_at: "2026-05-30T15:00:00Z",
         player_id: PLAYER_UUID,
       },
@@ -580,7 +580,7 @@ describe("getRecentMatchEvents", () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0]?.jersey_number).toBe(10);
       expect(result.data[0]?.action).toBe("ball_loss");
-      expect(result.data[0]?.zone).toBe("mid_def_center");
+      expect(result.data[0]?.zone).toBe("mid_back_midleft");
     }
   });
 
@@ -639,7 +639,7 @@ describe("getRecentMatchEvents", () => {
           {
             id: EVENT_UUID,
             action: "half_time",
-            zone: "mid_def_center",
+            zone: "mid_back_midleft",
             occurred_at: "2026-05-30T15:00:00Z",
             player_id: null,
           },

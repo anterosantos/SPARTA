@@ -9,6 +9,12 @@ import { SeasonToggle } from "@/components/patterns/SeasonToggle";
 import { getPlayerStatisticsTabData } from "@/lib/actions/player-profile";
 import { getCurrentSeason } from "@/lib/actions/seasons";
 import type { StatisticsTabData } from "@/lib/actions/player-profile";
+import {
+  MATCH_ZONES,
+  MATCH_ZONE_LABEL,
+  LEGACY_MATCH_ZONES,
+  LEGACY_MATCH_ZONE_LABEL,
+} from "@/lib/schemas/match-events";
 
 interface EstatisticasTabProps {
   playerId: string;
@@ -22,23 +28,6 @@ const SESSION_TYPE_OPTIONS: { value: SessionTypeFilter; label: string }[] = [
   { value: "match", label: "Jogos" },
   { value: "friendly", label: "Amigáveis" },
 ];
-
-// Named zone values as stored in match_events.zone (migration 000330)
-const ZONE_ORDER = [
-  "def_left", "def_center", "def_right",
-  "mid_def_left", "mid_def_center", "mid_def_right",
-  "mid_att_left", "mid_att_center", "mid_att_right",
-  "att_left", "att_center", "att_right",
-] as const;
-
-type ZoneKey = typeof ZONE_ORDER[number];
-
-const ZONE_LABELS: Record<ZoneKey, string> = {
-  def_left: "Def. E", def_center: "Def. C", def_right: "Def. D",
-  mid_def_left: "MCD E", mid_def_center: "MCD C", mid_def_right: "MCD D",
-  mid_att_left: "MCO E", mid_att_center: "MCO C", mid_att_right: "MCO D",
-  att_left: "Atq. E", att_center: "Atq. C", att_right: "Atq. D",
-};
 
 function zoneColor(count: number, max: number): string {
   if (max === 0) return "bg-muted";
@@ -158,9 +147,20 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
   }
 
   const t = data.totals;
-  const heatmapCounts = ZONE_ORDER.map((z) => data.zoneHeatmap[z] ?? 0);
-  const maxZoneCount = Math.max(0, ...heatmapCounts);
-  const hasZoneData = heatmapCounts.some((c) => c > 0);
+  // A vista é cumulativa — pode abranger jogos capturados antes E depois da
+  // mudança para 24 zonas (2026), por isso os dois esquemas são tratados em
+  // separado: jogos antigos continuam a mostrar-se com o layout de 12 zonas
+  // (3×4) com que foram jogados, nunca reinterpretados como as novas 24.
+  const legacyCounts = LEGACY_MATCH_ZONES.map((z) => data.zoneHeatmap[z] ?? 0);
+  const maxLegacyCount = Math.max(0, ...legacyCounts);
+  const hasLegacyZoneData = legacyCounts.some((c) => c > 0);
+
+  const newCounts = MATCH_ZONES.map((z) => data.zoneHeatmap[z] ?? 0);
+  const maxNewCount = Math.max(0, ...newCounts);
+  const hasNewZoneData = newCounts.some((c) => c > 0);
+
+  // Só desambiguar o título quando os dois esquemas coexistem nesta vista.
+  const bothSchemesPresent = hasLegacyZoneData && hasNewZoneData;
 
   return (
     <div className="space-y-6">
@@ -219,24 +219,56 @@ export function EstatisticasTab({ playerId, isCumulative }: EstatisticasTabProps
         </table>
       </div>
 
-      {/* Zone heatmap 3×3 — uses named zone keys from match_events.zone constraint */}
-      {hasZoneData && (
-        <section aria-label="Mapa de zonas de acção">
-          <h3 className="text-sm font-semibold mb-2">Zonas de acção</h3>
+      {/* Zonas de acção — esquema legado (12 zonas, 3×4), jogos antigos */}
+      {hasLegacyZoneData && (
+        <section aria-label="Mapa de zonas de acção (esquema anterior)">
+          <h3 className="text-sm font-semibold mb-2">
+            Zonas de acção{bothSchemesPresent ? " (esquema anterior)" : ""}
+          </h3>
           <div
             className="grid grid-cols-3 gap-1 w-48"
             role="img"
-            aria-label="Grelha 3×3 de intensidade de acções por zona"
+            aria-label="Grelha 3×4 de intensidade de acções por zona"
           >
-            {ZONE_ORDER.map((zone) => {
+            {LEGACY_MATCH_ZONES.map((zone) => {
               const count = data.zoneHeatmap[zone] ?? 0;
+              const label = LEGACY_MATCH_ZONE_LABEL[zone];
               return (
                 <div
                   key={zone}
-                  className={`flex flex-col items-center justify-center h-14 rounded text-xs font-medium ${zoneColor(count, maxZoneCount)}`}
-                  aria-label={`Zona ${ZONE_LABELS[zone]}: ${count} acções`}
+                  className={`flex flex-col items-center justify-center h-14 rounded text-xs font-medium ${zoneColor(count, maxLegacyCount)}`}
+                  aria-label={`Zona ${label}: ${count} acções`}
                 >
-                  <span className="text-[10px] text-muted-foreground">{ZONE_LABELS[zone]}</span>
+                  <span className="text-[9px] text-muted-foreground text-center px-0.5 leading-tight">{label}</span>
+                  <span>{count > 0 ? count : ""}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Zonas de acção — esquema actual (24 zonas, 4×6) */}
+      {hasNewZoneData && (
+        <section aria-label="Mapa de zonas de acção">
+          <h3 className="text-sm font-semibold mb-2">
+            Zonas de acção{bothSchemesPresent ? " (esquema actual)" : ""}
+          </h3>
+          <div
+            className="grid grid-cols-4 gap-1 w-56"
+            role="img"
+            aria-label="Grelha 4×6 de intensidade de acções por zona"
+          >
+            {MATCH_ZONES.map((zone) => {
+              const count = data.zoneHeatmap[zone] ?? 0;
+              const label = MATCH_ZONE_LABEL[zone];
+              return (
+                <div
+                  key={zone}
+                  className={`flex flex-col items-center justify-center h-14 rounded text-xs font-medium ${zoneColor(count, maxNewCount)}`}
+                  aria-label={`Zona ${label}: ${count} acções`}
+                >
+                  <span className="text-[8px] text-muted-foreground text-center px-0.5 leading-tight">{label}</span>
                   <span>{count > 0 ? count : ""}</span>
                 </div>
               );

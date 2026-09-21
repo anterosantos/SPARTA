@@ -31,7 +31,7 @@ import { db } from '@/lib/outbox/db'
 const VALID_MATCH_EVENT_PAYLOAD = {
   id: '01920000-0000-7000-8000-000000000001',
   action: 'ball_loss' as const,
-  zone: 'def_left' as const,
+  zone: 'att_end_left' as const,
   player_id: '01920000-0000-7000-8000-000000000002',
   session_id: '01920000-0000-7000-8000-000000000003',
   occurred_at: new Date().toISOString(),
@@ -63,7 +63,7 @@ describe('handler "match-event.submit"', () => {
     expect(eventsActions.submitMatchEvent).toHaveBeenCalledWith(expect.objectContaining({
       id: VALID_MATCH_EVENT_PAYLOAD.id,
       action: 'ball_loss',
-      zone: 'def_left',
+      zone: 'att_end_left',
     }))
     expect(result.drained).toBe(1)
     expect(result.failed).toBe(0)

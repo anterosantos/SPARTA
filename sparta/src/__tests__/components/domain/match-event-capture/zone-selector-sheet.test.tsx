@@ -55,24 +55,24 @@ describe("<ZoneSelectorSheet>", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("renderiza 12 células de zona", () => {
+  it("renderiza 24 células de zona", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
     const cells = screen.getAllByRole("gridcell");
-    expect(cells).toHaveLength(12);
+    expect(cells).toHaveLength(24);
   });
 
   it("chama submitMatchEvent com payload correto ao clicar numa zona", async () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque linha de fundo esquerda" }));
 
     await waitFor(() => {
       expect(submitMatchEvent).toHaveBeenCalledWith({
         id: "test-uuid-v7",
         action: "ball_loss",
-        zone: "def_left",
+        zone: "att_end_left",
         player_id: "player-uuid-1",
         session_id: "session-1",
         occurred_at: expect.any(String),
@@ -86,7 +86,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_recovery" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "MC defensivo centro" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Meio campo ofensivo esquerda" }));
 
     await waitFor(() => {
       const state = useMatchSession.getState();
@@ -105,11 +105,11 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: null, isOpponentEvent: true, selectedAction: "corner" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque linha de fundo esquerda" }));
 
     await waitFor(() => {
       expect(submitMatchEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ player_id: null, action: "corner", zone: "def_left" })
+        expect.objectContaining({ player_id: null, action: "corner", zone: "att_end_left" })
       );
     });
   });
@@ -118,7 +118,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: null, isOpponentEvent: true, selectedAction: "corner" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque linha de fundo esquerda" }));
 
     await waitFor(() => {
       const state = useMatchSession.getState();
@@ -131,7 +131,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque linha de fundo esquerda" }));
 
     await waitFor(() => {
       expect(useMatchSession.getState().lastActionPolarity).toBe("negative");
@@ -142,7 +142,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "pass_completed" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque centro" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque entrada área esquerda" }));
 
     await waitFor(() => {
       expect(useMatchSession.getState().lastActionPolarity).toBe("positive");
@@ -159,7 +159,7 @@ describe("<ZoneSelectorSheet>", () => {
     useMatchSession.setState({ selectedPlayer: mockPlayer, selectedAction: "ball_loss" });
     render(<ZoneSelectorSheet sessionId="session-1" scheduledAt="2026-05-30T18:00:00.000Z" durationMin={90} />);
 
-    fireEvent.click(screen.getByRole("gridcell", { name: "Defesa esquerda" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Ataque linha de fundo esquerda" }));
 
     await waitFor(() => {
       expect(screen.getByText(/evento guardado para sincronização/i)).toBeInTheDocument();

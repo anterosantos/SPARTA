@@ -58,7 +58,53 @@ export function requiresContext(action: string): action is ContextAction {
   return (CONTEXT_ACTIONS as readonly string[]).includes(action);
 }
 
+// Zonas activas — 24 sectores (6 linhas × 4 colunas), do ataque para a defesa,
+// esquerda→direita em cada linha. Substitui o esquema anterior de 12 sectores
+// para eventos novos (ver LEGACY_MATCH_ZONES mais abaixo para jogos antigos).
 export const MATCH_ZONES = [
+  "att_end_left", "att_end_midleft", "att_end_midright", "att_end_right",
+  "att_box_left", "att_box_midleft", "att_box_midright", "att_box_right",
+  "mid_off_left", "mid_off_midleft", "mid_off_midright", "mid_off_right",
+  "mid_back_left", "mid_back_midleft", "mid_back_midright", "mid_back_right",
+  "def_box_left", "def_box_midleft", "def_box_midright", "def_box_right",
+  "def_end_left", "def_end_midleft", "def_end_midright", "def_end_right",
+] as const;
+
+// Etiqueta (PT) de cada zona — fonte única partilhada entre o selector de
+// zonas, o ring de eventos recentes, a lista de revisão e o resumo do jogo.
+export const MATCH_ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
+  att_end_left: "Ataque linha de fundo esquerda",
+  att_end_midleft: "Ataque linha de fundo centro esquerda",
+  att_end_midright: "Ataque linha de fundo centro direita",
+  att_end_right: "Ataque linha de fundo direita",
+  att_box_left: "Ataque entrada área esquerda",
+  att_box_midleft: "Ataque entrada área centro esquerda",
+  att_box_midright: "Ataque entrada área centro direita",
+  att_box_right: "Ataque entrada área direita",
+  mid_off_left: "Meio campo ofensivo esquerda",
+  mid_off_midleft: "Meio campo ofensivo centro esquerda",
+  mid_off_midright: "Meio campo ofensivo centro direita",
+  mid_off_right: "Meio campo ofensivo direita",
+  mid_back_left: "Meio campo defensivo esquerda",
+  mid_back_midleft: "Meio campo defensivo centro esquerda",
+  mid_back_midright: "Meio campo defensivo centro direita",
+  mid_back_right: "Meio campo defensivo direita",
+  def_box_left: "Defesa entrada área esquerda",
+  def_box_midleft: "Defesa entrada área centro esquerda",
+  def_box_midright: "Defesa entrada área centro direita",
+  def_box_right: "Defesa entrada área direita",
+  def_end_left: "Defesa linha de fundo esquerda",
+  def_end_midleft: "Defesa linha de fundo centro esquerda",
+  def_end_midright: "Defesa linha de fundo centro direita",
+  def_end_right: "Defesa linha de fundo direita",
+};
+
+// Zonas legadas — esquema de 12 sectores (3 colunas × 4 linhas) usado antes
+// desta migração. Não capturáveis por eventos novos (fora de MATCH_ZONES),
+// mas continuam válidas na BD (match_events_zone_check) — jogos antigos têm
+// de continuar a mostrar-se com este layout, nunca reinterpretados como se
+// fossem as novas 24 zonas.
+export const LEGACY_MATCH_ZONES = [
   "def_left",
   "def_center",
   "def_right",
@@ -73,9 +119,7 @@ export const MATCH_ZONES = [
   "att_right",
 ] as const;
 
-// Etiqueta (PT) de cada zona — fonte única partilhada entre o ring de eventos
-// recentes, a lista de revisão e o resumo do jogo.
-export const MATCH_ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
+export const LEGACY_MATCH_ZONE_LABEL: Record<(typeof LEGACY_MATCH_ZONES)[number], string> = {
   def_left: "Defesa esquerda",
   def_center: "Defesa centro",
   def_right: "Defesa direita",
@@ -89,6 +133,25 @@ export const MATCH_ZONE_LABEL: Record<(typeof MATCH_ZONES)[number], string> = {
   att_center: "Ataque centro",
   att_right: "Ataque direita",
 };
+
+const LEGACY_ZONE_SET: ReadonlySet<string> = new Set(LEGACY_MATCH_ZONES);
+
+/** true se `zone` pertence ao esquema legado de 12 sectores (jogo antigo). */
+export function isLegacyZone(zone: string): zone is (typeof LEGACY_MATCH_ZONES)[number] {
+  return LEGACY_ZONE_SET.has(zone);
+}
+
+/**
+ * Rótulo (PT) de uma zona, seja do esquema activo (24) ou legado (12) — usar
+ * sempre que a zona de um evento possa vir de um jogo antigo (ex.: lista de
+ * revisão de eventos). Cai para a própria string se, por algum motivo, não
+ * houver nenhum mapeamento (nunca deve acontecer com dados válidos).
+ */
+export function resolveZoneLabel(zone: string): string {
+  if (zone in MATCH_ZONE_LABEL) return MATCH_ZONE_LABEL[zone as (typeof MATCH_ZONES)[number]];
+  if (zone in LEGACY_MATCH_ZONE_LABEL) return LEGACY_MATCH_ZONE_LABEL[zone as (typeof LEGACY_MATCH_ZONES)[number]];
+  return zone;
+}
 
 // Contexto para golos (FR27a)
 export const GoalContextSchema = z.object({

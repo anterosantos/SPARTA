@@ -547,3 +547,19 @@ Ver `_bmad-output/implementation-artifacts/spec-horario-saida-risco-atraso.md` p
 **Correção de dados históricos:**
 - `scripts/fix-dst-training-times.sql` (psql/Studio; PASSO 1 pré-visualiza, PASSO 2 aplica em transação) — regra directa e idempotente: todo o treino `scheduled` a partir do cutoff cuja hora de parede em `Europe/Lisbon` é `18:45` passa a `19:45` (+1h, mesmo dia local). Pressupõe treinos sempre às 19:45. Verificado com pglite (Postgres 18).
 - `scripts/fix-dst-session-times.mjs` (Node/service role, dry-run por omissão; `--apply` para gravar) — infere a hora pretendida da 1ª ocorrência de cada série (agrupada por `created_at`). **Limitação:** falha quando todas as ocorrências `scheduled` de uma série já são posteriores à mudança (a 1ª "canónica" é ela própria 18:45) — foi o que deixou os treinos de terça/quarta por corrigir. Preferir o `.sql` quando a hora certa é conhecida.
+
+---
+
+### 21. Taxonomias de match_events (action/zone) — expandir, nunca reescrever, esquemas antigos ficam "legacy"
+
+**Regra:** Ao mudar a granularidade de `match_events.action` ou `.zone` (ex.: 12→24 zonas do campo), **acrescentar** os novos valores ao `CHECK` da BD e ao enum TS correspondente — nunca remover nem renumerar valores antigos. O enum TS "activo" (`MATCH_ZONES`, `MATCH_ACTIONS`) passa a conter só a taxonomia actual (usada pelo selector de captura); os valores antigos migram para uma constante `LEGACY_*` própria (`LEGACY_MATCH_ZONES`/`LEGACY_MATCH_ZONE_LABEL` em `lib/schemas/match-events.ts`) que fica congelada para sempre — jogos já capturados continuam a mostrar-se com o layout com que foram jogados, nunca reinterpretados sob a taxonomia nova.
+
+**Porquê:** um evento antigo com `zone='def_left'` é um facto histórico sobre como esse jogo foi realmente registado (grelha 3×4) — não existe mapeamento correcto para a grelha 4×6 nova. Tentar "traduzir" perde informação ou inventa dados. Precedente: migração 000330 (9→12 zonas) já mantinha os 3 valores antigos (`mid_left/center/right`) no `CHECK` só para compatibilidade.
+
+**Onde isto importa (auditar todos ao expandir a taxonomia — mesmo padrão da regra 16):**
+- Migração: `ALTER TABLE ... DROP CONSTRAINT` + `ADD CONSTRAINT ... CHECK (zone IN (<novos>, <legado 1>, <legado 2>, ...))` — nunca um `DROP` sem re-`ADD` incluindo tudo.
+- `resolveZoneLabel(zone)` / `isLegacyZone(zone)` — único ponto que sabe resolver um rótulo esteja a zona no esquema activo ou legado; usar sempre que a zona possa vir de um jogo antigo (ex.: lista de revisão de eventos).
+- Componentes com **forma fixa de grelha** (`ZoneMiniPitch`, heatmap cumulativo em `EstatisticasTab`) têm de detectar o esquema a partir dos dados (`isLegacyZone` na 1ª chave presente) e desenhar a grelha certa (3×4 vs 4×6) — nunca assumir um esquema único, sobretudo em vistas cumulativas que podem misturar jogos antigos e novos na mesma agregação.
+- `zod.enum()` de validação de INSERT (`MatchEventInputSchema`) usa só o enum activo — eventos novos nunca podem gravar-se com zona/acção legada, mesmo que a BD ainda a aceite.
+
+Ver spec completo em `src/lib/schemas/match-events.ts` (comentários acima de `LEGACY_MATCH_ZONES`).
