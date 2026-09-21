@@ -7,9 +7,19 @@ import { MATCH_ACTIONS, MATCH_ACTION_INFO } from "@/lib/schemas/match-events";
 import { ok, err } from "@/lib/types";
 import type { Result, AppError } from "@/lib/types";
 
-// match_time_record não é uma estatística de jogo — é só um marcador usado para
-// calcular tempo útil/total (MatchTimeRecorders), por isso fica de fora do agregado.
-const AGGREGATE_ACTIONS = MATCH_ACTIONS.filter((a) => a !== "match_time_record");
+// Marcadores (não são estatísticas de jogo) ficam de fora do agregado:
+// match_time_record era o registo manual de tempo total/útil; match_start,
+// half_time e second_half_start assinalam fases do jogo para o cronómetro em
+// directo da captura de eventos.
+const NON_STAT_ACTIONS = [
+  "match_time_record",
+  "match_start",
+  "half_time",
+  "second_half_start",
+] as const;
+const AGGREGATE_ACTIONS = MATCH_ACTIONS.filter(
+  (a) => !(NON_STAT_ACTIONS as readonly string[]).includes(a)
+);
 
 export interface MatchSummaryActionEvent {
   playerName: string | null;

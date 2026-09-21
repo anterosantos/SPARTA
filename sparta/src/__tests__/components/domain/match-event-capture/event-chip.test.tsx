@@ -114,11 +114,27 @@ describe("<EventChip>", () => {
     ).toBeInTheDocument();
   });
 
-  it("half_time renderiza label 'Intervalo'", () => {
+  it("half_time renderiza label 'Fim da 1ª parte'", () => {
     const entry: RecentEventEntry = { ...mockEntry, action: "half_time", jersey_number: null };
     render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
     expect(
-      screen.getByRole("button", { name: /Remover evento: Intervalo ADV MC defensivo centro/i })
+      screen.getByRole("button", { name: /Remover evento: Fim da 1ª parte ADV MC defensivo centro/i })
+    ).toBeInTheDocument();
+  });
+
+  it("match_start renderiza label 'Início do jogo'", () => {
+    const entry: RecentEventEntry = { ...mockEntry, action: "match_start", jersey_number: null };
+    render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
+    expect(
+      screen.getByRole("button", { name: /Remover evento: Início do jogo ADV MC defensivo centro/i })
+    ).toBeInTheDocument();
+  });
+
+  it("second_half_start renderiza label 'Início da 2ª parte'", () => {
+    const entry: RecentEventEntry = { ...mockEntry, action: "second_half_start", jersey_number: null };
+    render(<EventChip entry={entry} onDelete={vi.fn()} isDeleting={false} />);
+    expect(
+      screen.getByRole("button", { name: /Remover evento: Início da 2ª parte ADV MC defensivo centro/i })
     ).toBeInTheDocument();
   });
 });

@@ -16,8 +16,10 @@ export const MATCH_ACTIONS = [
   "entry_opp_area",
   "entry_own_area",
   "match_time_record",
-  // Marcador de intervalo — fim da 1ª parte / início da 2ª parte
+  // Marcadores de fase do jogo — cronómetro em directo na captura de eventos
+  "match_start",
   "half_time",
+  "second_half_start",
 ] as const;
 
 /**
@@ -43,7 +45,9 @@ export const MATCH_ACTION_INFO: Record<
   entry_opp_area: { label: "Entrada área adversária", positive: true },
   entry_own_area: { label: "Entrada na nossa área", positive: false },
   match_time_record: { label: "Tempos de jogo", positive: true },
-  half_time: { label: "Intervalo", positive: true },
+  match_start: { label: "Início do jogo", positive: true },
+  half_time: { label: "Fim da 1ª parte", positive: true },
+  second_half_start: { label: "Início da 2ª parte", positive: true },
 };
 
 // Ações que requerem 4.º ecrã de contexto
