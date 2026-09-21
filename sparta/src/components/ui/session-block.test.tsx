@@ -53,6 +53,38 @@ describe("SessionBlock", () => {
     expect(link).toHaveStyle({ backgroundColor: "#CA8A04" })
   })
 
+  it("jogo em casa (is_home=true) mantém a cor forte #DC2626", () => {
+    const { container } = render(
+      <SessionBlock session={makeSession({ type: "match", is_home: true })} />
+    )
+    const link = container.querySelector("a")
+    expect(link).toHaveStyle({ backgroundColor: "#DC2626" })
+  })
+
+  it("jogo fora (is_home=false) usa a cor mais clara #F87171", () => {
+    const { container } = render(
+      <SessionBlock session={makeSession({ type: "match", is_home: false })} />
+    )
+    const link = container.querySelector("a")
+    expect(link).toHaveStyle({ backgroundColor: "#F87171" })
+  })
+
+  it("amigável fora (is_home=false) usa a cor mais clara #FACC15", () => {
+    const { container } = render(
+      <SessionBlock session={makeSession({ type: "friendly", is_home: false })} />
+    )
+    const link = container.querySelector("a")
+    expect(link).toHaveStyle({ backgroundColor: "#FACC15" })
+  })
+
+  it("treino ignora is_home (sem variante fora)", () => {
+    const { container } = render(
+      <SessionBlock session={makeSession({ type: "training", is_home: false })} />
+    )
+    const link = container.querySelector("a")
+    expect(link).toHaveStyle({ backgroundColor: "#2563EB" })
+  })
+
   it("sessão cancelada tem opacidade reduzida e label 'Cancelada'", () => {
     const { container } = render(
       <SessionBlock session={makeSession({ status: "cancelled" })} />

@@ -17,6 +17,7 @@ import {
   DoorClosed,
   Timer,
   Hourglass,
+  PlayCircle,
 } from "lucide-react";
 import type { RecentEventEntry, MatchAction } from "@/lib/stores/match-session";
 import type { MATCH_ZONES } from "@/lib/schemas/match-events";
@@ -38,7 +39,9 @@ const ACTION_ICON: Record<MatchAction, React.ElementType> = {
   entry_opp_area: DoorOpen,
   entry_own_area: DoorClosed,
   match_time_record: Timer,
+  match_start: PlayCircle,
   half_time: Hourglass,
+  second_half_start: PlayCircle,
 };
 
 const ACTION_LABEL: Record<MatchAction, string> = {
@@ -57,7 +60,9 @@ const ACTION_LABEL: Record<MatchAction, string> = {
   entry_opp_area: "Entrada área adv.",
   entry_own_area: "Entrada nossa área",
   match_time_record: "Tempos de jogo",
-  half_time: "Intervalo",
+  match_start: "Início do jogo",
+  half_time: "Fim da 1ª parte",
+  second_half_start: "Início da 2ª parte",
 };
 
 const ZONE_ABBR: Record<(typeof MATCH_ZONES)[number], string> = {

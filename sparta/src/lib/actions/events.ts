@@ -16,6 +16,7 @@ import {
 import { requireStaffRole } from "@/lib/actions/auth";
 import type { RecentEventEntry, MatchAction } from "@/lib/stores/match-session";
 import { isEditWindowOpen } from "@/lib/utils/match-events";
+import type { MatchPhaseMarkers } from "@/lib/utils/match-clock";
 
 // ── Server Actions ─────────────────────────────────────────────────────────────
 
@@ -311,6 +312,57 @@ export async function getRecentMatchEvents(
   }));
 
   return ok(result);
+}
+
+/**
+ * getMatchPhaseMarkers — Timestamps dos marcadores de fase (match_start,
+ * half_time, second_half_start) de uma sessão, para o cronómetro em directo
+ * da captura de eventos derivar a fase actual ao carregar a página (incl.
+ * depois de um refresh a meio do jogo).
+ *
+ * Se houver mais do que um marcador do mesmo tipo (correção manual), usa-se o
+ * mais recente.
+ */
+export async function getMatchPhaseMarkers(
+  sessionId: string
+): Promise<Result<MatchPhaseMarkers, AppError>> {
+  const authResult = await requireStaffRole();
+  if (!authResult.ok) return authResult;
+  const { clubId, userId } = authResult.data;
+
+  if (!userId) {
+    return err({ code: "unauthorized", message: "ID de utilizador inválido." });
+  }
+
+  const serviceRole = getServiceRoleClient();
+
+  const { data, error } = await auditedRead(
+    { targetKind: "session_metrics", targetId: sessionId, action: "match_phase_markers.fetch", actorId: userId, clubId },
+    async () =>
+      // eslint-disable-next-line custom/no-direct-health-data-read -- inside auditedRead() callback; audit logging handled by wrapper
+      serviceRole
+        .from("match_events")
+        .select("action, occurred_at")
+        .eq("session_id", sessionId)
+        .eq("club_id", clubId)
+        .eq("is_deleted", false)
+        .in("action", ["match_start", "half_time", "second_half_start"])
+        .order("occurred_at", { ascending: true })
+  );
+
+  if (error) {
+    return err({ code: "unknown", message: error.message });
+  }
+
+  const rows = (data ?? []) as { action: string; occurred_at: string }[];
+  const latest = (action: string) =>
+    rows.filter((r) => r.action === action).at(-1)?.occurred_at ?? null;
+
+  return ok({
+    matchStartAt: latest("match_start"),
+    firstHalfEndAt: latest("half_time"),
+    secondHalfStartAt: latest("second_half_start"),
+  });
 }
 
 /**

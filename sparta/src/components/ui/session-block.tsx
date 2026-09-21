@@ -4,7 +4,7 @@ import Link from "next/link"
 import { format } from "date-fns"
 import { pt } from "date-fns/locale"
 import type { Session } from "@/lib/schemas/sessions"
-import { SESSION_TYPE_COLORS, sessionLabelWithOpponent } from "@/lib/constants/session-colors"
+import { SESSION_TYPE_COLORS, sessionLabelWithOpponent, sessionBackground } from "@/lib/constants/session-colors"
 import { sessionEndDate } from "@/lib/session-time"
 import { useDarkMode } from "@/hooks/useDarkMode"
 
@@ -16,7 +16,7 @@ interface SessionBlockProps {
 export function SessionBlock({ session, sessionBasePath = "/sessoes" }: SessionBlockProps) {
   const isDark = useDarkMode()
   const config = SESSION_TYPE_COLORS[session.type]
-  const bgColor = isDark ? config.bgDark : config.bg
+  const bgColor = sessionBackground(config, session, isDark)
   const isCancelled = session.status === "cancelled"
   const time = format(new Date(session.scheduled_at), "HH:mm", { locale: pt })
   const endTime = format(sessionEndDate(session.scheduled_at, session.duration_min), "HH:mm", { locale: pt })
