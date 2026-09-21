@@ -3,16 +3,15 @@
 import { ActionButton } from "./action-button";
 import { useMatchSession } from "@/lib/stores/match-session";
 
-// Ações originais (Story 6.2)
+// Ações originais (Story 6.2) — passe completado, pressão defensiva e ações
+// def./of. com sucesso foram retiradas do grid a pedido (pouco usadas na
+// prática); continuam válidas no schema para dados históricos, só deixaram
+// de ser capturáveis por aqui.
 const STANDARD_ACTIONS = [
   "ball_loss",
   "ball_recovery",
   "shot_total",
   "shot_on_target",
-  "pass_completed",
-  "def_pressure",
-  "def_action_success",
-  "off_action_success",
 ] as const;
 
 // Novos tipos Sprint 1.5 (FR27a–FR27d, FR31a)
@@ -29,8 +28,9 @@ export function ActionList() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1.5 p-2 sm:p-3">
-      {/* Standard actions — 8 buttons = 4 rows → flex-[4] */}
-      <div className="flex-[4] min-h-0 grid grid-cols-2 gap-2 [grid-auto-rows:1fr]">
+      {/* Standard actions — 4 buttons = 2 rows → flex-[2] (mantém a altura de
+          linha igual à secção seguinte, em vez de espremer os botões) */}
+      <div className="flex-[2] min-h-0 grid grid-cols-2 gap-2 [grid-auto-rows:1fr]">
         {STANDARD_ACTIONS.map((action) => (
           <ActionButton
             key={action}

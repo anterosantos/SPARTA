@@ -8,13 +8,15 @@ describe("<ActionList>", () => {
     useMatchSession.setState({ selectedPlayer: null, selectedAction: null, lastActionPolarity: null });
   });
 
-  // ActionList é agora o primeiro ecrã (fluxo Evento→Jogador→Zona) — 8 ações
+  // ActionList é agora o primeiro ecrã (fluxo Evento→Jogador→Zona) — 4 ações
   // standard + 5 eventos especiais, sem botão de trocar jogador (não há ainda
-  // jogador seleccionado nesta fase)
-  it("renderiza 13 botões de ação (8 standard + 5 eventos especiais)", () => {
+  // jogador seleccionado nesta fase). Passe completado, pressão defensiva e
+  // ações def./of. com sucesso foram retiradas do grid (pouco usadas), mas
+  // continuam válidas no schema para dados históricos.
+  it("renderiza 9 botões de ação (4 standard + 5 eventos especiais)", () => {
     render(<ActionList />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(13);
+    expect(buttons).toHaveLength(9);
   });
 
   it("inclui label 'Perda de bola'", () => {
@@ -22,9 +24,12 @@ describe("<ActionList>", () => {
     expect(screen.getByRole("button", { name: "Perda de bola" })).toBeInTheDocument();
   });
 
-  it("inclui label 'Passe completado'", () => {
+  it("não inclui 'Passe completado', 'Pressão defensiva' nem as ações com sucesso (retiradas do grid)", () => {
     render(<ActionList />);
-    expect(screen.getByRole("button", { name: "Passe completado" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Passe completado" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pressão defensiva" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ação def. com sucesso" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ação of. com sucesso" })).not.toBeInTheDocument();
   });
 
   it("inclui novos tipos Sprint 1.5 — Golo, Cartão, Canto", () => {
@@ -59,9 +64,5 @@ describe("<ActionList>", () => {
     expect(labels).toContain("Recuperação");
     expect(labels).toContain("Remate desenquadrado");
     expect(labels).toContain("Remate enquadrado");
-    expect(labels).toContain("Passe completado");
-    expect(labels).toContain("Pressão defensiva");
-    expect(labels).toContain("Ação def. com sucesso");
-    expect(labels).toContain("Ação of. com sucesso");
   });
 });
